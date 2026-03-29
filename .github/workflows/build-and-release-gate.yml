@@ -144,6 +144,12 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile
 
+      - name: Ensure Gradle Wrapper Is Executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packages/web/src-capacitor/android/gradlew
+
       - name: Build Android APK
         shell: bash
         env:
