@@ -23,13 +23,13 @@ services:
 
   # ── Production (unified) ────────────────────
   prod:
-    image: bndstr-prod:${SOURCE_COMMIT:-latest}
+    image: bandstr-prod:${SOURCE_COMMIT:-latest}
     build:
       context: .
       dockerfile: Dockerfile
       tags:
-        - bndstr-prod:${SOURCE_COMMIT:-latest}
-        - bndstr-prod:latest
+        - bandstr-prod:${SOURCE_COMMIT:-latest}
+        - bandstr-prod:latest
       args:
         GIT_REV: ${SOURCE_COMMIT:-unknown}
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}

@@ -12,13 +12,13 @@
 services:
   # ── Hono API ─────────────────────────────────────
   api:
-    image: bndstr-api:${SOURCE_COMMIT:-latest}
+    image: bandstr-api:${SOURCE_COMMIT:-latest}
     build:
       context: .
       dockerfile: Dockerfile.api
       tags:
-        - bndstr-api:${SOURCE_COMMIT:-latest}
-        - bndstr-api:latest
+        - bandstr-api:${SOURCE_COMMIT:-latest}
+        - bandstr-api:latest
       args:
         GIT_REV: ${SOURCE_COMMIT:-unknown}
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
@@ -47,13 +47,13 @@ services:
 
   # ── Quasar SPA (Nginx) ──────────────────────────
   web:
-    image: bndstr-web:${SOURCE_COMMIT:-latest}
+    image: bandstr-web:${SOURCE_COMMIT:-latest}
     build:
       context: .
       dockerfile: Dockerfile.web
       tags:
-        - bndstr-web:${SOURCE_COMMIT:-latest}
-        - bndstr-web:latest
+        - bandstr-web:${SOURCE_COMMIT:-latest}
+        - bandstr-web:latest
       args:
         API_URL: /api
         GIT_REV: ${SOURCE_COMMIT:-unknown}
@@ -79,14 +79,14 @@ services:
   # Runs drizzle-kit migrate before API starts accepting traffic.
   # Coolify will show this as a completed service after deploy.
   migrate:
-    image: bndstr-migrate:${SOURCE_COMMIT:-latest}
+    image: bandstr-migrate:${SOURCE_COMMIT:-latest}
     build:
       context: .
       dockerfile: Dockerfile.api
       target: migrate
       tags:
-        - bndstr-migrate:${SOURCE_COMMIT:-latest}
-        - bndstr-migrate:latest
+        - bandstr-migrate:${SOURCE_COMMIT:-latest}
+        - bandstr-migrate:latest
       args:
         GIT_REV: ${SOURCE_COMMIT:-unknown}
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}

@@ -73,7 +73,7 @@ jobs:
           GH_PROJECT_OWNER=${GH_PROJECT_OWNER:-}
           SERVICE_FQDN_DEV=${SERVICE_FQDN_DEV:-localhost}
           NODE_ENV=production
-          COOLIFY_CONTAINER_NAME=${COOLIFY_CONTAINER_NAME:-bndstr-prod}
+          COOLIFY_CONTAINER_NAME=${COOLIFY_CONTAINER_NAME:-bandstr-prod}
           SOURCE_COMMIT=${SOURCE_COMMIT:-unknown}
           DEVMODE=false
           CORS_ORIGINS=${CORS_ORIGINS:-https://localhost:9000,https://localhost}
@@ -106,8 +106,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          IMAGE_TAG="bndstr-prod:${SOURCE_COMMIT}"
-          IMAGE_FILE="bndstr-prod-${SOURCE_COMMIT}.tar.gz"
+          IMAGE_TAG="bandstr-prod:${SOURCE_COMMIT}"
+          IMAGE_FILE="bandstr-prod-${SOURCE_COMMIT}.tar.gz"
           docker save "$IMAGE_TAG" | gzip -9 > "out/${IMAGE_FILE}"
           echo "image_file=${IMAGE_FILE}" >> "$GITHUB_OUTPUT"
 
@@ -174,7 +174,7 @@ jobs:
             echo "APK not found under packages/web/src-capacitor/android/app/build/outputs/apk"
             exit 1
           fi
-          APK_FILE="bndstr-${SOURCE_COMMIT}.apk"
+          APK_FILE="bandstr-${SOURCE_COMMIT}.apk"
           cp "$APK_PATH" "out/${APK_FILE}"
           echo "apk_file=${APK_FILE}" >> "$GITHUB_OUTPUT"
 
@@ -289,7 +289,7 @@ jobs:
         if: steps.gate.outputs.decision != 'none'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: bndstr-${{ steps.meta.outputs.commit_short }}
-          name: bndstr-${{ steps.meta.outputs.commit_short }}
+          tag_name: bandstr-${{ steps.meta.outputs.commit_short }}
+          name: bandstr-${{ steps.meta.outputs.commit_short }}
           files: ${{ steps.files.outputs.files }}
           generate_release_notes: true

@@ -27,6 +27,9 @@ RUN NODE_ENV=development pnpm install --frozen-lockfile || pnpm install
 # Copy full repository context (including .git when available)
 COPY . .
 
+# Normalize shell scripts to LF in case the host checkout uses CRLF.
+RUN sed -i 's/\r$//' scripts/sync-assets.sh && chmod +x scripts/sync-assets.sh
+
 # Build API (tsc) and Web (quasar build) in parallel via pnpm
 RUN pnpm run build
 RUN rev="${SOURCE_COMMIT:-}"; \
@@ -88,7 +91,7 @@ ENV GIT_REV=${GIT_REV}
 ENV SOURCE_COMMIT=${SOURCE_COMMIT}
 ENV ENV=/etc/bandstr_shell_rc
 
-LABEL org.opencontainers.image.title="bndstr-prod"
+LABEL org.opencontainers.image.title="bandstr-prod"
 LABEL org.opencontainers.image.version="${GIT_REV}"
 LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 

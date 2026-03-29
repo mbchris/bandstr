@@ -50,9 +50,9 @@ fi
 # Canonical (new): bandstr_*
 copy_if_exists "$SOURCE_DIR/bandstr_rect_bl.webp" "$WEB_SRC_ASSETS_DIR/bandstr_rect_bl.webp"
 copy_if_exists "$SOURCE_DIR/bandstr_rect_wh.webp" "$WEB_SRC_ASSETS_DIR/bandstr_rect_wh.webp"
-# Compatibility alias (legacy): bndstr_*
-copy_if_exists "$SOURCE_DIR/bandstr_rect_bl.webp" "$WEB_SRC_ASSETS_DIR/bndstr_rect_bl.webp"
-copy_if_exists "$SOURCE_DIR/bandstr_rect_wh.webp" "$WEB_SRC_ASSETS_DIR/bndstr_rect_wh.webp"
+# Compatibility alias (legacy): bandstr_*
+copy_if_exists "$SOURCE_DIR/bandstr_rect_bl.webp" "$WEB_SRC_ASSETS_DIR/bandstr_rect_bl.webp"
+copy_if_exists "$SOURCE_DIR/bandstr_rect_wh.webp" "$WEB_SRC_ASSETS_DIR/bandstr_rect_wh.webp"
 
 # 2) Sync public runtime assets to /assets/*
 safe_reset_dir "$WEB_PUBLIC_DIR/assets"
