@@ -28,6 +28,7 @@ Useful commands:
 
 - Seed default data (from /app/scripts/seed_example.sql)
   node /app/packages/api/dist/db/seed.js
+  ls -la /app/scripts/seed_example.sql
 
 - Grant user internal pro access (dev override)
   INTERNAL_ADMIN_TOKEN='<token>' USER_ID='<user-id>' \

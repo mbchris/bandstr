@@ -155,13 +155,13 @@ jobs:
         env:
           SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
           GIT_REV: ${{ env.GIT_REV }}
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          set -a
-          source .env.production
-          set +a
-          export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
-          corepack pnpm --filter @bandstr/web run build:android
+          ./do build-apk production --no-install
 
       - name: Bundle APK Artifact
         id: bundle_apk
@@ -169,9 +169,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          APK_PATH="$(find packages/web/src-capacitor/android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
+          APK_PATH="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release-signed.apk"
           if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
-            echo "APK not found under packages/web/src-capacitor/android/app/build/outputs/apk"
+            echo "Signed APK not found at $APK_PATH"
+            exit 1
+          fi
+          if ! apksigner verify --print-certs "$APK_PATH" >/dev/null; then
+            echo "Signed APK verification failed for $APK_PATH"
             exit 1
           fi
           APK_FILE="bandstr-${SOURCE_COMMIT}.apk"

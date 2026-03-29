@@ -32,7 +32,7 @@ async function main(): Promise<void> {
 async function normalizeSeedTimestamps(): Promise<void> {
   // Keep example content, but recalculate time data from "now"
   // so seeded rehearsals/gigs/events are always in upcoming weeks.
-  await pool.query(
+  const statements = [
     `
     WITH target_band AS (
       SELECT id
@@ -44,7 +44,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     SET created_at = now()
     FROM target_band tb
     WHERE b.id = tb.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -55,7 +56,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     SET joined_at = now() - (COALESCE(bm.sort_order, 0) * interval '1 day')
     FROM target_band tb
     WHERE bm.band_id = tb.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -96,7 +98,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     FROM rehearsal_rows rr
     CROSS JOIN base
     WHERE ce.id = rr.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -137,7 +140,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     FROM gig_rows gr
     CROSS JOIN base
     WHERE ce.id = gr.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -178,7 +182,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     FROM event_rows er
     CROSS JOIN base
     WHERE ce.id = er.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -210,7 +215,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     FROM unavailability_rows ur
     JOIN rehearsals r ON r.rn = ur.rn
     WHERE ce.id = ur.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -226,7 +232,8 @@ async function normalizeSeedTimestamps(): Promise<void> {
     SET created_at = now() - ((SELECT COUNT(*) FROM song_rows) - sr.rn) * interval '12 hour'
     FROM song_rows sr
     WHERE s.id = sr.id;
-
+    `,
+    `
     WITH target_band AS (
       SELECT id
       FROM bands
@@ -243,8 +250,11 @@ async function normalizeSeedTimestamps(): Promise<void> {
     FROM vote_rows vr
     WHERE v.id = vr.id;
     `,
-    [LEGACY_SEED_BAND_SLUG],
-  )
+  ]
+
+  for (const statement of statements) {
+    await pool.query(statement, [LEGACY_SEED_BAND_SLUG])
+  }
 }
 
 main()

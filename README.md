@@ -83,12 +83,12 @@ CI/CD chain overview:
 - Deploy execution host: `deploy-prod.yml` uses `runs-on: self-hosted`, so the Coolify deploy URL is called from the self-hosted build server.
 - Deploy call configuration (GitHub repo settings):
   - Variable `COOLIFY_DEPLOY_URL` (for example `https://coolify.emailanschneiders.de/api/v1/deploy?uuid=...&force=false`)
-  - Secret `COOLIFY_AUTH_TOKEN` (sent as header `authorization: <token>`)
+  - Secret `COOLIFY_AUTH_TOKEN` (sent as header `Authorization: Bearer <token>`)
 
 Deployment request used by the workflow:
 
 ```bash
-curl -H "authorization: ${COOLIFY_AUTH_TOKEN}" "${COOLIFY_DEPLOY_URL}"
+curl -H "Authorization: Bearer ${COOLIFY_AUTH_TOKEN}" "${COOLIFY_DEPLOY_URL}"
 ```
 
 ## `./do` Helper
@@ -102,6 +102,8 @@ The `./do` script wraps common Docker/dev tasks:
 ./do build local
 ./do build-apk local
 ./do deploy-apk local [DEVICE_ID]
+./do keygen-apk --store-pass "<strong-password>"
+./do --help
 ./do sync-assets
 ./do cleanup-resources
 ```
@@ -110,6 +112,12 @@ Notes:
 - `build-apk` and `deploy-apk` support `local|production`.
 - `build-apk` supports `--no-sign` and `--no-install`.
 - `./do` reads `.env.local` first, then falls back to `.env` (or `.env.production` in production mode).
+- For production signing, set:
+  - `ANDROID_SIGNING_KEYSTORE_BASE64`
+  - `ANDROID_SIGNING_KEY_ALIAS`
+  - `ANDROID_SIGNING_KEYSTORE_PASSWORD`
+  - `ANDROID_SIGNING_KEY_PASSWORD`
+- CI release artifact upload now requires a signed APK and verifies it with `apksigner`.
 
 ## Assets and Favicons
 
@@ -147,6 +155,13 @@ Run runtime migration in deployed app container:
 ```bash
 APP_CONTAINER="<your-app-container>"
 docker exec -it "$APP_CONTAINER" sh -lc 'node /app/packages/api/dist/db/migrate.js'
+```
+
+Seed example data in deployed app container:
+
+```bash
+APP_CONTAINER="<your-app-container>"
+docker exec -it "$APP_CONTAINER" sh -lc 'node /app/packages/api/dist/db/seed.js'
 ```
 
 ## Repo Layout
