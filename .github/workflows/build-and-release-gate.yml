@@ -129,7 +129,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # sdkmanager exits after consuming enough input; `yes` then receives SIGPIPE.
+          # Run this pipeline without pipefail so a broken pipe on `yes` does not fail the job.
+          set +o pipefail
           yes | sdkmanager --licenses
+          set -o pipefail
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Install Dependencies
