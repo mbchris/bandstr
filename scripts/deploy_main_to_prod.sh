@@ -68,7 +68,7 @@ if [[ -z "${COOLIFY_DEPLOY_URL}" || -z "${COOLIFY_AUTH_TOKEN}" ]]; then
   exit 1
 fi
 
-curl --fail-with-body --silent --show-error \
+curl --silent --show-error \
   -H "Authorization: Bearer ${COOLIFY_AUTH_TOKEN}" \
   "${COOLIFY_DEPLOY_URL}"
 
