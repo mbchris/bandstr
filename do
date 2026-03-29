@@ -412,14 +412,14 @@ resolve_git_rev() {
 build_production_image() {
   local git_rev="$1"
   local commit_full="${SOURCE_COMMIT:-$git_rev}"
-  local prod_image="bndstr-prod:$git_rev"
+  local prod_image="bandstr-prod:$git_rev"
 
   echo "Building production Docker image: $prod_image"
   GIT_REV="$git_rev" SOURCE_COMMIT="$commit_full" "${PROD_COMPOSE[@]}" build prod
 
   if command -v docker >/dev/null 2>&1; then
-    echo "Tagging newest image as bndstr-prod:latest"
-    docker tag "$prod_image" "bndstr-prod:latest"
+    echo "Tagging newest image as bandstr-prod:latest"
+    docker tag "$prod_image" "bandstr-prod:latest"
   fi
 }
 

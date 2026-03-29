@@ -38,7 +38,6 @@ coverage/
 
 .claude/
 .data/
-.dockerignore
 .env
 .env.production
 .env.staging

@@ -77,7 +77,7 @@ ENV GIT_REV=${GIT_REV}
 ENV SOURCE_COMMIT=${SOURCE_COMMIT}
 ENV ENV=/etc/bandstr_shell_rc
 
-LABEL org.opencontainers.image.title="bndstr-api"
+LABEL org.opencontainers.image.title="bandstr-api"
 LABEL org.opencontainers.image.version="${GIT_REV}"
 LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 
