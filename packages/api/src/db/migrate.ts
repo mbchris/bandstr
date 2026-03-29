@@ -19,6 +19,14 @@ type MigrationJournal = {
   entries: JournalEntry[]
 }
 
+async function publicTableExists(tableName: string) {
+  const result = await pool.query<{ table_ref: string | null }>(
+    `select to_regclass($1)::text as table_ref`,
+    [`public.${tableName}`],
+  )
+  return Boolean(result.rows[0]?.table_ref)
+}
+
 async function baselineLegacySchemaIfNeeded() {
   const trackingTableResult = await pool.query<{ table_ref: string | null }>(`
     select to_regclass('drizzle.__drizzle_migrations')::text as table_ref
@@ -77,6 +85,8 @@ async function baselineLegacySchemaIfNeeded() {
 }
 
 async function ensureBandsMonetizationColumns() {
+  if (!(await publicTableExists('bands'))) return
+
   await pool.query(`
     ALTER TABLE "bands"
       ADD COLUMN IF NOT EXISTS "stripe_subscription_id" text,
@@ -94,6 +104,8 @@ async function ensureBandsMonetizationColumns() {
 }
 
 async function ensureUserProPlanColumns() {
+  if (!(await publicTableExists('user'))) return
+
   await pool.query(`
     ALTER TABLE "user"
       ADD COLUMN IF NOT EXISTS "dev_pro_plan" boolean DEFAULT false NOT NULL,
