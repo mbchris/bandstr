@@ -79,6 +79,8 @@ COPY --from=api-deps /app/packages/ packages/
 COPY --from=build /app/packages/api/dist/ packages/api/dist/
 # Runtime migrations for drizzle migrator
 COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
+# Seed data used by dist/db/seed.js inside container shells
+COPY --from=build /app/scripts/seed_example.sql /app/scripts/seed_example.sql
 
 # For the unified container, nginx proxies to localhost instead of "api" hostname
 RUN sed -i 's|http://api:3001|http://127.0.0.1:3001|g' /etc/nginx/conf.d/bandstr.conf

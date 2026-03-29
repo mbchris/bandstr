@@ -10,7 +10,74 @@ env_profile="local"
 build_apk_sign=1
 build_apk_install=1
 deploy_apk_device_id=""
+sign_apk_input_path=""
 apk_api_url=""
+
+print_usage() {
+  cat <<'EOF'
+Usage:
+  ./do <command> [args...]
+
+Commands:
+  start local
+    Start local dev stack (DB + migrations + dev containers).
+
+  dev local
+    Alias for `start local`.
+
+  run local
+    Alias for `start local`.
+
+  logs local
+    Follow local dev container logs.
+
+  stop local
+    Stop local dev containers and local DB.
+
+  install local
+    Install workspace dependencies inside the dev container.
+
+  seed local
+    Run DB migrations (if needed) and seed local database.
+
+  build local
+    Build production Docker image locally and tag latest.
+
+  build-apk [local|production] [--no-sign] [--no-install]
+    Build Android APK.
+    - local uses .env.local (fallback .env)
+    - production uses .env.production (fallback .env)
+    - --no-sign skips signing
+    - --no-install skips adb install
+    Signing env vars for release key (base64):
+      ANDROID_SIGNING_KEYSTORE_BASE64
+      ANDROID_SIGNING_KEY_ALIAS
+      ANDROID_SIGNING_KEYSTORE_PASSWORD
+      ANDROID_SIGNING_KEY_PASSWORD
+
+  sign-apk [local|production] [APK_PATH]
+    Sign an existing Android APK without rebuilding.
+    - If APK_PATH is omitted, defaults to:
+      packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release-unsigned.apk
+    - Uses release key env vars when provided, otherwise debug keystore fallback.
+
+  deploy-apk [local|production] [DEVICE_ID]
+    Install an already built APK to a connected device via adb.
+    DEVICE_ID can also be set via ANDROID_DEVICE_ID or ADB_DEVICE_ID in env file.
+
+  keygen-apk [args...]
+    Create a release signing key and print CI env vars.
+    Pass-through to: ./scripts/create-android-signing-key.sh
+    Example:
+      ./do keygen-apk --store-pass "<strong-password>"
+
+  sync-assets local
+    Sync assets from ./assets to app/public targets.
+
+  cleanup-resources local
+    Cleanup generated or unneeded resources.
+EOF
+}
 
 if [[ "$command" == "build-apk" ]]; then
   env_profile="${2:-local}"
@@ -42,17 +109,49 @@ elif [[ "$command" == "deploy-apk" ]]; then
     env_profile="local"
     deploy_apk_device_id="$deploy_arg"
   fi
+elif [[ "$command" == "sign-apk" ]]; then
+  sign_arg="${2:-}"
+  if [[ -z "$sign_arg" ]]; then
+    env_profile="local"
+    sign_apk_input_path=""
+  elif [[ "$sign_arg" == "local" || "$sign_arg" == "production" ]]; then
+    env_profile="$sign_arg"
+    sign_apk_input_path="${3:-}"
+    if [[ "${4:-}" != "" ]]; then
+      echo "Error: Too many arguments for sign-apk."
+      echo "Usage: ./do sign-apk [local|production] [APK_PATH]"
+      exit 1
+    fi
+  else
+    # Backwards compatibility: treat second arg as APK_PATH.
+    env_profile="local"
+    sign_apk_input_path="$sign_arg"
+    if [[ "${3:-}" != "" ]]; then
+      echo "Error: Too many arguments for sign-apk."
+      echo "Usage: ./do sign-apk [local|production] [APK_PATH]"
+      exit 1
+    fi
+  fi
 else
   env_profile="${2:-local}"
 fi
 
 if [[ -z "$command" ]]; then
-  echo "Usage: ./do {start|dev|run|logs|stop|seed|install|build|build-apk|deploy-apk|sync-assets|cleanup-resources} [local|production] [--no-sign] [--no-install]"
-  echo "       ./do deploy-apk [local|production] [DEVICE_ID]"
+  print_usage
   exit 1
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "deploy-apk" ]]; then
+if [[ "$command" == "help" || "$command" == "-h" || "$command" == "--help" ]]; then
+  print_usage
+  exit 0
+fi
+
+if [[ "$command" == "keygen-apk" ]]; then
+  bash ./scripts/create-android-signing-key.sh "${@:2}"
+  exit $?
+fi
+
+if [[ "$command" == "build-apk" || "$command" == "deploy-apk" || "$command" == "sign-apk" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -143,6 +242,29 @@ export_env_file() {
   done < "$file"
 }
 
+to_windows_path() {
+  local input_path="$1"
+  if [[ -z "$input_path" ]]; then
+    return 1
+  fi
+  if [[ "$input_path" =~ ^[A-Za-z]:[\\/].* ]]; then
+    printf '%s\n' "$input_path"
+    return 0
+  fi
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$input_path"
+    return $?
+  fi
+  if [[ "$input_path" =~ ^/([A-Za-z])/(.*)$ ]]; then
+    local drive="${BASH_REMATCH[1]}"
+    local rest="${BASH_REMATCH[2]}"
+    rest="${rest//\//\\}"
+    printf '%s:\\%s\n' "${drive^^}" "$rest"
+    return 0
+  fi
+  printf '%s\n' "$input_path"
+}
+
 DB_COMPOSE=(docker compose -f docker-compose.dev.yml)
 APP_COMPOSE=(docker compose --profile dev)
 PROD_COMPOSE=(docker compose --profile prod)
@@ -171,10 +293,10 @@ resolve_android_apk_path() {
   local release_unsigned_apk="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release-unsigned.apk"
   local debug_apk="packages/web/src-capacitor/android/app/build/outputs/apk/debug/app-debug.apk"
 
-  if [[ -f "$release_apk" ]]; then
-    printf '%s\n' "$release_apk"
-  elif [[ -f "$release_signed_apk" ]]; then
+  if [[ -f "$release_signed_apk" ]]; then
     printf '%s\n' "$release_signed_apk"
+  elif [[ -f "$release_apk" ]]; then
+    printf '%s\n' "$release_apk"
   elif [[ -f "$release_unsigned_apk" ]]; then
     printf '%s\n' "$release_unsigned_apk"
   elif [[ -f "$debug_apk" ]]; then
@@ -182,6 +304,129 @@ resolve_android_apk_path() {
   else
     return 1
   fi
+}
+
+resolve_apksigner_bin() {
+  local sdk_path="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+  if command -v apksigner >/dev/null 2>&1; then
+    printf '%s\n' "apksigner"
+    return 0
+  fi
+
+  if [[ -n "$sdk_path" && -d "$sdk_path/build-tools" ]]; then
+    local latest_build_tools=""
+    latest_build_tools="$(ls -1 "$sdk_path/build-tools" 2>/dev/null | sort -V | tail -n 1 || true)"
+    if [[ -n "$latest_build_tools" ]]; then
+      if [[ -x "$sdk_path/build-tools/$latest_build_tools/apksigner" ]]; then
+        printf '%s\n' "$sdk_path/build-tools/$latest_build_tools/apksigner"
+        return 0
+      fi
+      if [[ -f "$sdk_path/build-tools/$latest_build_tools/apksigner.bat" ]]; then
+        printf '%s\n' "$sdk_path/build-tools/$latest_build_tools/apksigner.bat"
+        return 0
+      fi
+    fi
+  fi
+
+  return 1
+}
+
+verify_apk_signature() {
+  local apksigner_bin="$1"
+  local apk_path="$2"
+  "$apksigner_bin" verify --print-certs "$apk_path" >/dev/null
+}
+
+sign_apk_file() {
+  local input_apk="$1"
+  local output_apk="$2"
+  local is_windows_shell=0
+  if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
+    is_windows_shell=1
+  fi
+
+  local apksigner_bin=""
+  local user_home="${USERPROFILE:-$HOME}"
+  local debug_keystore="$user_home/.android/debug.keystore"
+  local encoded_keystore="${ANDROID_SIGNING_KEYSTORE_BASE64:-}"
+  local keystore_password="${ANDROID_SIGNING_KEYSTORE_PASSWORD:-}"
+  local key_alias="${ANDROID_SIGNING_KEY_ALIAS:-}"
+  local key_password="${ANDROID_SIGNING_KEY_PASSWORD:-}"
+  local temp_keystore=""
+  local cleanup_temp_keystore=0
+
+  apksigner_bin="$(resolve_apksigner_bin || true)"
+  if [[ -z "$apksigner_bin" ]]; then
+    echo "Error: apksigner was not found."
+    echo "Install Android build-tools or add apksigner to PATH."
+    return 1
+  fi
+
+  if [[ -n "$encoded_keystore" ]]; then
+    if [[ -z "$keystore_password" || -z "$key_alias" || -z "$key_password" ]]; then
+      echo "Error: ANDROID_SIGNING_KEYSTORE_BASE64 is set but signing credentials are missing."
+      echo "Required: ANDROID_SIGNING_KEYSTORE_PASSWORD, ANDROID_SIGNING_KEY_ALIAS, ANDROID_SIGNING_KEY_PASSWORD."
+      return 1
+    fi
+
+    local temp_root="${TMPDIR:-${TEMP:-${TMP:-}}}"
+    if [[ -z "$temp_root" && "$is_windows_shell" == "1" ]]; then
+      temp_root="${LOCALAPPDATA:-$user_home/AppData/Local}/Temp"
+    fi
+    temp_root="${temp_root:-/tmp}"
+    mkdir -p "$temp_root"
+    temp_keystore="$(mktemp "$temp_root/bandstr-signing-XXXXXX.jks")"
+    if ! printf '%s' "$encoded_keystore" | base64 --decode > "$temp_keystore" 2>/dev/null; then
+      if ! printf '%s' "$encoded_keystore" | base64 -d > "$temp_keystore" 2>/dev/null; then
+        rm -f "$temp_keystore"
+        echo "Error: failed to decode ANDROID_SIGNING_KEYSTORE_BASE64."
+        return 1
+      fi
+    fi
+    cleanup_temp_keystore=1
+  elif [[ ! -f "$debug_keystore" ]]; then
+    echo "Error: no release keystore provided and debug keystore not found at $debug_keystore"
+    echo "Set ANDROID_SIGNING_KEYSTORE_BASE64 env vars, or run an Android debug build once."
+    return 1
+  else
+    temp_keystore="$debug_keystore"
+    keystore_password="android"
+    key_alias="androiddebugkey"
+    key_password="android"
+  fi
+
+  local ks_for_sign="$temp_keystore"
+  local out_for_sign="$output_apk"
+  local in_for_sign="$input_apk"
+  if [[ "$is_windows_shell" == "1" ]]; then
+    ks_for_sign="$(to_windows_path "$ks_for_sign" || printf '%s' "$ks_for_sign")"
+    out_for_sign="$(to_windows_path "$out_for_sign" || printf '%s' "$out_for_sign")"
+    in_for_sign="$(to_windows_path "$in_for_sign" || printf '%s' "$in_for_sign")"
+  fi
+
+  rm -f "$output_apk"
+  "$apksigner_bin" sign \
+    --ks "$ks_for_sign" \
+    --ks-key-alias "$key_alias" \
+    --ks-pass "pass:$keystore_password" \
+    --key-pass "pass:$key_password" \
+    --out "$out_for_sign" \
+    "$in_for_sign"
+
+  if [[ "$cleanup_temp_keystore" == "1" ]]; then
+    rm -f "$temp_keystore"
+  fi
+
+  local verify_target="$output_apk"
+  if [[ "$is_windows_shell" == "1" ]]; then
+    verify_target="$(to_windows_path "$verify_target" || printf '%s' "$verify_target")"
+  fi
+  if ! verify_apk_signature "$apksigner_bin" "$verify_target"; then
+    echo "Error: APK signature verification failed for $output_apk."
+    return 1
+  fi
+
+  return 0
 }
 
 install_android_apk() {
@@ -228,6 +473,10 @@ build_android_apk() {
   local install_apk="$2"
 
   export_env_file "$env_file"
+  local is_windows_shell=0
+  if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
+    is_windows_shell=1
+  fi
 
   get_java_major() {
     local java_bin="$1"
@@ -249,10 +498,16 @@ build_android_apk() {
   fi
 
   if [[ -n "$sdk_path" ]]; then
+    local sdk_path_win
+    sdk_path_win="$(to_windows_path "$sdk_path" || true)"
+    if [[ -n "$sdk_path_win" ]]; then
+      sdk_path="$sdk_path_win"
+    fi
     mkdir -p "$(dirname "$android_local_props")"
-    local sdk_win
-    sdk_win="$(printf '%s' "$sdk_path" | sed 's#^/c/#C:/#; s#/#\\\\#g')"
-    printf 'sdk.dir=%s\n' "$sdk_win" > "$android_local_props"
+    # local.properties is a Java properties file: backslashes must be escaped.
+    local sdk_props
+    sdk_props="$(printf '%s' "$sdk_path" | sed 's#\\#/#g; s#/#\\\\#g')"
+    printf 'sdk.dir=%s\n' "$sdk_props" > "$android_local_props"
   fi
 
   local current_java_major=""
@@ -310,6 +565,44 @@ build_android_apk() {
 
   echo "Building Android APK (debug)..."
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+  local gradle_java_home="${JAVA_HOME:-}"
+  local gradle_android_home="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+  local gradle_user_home="${GRADLE_USER_HOME:-}"
+  if [[ -n "$gradle_java_home" ]]; then
+    gradle_java_home="$(to_windows_path "$gradle_java_home" || printf '%s' "$gradle_java_home")"
+  fi
+  if [[ -n "$gradle_android_home" ]]; then
+    gradle_android_home="$(to_windows_path "$gradle_android_home" || printf '%s' "$gradle_android_home")"
+  fi
+  if [[ -z "$gradle_user_home" ]]; then
+    if [[ -n "${USERPROFILE:-}" ]]; then
+      gradle_user_home="${USERPROFILE}\\.gradle"
+    elif [[ -n "${HOME:-}" ]]; then
+      gradle_user_home="${HOME}/.gradle"
+    fi
+  fi
+  if [[ -n "$gradle_user_home" ]]; then
+    gradle_user_home="$(to_windows_path "$gradle_user_home" || printf '%s' "$gradle_user_home")"
+  fi
+
+  # Prevent Git Bash/MSYS from rewriting Windows paths/args passed to gradle.bat.
+  export MSYS_NO_PATHCONV=1
+  export MSYS2_ARG_CONV_EXCL='*'
+  export MSYS2_ENV_CONV_EXCL='CLASSPATH;JAVA_HOME;ANDROID_HOME;ANDROID_SDK_ROOT;GRADLE_USER_HOME;PATH'
+
+  echo "Android build env:"
+  echo "  JAVA_HOME=${gradle_java_home:-<empty>}"
+  echo "  ANDROID_HOME=${gradle_android_home:-<empty>}"
+  echo "  ANDROID_SDK_ROOT=${gradle_android_home:-<empty>}"
+  echo "  GRADLE_USER_HOME=${gradle_user_home:-<empty>}"
+  if [[ -f "$android_local_props" ]]; then
+    echo "  local.properties: $(tr -d '\r' < "$android_local_props")"
+  fi
+
+  JAVA_HOME="$gradle_java_home" \
+  ANDROID_HOME="$gradle_android_home" \
+  ANDROID_SDK_ROOT="$gradle_android_home" \
+  GRADLE_USER_HOME="$gradle_user_home" \
   corepack pnpm --filter @bandstr/web run build:android
 
   local release_apk="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release.apk"
@@ -317,52 +610,11 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
   local release_signed_apk="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release-signed.apk"
   local final_apk=""
 
-  if [[ -f "$release_apk" ]]; then
-    final_apk="$release_apk"
-    echo "APK built successfully: $final_apk"
-  elif [[ -f "$release_signed_apk" ]]; then
-    final_apk="$release_signed_apk"
-    echo "APK built successfully: $final_apk"
-  elif [[ -f "$release_unsigned_apk" ]]; then
+  if [[ -f "$release_unsigned_apk" ]]; then
     if [[ "$sign_apk" == "1" ]]; then
-      local apksigner_bin=""
-      local user_home="${USERPROFILE:-$HOME}"
-      local debug_keystore="$user_home/.android/debug.keystore"
-
-      if command -v apksigner >/dev/null 2>&1; then
-        apksigner_bin="apksigner"
-      elif [[ -n "$sdk_path" && -d "$sdk_path/build-tools" ]]; then
-        local latest_build_tools
-        latest_build_tools="$(ls -1 "$sdk_path/build-tools" 2>/dev/null | sort -V | tail -n 1 || true)"
-        if [[ -n "$latest_build_tools" ]]; then
-          if [[ -x "$sdk_path/build-tools/$latest_build_tools/apksigner" ]]; then
-            apksigner_bin="$sdk_path/build-tools/$latest_build_tools/apksigner"
-          elif [[ -f "$sdk_path/build-tools/$latest_build_tools/apksigner.bat" ]]; then
-            apksigner_bin="$sdk_path/build-tools/$latest_build_tools/apksigner.bat"
-          fi
-        fi
-      fi
-
-      if [[ -z "$apksigner_bin" ]]; then
-        echo "Error: release APK is unsigned and apksigner was not found."
-        echo "Install Android build-tools or run './do build-apk $env_profile --no-sign'."
+      if ! sign_apk_file "$release_unsigned_apk" "$release_signed_apk"; then
         exit 1
       fi
-
-      if [[ ! -f "$debug_keystore" ]]; then
-        echo "Error: debug keystore not found at $debug_keystore"
-        echo "Run an Android debug build once to create it, or run './do build-apk $env_profile --no-sign'."
-        exit 1
-      fi
-
-      rm -f "$release_signed_apk"
-      "$apksigner_bin" sign \
-        --ks "$debug_keystore" \
-        --ks-key-alias androiddebugkey \
-        --ks-pass pass:android \
-        --key-pass pass:android \
-        --out "$release_signed_apk" \
-        "$release_unsigned_apk"
 
       final_apk="$release_signed_apk"
       echo "APK built and signed successfully: $final_apk"
@@ -370,6 +622,44 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
       final_apk="$release_unsigned_apk"
       echo "APK built successfully (unsigned): $final_apk"
       echo "Signing skipped due to --no-sign."
+    fi
+  elif [[ -f "$release_signed_apk" ]]; then
+    final_apk="$release_signed_apk"
+    echo "APK built successfully: $final_apk"
+    if [[ "$sign_apk" == "1" ]]; then
+      local apksigner_bin=""
+      apksigner_bin="$(resolve_apksigner_bin || true)"
+      if [[ -z "$apksigner_bin" ]]; then
+        echo "Error: apksigner not found for signature verification."
+        exit 1
+      fi
+      local verify_target="$final_apk"
+      if [[ "$is_windows_shell" == "1" ]]; then
+        verify_target="$(to_windows_path "$verify_target" || printf '%s' "$verify_target")"
+      fi
+      if ! verify_apk_signature "$apksigner_bin" "$verify_target"; then
+        echo "Error: APK signature verification failed for $final_apk."
+        exit 1
+      fi
+    fi
+  elif [[ -f "$release_apk" ]]; then
+    final_apk="$release_apk"
+    echo "APK built successfully: $final_apk"
+    if [[ "$sign_apk" == "1" ]]; then
+      local apksigner_bin=""
+      apksigner_bin="$(resolve_apksigner_bin || true)"
+      if [[ -z "$apksigner_bin" ]]; then
+        echo "Error: apksigner not found for signature verification."
+        exit 1
+      fi
+      local verify_target="$final_apk"
+      if [[ "$is_windows_shell" == "1" ]]; then
+        verify_target="$(to_windows_path "$verify_target" || printf '%s' "$verify_target")"
+      fi
+      if ! verify_apk_signature "$apksigner_bin" "$verify_target"; then
+        echo "Error: APK signature verification failed for $final_apk."
+        exit 1
+      fi
     fi
   else
     final_apk="$(resolve_android_apk_path || true)"
@@ -439,6 +729,40 @@ deploy_android_apk() {
   install_android_apk "$apk_path" "$explicit_device_id"
 }
 
+sign_existing_android_apk() {
+  local profile="$1"
+  local input_path="${2:-}"
+  local default_unsigned_apk="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+
+  export_env_file "$env_file"
+
+  if [[ -z "$input_path" ]]; then
+    input_path="$default_unsigned_apk"
+  fi
+
+  if [[ ! -f "$input_path" ]]; then
+    echo "Error: APK not found at: $input_path"
+    echo "Build first with './do build-apk $profile --no-sign --no-install' or pass an explicit APK path."
+    exit 1
+  fi
+
+  local output_path=""
+  if [[ "$input_path" == *"-unsigned.apk" ]]; then
+    output_path="${input_path%-unsigned.apk}-signed.apk"
+  elif [[ "$input_path" == *.apk ]]; then
+    output_path="${input_path%.apk}-signed.apk"
+  else
+    echo "Error: Input file must be an .apk: $input_path"
+    exit 1
+  fi
+
+  if ! sign_apk_file "$input_path" "$output_path"; then
+    exit 1
+  fi
+
+  echo "APK signed successfully: $output_path"
+}
+
 case "$command" in
   start|dev|run)
     echo "Starting development server (local)..."
@@ -480,6 +804,9 @@ case "$command" in
   deploy-apk)
     deploy_android_apk "$env_profile" "$deploy_apk_device_id"
     ;;
+  sign-apk)
+    sign_existing_android_apk "$env_profile" "$sign_apk_input_path"
+    ;;
   sync-assets)
     sync_assets
     ;;
@@ -488,8 +815,7 @@ case "$command" in
     bash ./scripts/cleanup-resources.sh
     ;;
   *)
-    echo "Usage: ./do {start|dev|run|logs|stop|seed|install|build|build-apk|deploy-apk|sync-assets|cleanup-resources} [local|production] [--no-sign] [--no-install]"
-    echo "       ./do deploy-apk [local|production] [DEVICE_ID]"
+    print_usage
     exit 1
     ;;
 esac

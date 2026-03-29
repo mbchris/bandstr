@@ -13,6 +13,7 @@
     "build:api": "pnpm --filter @bandstr/api run build",
     "build:web": "pnpm --filter @bandstr/web run build",
     "mobile:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-capacitor.ps1",
+    "mobile:android:keygen": "bash ./scripts/create-android-signing-key.sh",
     "mobile:android": "pnpm --filter @bandstr/web run build:android",
     "mobile:ios": "pnpm --filter @bandstr/web run build:ios",
     "typecheck": "pnpm -r run typecheck",
