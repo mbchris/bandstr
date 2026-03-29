@@ -1,0 +1,47 @@
+# Bug Fixing
+
+<!-- iteration: Bug Fixing -->
+
+## TASK-9000: Logo not shown
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+  - [x] the logo is not shown in the header
+  **File hints:** `assets/bandstr_rect_wh.png`
+
+## TASK-9001: DEVMODE not working
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+  - [x] DEVMODE is set to true, but login is still required. Only If DEVMODE is set to false, login is required. 
+  - [x] DEVMODE=true: consider user being chris@example.org
+
+  ## TASK-9002: cannot login
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+    - [x] Login with 'schneider.chris@gmx.de' not possible using github, even it is whitelisted. add debug to the output which mail addresses is reported and try to fix.
+    - [x] write the user information to stdout when trying to login
+  
+  ## TASK-9003: Preview shows HTTP 404
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+    - [x] Song in voting list shows 'http 404' in the preview, although spotify link is added.
+    
+  **File hints:** ``
+
+ ## TASK-9003: Voting reaction
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+    - [x] Clicking on votes sometimes selects the wrong line and changes the wrong voting
+    
+  **File hints:** ``
+  ## TASK-9004: Invalid Redirect URL in OIDC
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+    - [x] OIDC login (GitHub/Google) uses an invalid redirect URL missing the `/bandstr` subpath.
+    - [x] Add detailed access logs to debug auth process.
+  **File hints:** `nuxt.config.ts`, `server/api/auth/[...].ts`

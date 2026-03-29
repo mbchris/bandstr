@@ -1,0 +1,107 @@
+# docker-compose.coolify.yml — Coolify production deployment
+#
+# PostgreSQL is provisioned as a separate Coolify "Database" resource.
+# Connect it by setting DATABASE_URL in the Coolify environment variables.
+#
+# Coolify setup:
+#   1. Create a PostgreSQL database resource in Coolify
+#   2. Create a Docker Compose resource pointing to this file
+#   3. Set environment variables (see .env.api.template)
+#   4. Coolify auto-provisions TLS via Traefik
+
+services:
+  # ── Hono API ─────────────────────────────────────
+  api:
+    image: bndstr-api:${SOURCE_COMMIT:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      tags:
+        - bndstr-api:${SOURCE_COMMIT:-latest}
+        - bndstr-api:latest
+      args:
+        GIT_REV: ${SOURCE_COMMIT:-unknown}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+    container_name: ${COOLIFY_CONTAINER_NAME:-bandstr}-api
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env.api
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - GIT_REV=${SOURCE_COMMIT:-unknown}
+      - SOURCE_COMMIT=${SOURCE_COMMIT:-unknown}
+    expose:
+      - "3001"
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Quasar SPA (Nginx) ──────────────────────────
+  web:
+    image: bndstr-web:${SOURCE_COMMIT:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      tags:
+        - bndstr-web:${SOURCE_COMMIT:-latest}
+        - bndstr-web:latest
+      args:
+        API_URL: /api
+        GIT_REV: ${SOURCE_COMMIT:-unknown}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+    container_name: ${COOLIFY_CONTAINER_NAME:-bandstr}-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bandstr.rule=Host(`${APP_DOMAIN:-bandstr.trmusic.de}`)"
+      - "traefik.http.routers.bandstr.entrypoints=https"
+      - "traefik.http.routers.bandstr.tls=true"
+      - "traefik.http.routers.bandstr.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bandstr.loadbalancer.server.port=80"
+      - "traefik.docker.network=coolify"
+    networks:
+      - app-net
+      - proxy-net
+
+  # ── DB Migration (one-shot) ─────────────────────
+  # Runs drizzle-kit migrate before API starts accepting traffic.
+  # Coolify will show this as a completed service after deploy.
+  migrate:
+    image: bndstr-migrate:${SOURCE_COMMIT:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: migrate
+      tags:
+        - bndstr-migrate:${SOURCE_COMMIT:-latest}
+        - bndstr-migrate:latest
+      args:
+        GIT_REV: ${SOURCE_COMMIT:-unknown}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
+    container_name: ${COOLIFY_CONTAINER_NAME:-bandstr}-migrate
+    env_file:
+      - .env.api
+    environment:
+      - NODE_ENV=production
+    networks:
+      - app-net
+    restart: "no"
+
+networks:
+  app-net:
+    name: bandstr-net
+  proxy-net:
+    external: true
+    name: ${DOCKER_NETWORK:-coolify}

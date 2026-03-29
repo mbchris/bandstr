@@ -1,0 +1,91 @@
+# ── Stage 1: Build ────────────────────────────────
+FROM node:20-alpine AS build
+
+ARG GIT_REV=unknown
+ARG SOURCE_COMMIT=unknown
+
+WORKDIR /app
+
+# Enable Corepack (pnpm version comes from packageManager in package.json)
+RUN corepack enable
+RUN apk add --no-cache git bash
+
+# Copy workspace root files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+
+# Copy package.json for each workspace package (for dependency resolution)
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+# Install dependencies (only api + shared)
+RUN pnpm install --filter @bandstr/api --filter @bandstr/shared --frozen-lockfile || pnpm install --filter @bandstr/api --filter @bandstr/shared
+
+# Copy full repository context (including .git when available)
+COPY . .
+
+# Build shared first, then API
+RUN cd packages/api && pnpm run build
+RUN rev="${SOURCE_COMMIT:-}"; \
+  case "$rev" in \
+    ''|unknown|UNKNOWN|dev|DEV) \
+      rev="$(git rev-parse --short HEAD 2>/dev/null || true)" ;; \
+  esac; \
+  rev="$(printf '%s' "$rev" | tr -d '\r\n' | cut -c1-12)"; \
+  if [ -z "$rev" ]; then rev="unknown"; fi; \
+  printf '%s\n' "$rev" > /app/packages/api/dist/build-rev.txt
+
+# ── Stage 2: Migrate ─────────────────────────────
+# Lightweight image with drizzle-kit + migrations for one-shot migrate container
+FROM build AS migrate
+
+WORKDIR /app/packages/api
+
+CMD ["npx", "drizzle-kit", "migrate"]
+
+# ── Stage 3: Production ──────────────────────────
+FROM node:20-alpine AS production
+
+ARG GIT_REV=unknown
+ARG SOURCE_COMMIT=unknown
+
+WORKDIR /app
+
+RUN corepack enable
+
+# Copy workspace root for pnpm resolution
+COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./
+COPY --from=build /app/packages/api/package.json packages/api/
+COPY --from=build /app/packages/shared/package.json packages/shared/
+
+# Copy lockfile if present
+COPY pnpm-lock.yaml* ./
+
+# Install production dependencies only
+RUN pnpm install --filter @bandstr/api --filter @bandstr/shared --prod --frozen-lockfile || pnpm install --filter @bandstr/api --filter @bandstr/shared --prod
+
+# Copy built output
+COPY --from=build /app/packages/api/dist/ packages/api/dist/
+# Runtime migrations for drizzle migrator
+COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
+COPY --from=build /app/packages/shared/ packages/shared/
+
+# Runtime config
+ENV HOST=0.0.0.0
+ENV PORT=3001
+ENV NODE_ENV=production
+ENV GIT_REV=${GIT_REV}
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
+ENV ENV=/etc/bandstr_shell_rc
+
+LABEL org.opencontainers.image.title="bndstr-api"
+LABEL org.opencontainers.image.version="${GIT_REV}"
+LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
+
+# Interactive shell notes (shown on docker exec -it <container> sh)
+COPY scripts/container-shell-notes.sh /etc/bandstr_shell_rc
+
+EXPOSE 3001
+
+WORKDIR /app/packages/api
+
+CMD ["node", "dist/index.js"]

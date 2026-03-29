@@ -1,0 +1,65 @@
+# docker-compose.dev.yml — Local development stack
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up postgres   # DB only (run API/Web natively)
+#   docker compose -f docker-compose.dev.yml up             # Full stack in containers
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bandstr
+      POSTGRES_USER: bandstr
+      POSTGRES_PASSWORD: bandstr_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bandstr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - api_node_modules:/app/packages/api/node_modules
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env.api
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://bandstr:bandstr_dev@postgres:5432/bandstr
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1; corepack enable && pnpm install --filter @bandstr/api --filter @bandstr/shared && cd packages/api && pnpm run dev"
+    profiles:
+      - full
+
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - web_node_modules:/app/packages/web/node_modules
+    ports:
+      - "9000:9000"
+    env_file:
+      - .env.web
+    environment:
+      - API_URL=http://api:3001
+    depends_on:
+      - api
+    command: sh -c "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1; corepack enable && pnpm install --filter @bandstr/web --filter @bandstr/shared && cd packages/web && pnpm run dev"
+    profiles:
+      - full
+
+volumes:
+  postgres_dev_data:
+  api_node_modules:
+  web_node_modules:

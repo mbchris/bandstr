@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">bandstr</string>
+    <string name="title_activity_main">bandstr</string>
+    <string name="package_name">org.capacitor.bandstr</string>
+    <string name="custom_url_scheme">org.capacitor.bandstr</string>
+</resources>

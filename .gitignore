@@ -1,0 +1,54 @@
+# ── Dependencies ──────────────────────────────────
+node_modules/
+
+.pnpm-store/
+
+# ── Nuxt Build ────────────────────────────────────
+.nuxt/
+.quasar/
+.output/
+dist/
+
+# ── Environment ───────────────────────────────────
+#.env
+.env.local
+.env.*.local
+
+# ── IDE ───────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ──────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Test / Coverage ───────────────────────────────
+coverage/
+.nyc_output/
+
+.claude/
+.data/
+.dockerignore
+.env
+.env.production
+.env.staging
+.env.template
+.npmrc
+
+# ── Coolify / Deployment ─────────────────────────
+.coolify-db-credentials
+backups/
+
+# ── Local env files (workspace) ──────────────────
+.env.api
+.env.web

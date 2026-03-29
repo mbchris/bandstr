@@ -1,0 +1,40 @@
+{
+  "name": "bandstr",
+  "version": "0.2.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "description": "bandstr — multi-tenant band management SaaS",
+  "scripts": {
+    "prebuild": "bash ./scripts/sync-assets.sh",
+    "dev": "pnpm --parallel -r run dev",
+    "dev:api": "pnpm --filter @bandstr/api run dev",
+    "dev:web": "pnpm --filter @bandstr/web run dev",
+    "build": "pnpm -r run build",
+    "build:api": "pnpm --filter @bandstr/api run build",
+    "build:web": "pnpm --filter @bandstr/web run build",
+    "mobile:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-capacitor.ps1",
+    "mobile:android": "pnpm --filter @bandstr/web run build:android",
+    "mobile:ios": "pnpm --filter @bandstr/web run build:ios",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "db:generate": "pnpm --filter @bandstr/api run db:generate",
+    "db:migrate": "pnpm --filter @bandstr/api run db:migrate",
+    "db:migrate:runtime": "pnpm --filter @bandstr/api run db:migrate:runtime",
+    "db:init": "bash ./scripts/init-empty-db.sh",
+    "db:reset": "bash ./scripts/reset-db.sh",
+    "db:studio": "pnpm --filter @bandstr/api run db:studio",
+    "db:seed": "pnpm --filter @bandstr/api run db:seed"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "better-sqlite3",
+      "esbuild",
+      "sqlite3",
+      "vue-demi"
+    ]
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
