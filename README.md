@@ -75,6 +75,22 @@ pnpm db:seed
 pnpm db:studio
 ```
 
+## Developer QuickInfo
+
+CI/CD chain overview:
+- Auto build on push: GitHub Actions workflow [`build-and-release-gate.yml`](.github/workflows/build-and-release-gate.yml) runs on every `push` and builds the production artifacts (Docker image + APK gate flow).
+- Production deployment trigger: GitHub Actions workflow [`deploy-prod.yml`](.github/workflows/deploy-prod.yml) runs on `push` to `main` (and can also be started manually via `workflow_dispatch`).
+- Deploy execution host: `deploy-prod.yml` uses `runs-on: self-hosted`, so the Coolify deploy URL is called from the self-hosted build server.
+- Deploy call configuration (GitHub repo settings):
+  - Variable `COOLIFY_DEPLOY_URL` (for example `https://coolify.emailanschneiders.de/api/v1/deploy?uuid=...&force=false`)
+  - Secret `COOLIFY_AUTH_TOKEN` (sent as header `authorization: <token>`)
+
+Deployment request used by the workflow:
+
+```bash
+curl -H "authorization: ${COOLIFY_AUTH_TOKEN}" "${COOLIFY_DEPLOY_URL}"
+```
+
 ## `./do` Helper
 
 The `./do` script wraps common Docker/dev tasks:
