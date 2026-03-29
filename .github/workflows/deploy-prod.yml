@@ -14,6 +14,9 @@ jobs:
       COOLIFY_DEPLOY_URL: ${{ vars.COOLIFY_DEPLOY_URL }}
       COOLIFY_AUTH_TOKEN: ${{ secrets.COOLIFY_AUTH_TOKEN }}
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Validate Required Environment Variables
         shell: bash
         run: |
@@ -27,11 +30,8 @@ jobs:
             exit 1
           fi
 
-      - name: Call Coolify Deploy Endpoint
+      - name: Trigger Coolify Deploy
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error \
-            -H "authorization: ${COOLIFY_AUTH_TOKEN}" \
-            "${COOLIFY_DEPLOY_URL}"
-          echo "Coolify deploy trigger requested."
+          bash ./scripts/deploy_main_to_prod.sh
