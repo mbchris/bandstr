@@ -20,21 +20,13 @@ type MigrationJournal = {
 }
 
 async function baselineLegacySchemaIfNeeded() {
-  const trackingStateResult = await pool.query<{ has_table: boolean; row_count: string }>(`
-    with tracking as (
-      select to_regclass('drizzle.__drizzle_migrations') is not null as has_table
-    )
-    select
-      tracking.has_table as has_table,
-      case
-        when tracking.has_table
-          then (select count(*)::text from drizzle.__drizzle_migrations)
-        else '0'
-      end as row_count
-    from tracking
+  const trackingTableResult = await pool.query<{ table_ref: string | null }>(`
+    select to_regclass('drizzle.__drizzle_migrations')::text as table_ref
   `)
-  const hasTrackingTable = trackingStateResult.rows[0]?.has_table ?? false
-  const trackingRowCount = Number(trackingStateResult.rows[0]?.row_count ?? '0')
+  const hasTrackingTable = Boolean(trackingTableResult.rows[0]?.table_ref)
+  const trackingRowCount = hasTrackingTable
+    ? Number((await pool.query<{ count: string }>(`select count(*)::text as count from drizzle.__drizzle_migrations`)).rows[0]?.count ?? '0')
+    : 0
   if (hasTrackingTable && trackingRowCount > 0) return
 
   const appTableCountResult = await pool.query<{ count: string }>(`

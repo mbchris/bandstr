@@ -92,3 +92,9 @@ Use `.env.api` and `.env.web` (copied from templates) for local development.
 ## Execution of external commands
 
 Executing commands can get stuck. Try to execute them, but if nothing happens within 30 seconds, ask the user to run them manually and provide copy-pasteable scripts.
+
+# Database scripts
+
+Always make sure that the database can be set up from scratch. 
+Update the scripts accordingly.
+Update the readme and "bandstr container shell" information accordingly
