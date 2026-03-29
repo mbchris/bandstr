@@ -139,7 +139,8 @@
   - [x] Add the `seed` command to the `./do` script for easier usage.
 - **File Hints:**
   - `server/database/index.ts`: Current implementation of auto-seeding logic.
-  - `scripts/seed.ts`: Standalone seeding utility.
+  - `packages/api/src/db/seed.ts`: Standalone seeding utility.
+  - `scripts/seed_example.sql`: Seed content used by the seeding utility.
   - `./do`: Integration point for CLI usage.
 
 
