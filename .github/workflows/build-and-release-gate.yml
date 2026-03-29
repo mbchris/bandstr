@@ -12,10 +12,6 @@ jobs:
   build_and_apk:
     name: Build Prod Image And APK
     runs-on: ubuntu-latest
-    outputs:
-      commit_short: ${{ steps.meta.outputs.commit_short }}
-      prod_image_file: ${{ steps.bundle_image.outputs.image_file }}
-      apk_file: ${{ steps.bundle_apk.outputs.apk_file }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -115,13 +111,6 @@ jobs:
           docker save "$IMAGE_TAG" | gzip -9 > "out/${IMAGE_FILE}"
           echo "image_file=${IMAGE_FILE}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Docker Image Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bndstr-prod-image
-          path: out/*.tar.gz
-          if-no-files-found: error
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -179,28 +168,11 @@ jobs:
           cp "$APK_PATH" "out/${APK_FILE}"
           echo "apk_file=${APK_FILE}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bndstr-apk
-          path: out/*.apk
-          if-no-files-found: error
-
-  release_gate:
-    name: Follow-Up Release Decision
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: build_and_apk
-    outputs:
-      persist_build: ${{ steps.gate.outputs.persist_build }}
-      persist_apk: ${{ steps.gate.outputs.persist_apk }}
-      decision: ${{ steps.gate.outputs.decision }}
-    steps:
       - name: Wait For User Input
         id: gate
         uses: actions/github-script@v7
         env:
-          COMMIT_SHORT: ${{ needs.build_and_apk.outputs.commit_short }}
+          COMMIT_SHORT: ${{ steps.meta.outputs.commit_short }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -279,34 +251,18 @@ jobs:
             core.setOutput('persist_build', String(persistBuild));
             core.setOutput('persist_apk', String(persistApk));
 
-  release:
-    name: Persist Release Assets
-    runs-on: ubuntu-latest
-    needs: [build_and_apk, release_gate]
-    if: needs.release_gate.outputs.decision != 'none'
-    steps:
-      - name: Download Docker Image Artifact
-        if: needs.release_gate.outputs.persist_build == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: bndstr-prod-image
-          path: release-assets
-
-      - name: Download APK Artifact
-        if: needs.release_gate.outputs.persist_apk == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: bndstr-apk
-          path: release-assets
-
       - name: Collect Release Files
         id: files
+        if: steps.gate.outputs.decision != 'none'
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -d release-assets ]]; then
-            echo "No release-assets directory found."
-            exit 1
+          mkdir -p release-assets
+          if [[ "${{ steps.gate.outputs.persist_build }}" == "true" ]]; then
+            cp "out/${{ steps.bundle_image.outputs.image_file }}" release-assets/
+          fi
+          if [[ "${{ steps.gate.outputs.persist_apk }}" == "true" ]]; then
+            cp "out/${{ steps.bundle_apk.outputs.apk_file }}" release-assets/
           fi
           mapfile -t FILES < <(find release-assets -type f | sort)
           if [[ ${#FILES[@]} -eq 0 ]]; then
@@ -320,9 +276,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
+        if: steps.gate.outputs.decision != 'none'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: bndstr-${{ needs.build_and_apk.outputs.commit_short }}
-          name: bndstr-${{ needs.build_and_apk.outputs.commit_short }}
+          tag_name: bndstr-${{ steps.meta.outputs.commit_short }}
+          name: bndstr-${{ steps.meta.outputs.commit_short }}
           files: ${{ steps.files.outputs.files }}
           generate_release_notes: true
