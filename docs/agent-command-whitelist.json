@@ -1,0 +1,39 @@
+{
+  "description": "Project-level command whitelist template for AI coding agents.",
+  "allow": [
+    "git status*",
+    "git diff*",
+    "git log*",
+    "git show*",
+    "git branch*",
+    "git ls-files*",
+    "rg *",
+    "ls*",
+    "Get-ChildItem *",
+    "Get-Content *",
+    "head *",
+    "pnpm *",
+    "npx quasar *",
+    "npx drizzle-kit *",
+    "npx cap *",
+    "npx capacitor *",
+    "npx eslint *",
+    "npx tsx *",
+    "node *",
+    "docker compose build*",
+    "docker compose logs*",
+    "docker compose ps*",
+    "docker ps*",
+    "curl *"
+  ],
+  "deny": [
+    "git push --force*",
+    "git reset --hard*",
+    "git checkout -- *",
+    "git restore *",
+    "git clean *",
+    "rm *",
+    "docker compose down*",
+    "docker compose up*"
+  ]
+}

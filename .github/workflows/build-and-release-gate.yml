@@ -1,0 +1,328 @@
+name: Build And Release Gate
+
+on:
+  push:
+
+permissions:
+  contents: write
+  actions: read
+  issues: write
+
+jobs:
+  build_and_apk:
+    name: Build Prod Image And APK
+    runs-on: ubuntu-latest
+    outputs:
+      commit_short: ${{ steps.meta.outputs.commit_short }}
+      prod_image_file: ${{ steps.bundle_image.outputs.image_file }}
+      apk_file: ${{ steps.bundle_apk.outputs.apk_file }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute Build Metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(git rev-parse --short=12 HEAD)"
+          echo "commit_short=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "SOURCE_COMMIT=$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "GIT_REV=$SHORT_SHA" >> "$GITHUB_ENV"
+
+      - name: Generate Production Env From Repo Vars And Secrets
+        shell: bash
+        env:
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+          SERVICE_FQDN_PROD: ${{ vars.SERVICE_FQDN_PROD }}
+          SERVICE_URL_PROD: ${{ vars.SERVICE_URL_PROD }}
+          AUTH_ORIGIN: ${{ vars.AUTH_ORIGIN }}
+          AUTH_TRUST_HOST: ${{ vars.AUTH_TRUST_HOST }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          GHUB_CLIENT_ID: ${{ vars.GHUB_CLIENT_ID }}
+          GHUB_CLIENT_SECRET: ${{ secrets.GHUB_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          WHITELIST_EMAILS: ${{ vars.WHITELIST_EMAILS }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          SERVICE_URL_DEV: ${{ vars.SERVICE_URL_DEV }}
+          GH_PROJECT_OWNER: ${{ vars.GH_PROJECT_OWNER }}
+          SERVICE_FQDN_DEV: ${{ vars.SERVICE_FQDN_DEV }}
+          COOLIFY_CONTAINER_NAME: ${{ vars.COOLIFY_CONTAINER_NAME }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_URL: ${{ vars.API_URL }}
+          PORT: ${{ vars.PORT }}
+          INTERNAL_ADMIN_TOKEN: ${{ secrets.INTERNAL_ADMIN_TOKEN }}
+          DEBUG_MODE: ${{ vars.DEBUG_MODE }}
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+        run: |
+          set -euo pipefail
+          cat > .env.production <<EOF
+          APP_DOMAIN=${APP_DOMAIN:-bandstr.trmusic.de}
+          SERVICE_FQDN_PROD=${SERVICE_FQDN_PROD:-$APP_DOMAIN}
+          SERVICE_URL_PROD=${SERVICE_URL_PROD:-https://$APP_DOMAIN}
+          AUTH_ORIGIN=${AUTH_ORIGIN:-https://$APP_DOMAIN}
+          AUTH_TRUST_HOST=${AUTH_TRUST_HOST:-true}
+          AUTH_SECRET=${AUTH_SECRET:-}
+          GHUB_CLIENT_ID=${GHUB_CLIENT_ID:-}
+          GHUB_CLIENT_SECRET=${GHUB_CLIENT_SECRET:-}
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+          WHITELIST_EMAILS=${WHITELIST_EMAILS:-}
+          GH_TOKEN=${GH_TOKEN:-}
+          SERVICE_URL_DEV=${SERVICE_URL_DEV:-https://localhost}
+          GH_PROJECT_OWNER=${GH_PROJECT_OWNER:-}
+          SERVICE_FQDN_DEV=${SERVICE_FQDN_DEV:-localhost}
+          NODE_ENV=production
+          COOLIFY_CONTAINER_NAME=${COOLIFY_CONTAINER_NAME:-bndstr-prod}
+          SOURCE_COMMIT=${SOURCE_COMMIT:-unknown}
+          DEVMODE=false
+          CORS_ORIGINS=${CORS_ORIGINS:-https://localhost:9000,https://localhost}
+          DATABASE_URL=${DATABASE_URL:-}
+          API_URL=${API_URL:-/api}
+          PORT=${PORT:-3001}
+          INTERNAL_ADMIN_TOKEN=${INTERNAL_ADMIN_TOKEN:-}
+          DEBUG_MODE=${DEBUG_MODE:-false}
+          EOF
+
+      - name: Sync Assets
+        shell: bash
+        run: bash ./scripts/sync-assets.sh
+
+      - name: Build Production Docker Image
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+          GIT_REV: ${{ env.GIT_REV }}
+          ENV_FILE: .env.production
+        run: |
+          set -euo pipefail
+          docker compose --profile prod build
+
+      - name: Bundle Docker Image Artifact
+        id: bundle_image
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          IMAGE_TAG="bndstr-prod:${SOURCE_COMMIT}"
+          IMAGE_FILE="bndstr-prod-${SOURCE_COMMIT}.tar.gz"
+          docker save "$IMAGE_TAG" | gzip -9 > "out/${IMAGE_FILE}"
+          echo "image_file=${IMAGE_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bndstr-prod-image
+          path: out/*.tar.gz
+          if-no-files-found: error
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Components
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Build Android APK
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+          GIT_REV: ${{ env.GIT_REV }}
+        run: |
+          set -euo pipefail
+          set -a
+          source .env.production
+          set +a
+          export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+          corepack pnpm --filter @bandstr/web run build:android
+
+      - name: Bundle APK Artifact
+        id: bundle_apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          APK_PATH="$(find packages/web/src-capacitor/android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
+          if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
+            echo "APK not found under packages/web/src-capacitor/android/app/build/outputs/apk"
+            exit 1
+          fi
+          APK_FILE="bndstr-${SOURCE_COMMIT}.apk"
+          cp "$APK_PATH" "out/${APK_FILE}"
+          echo "apk_file=${APK_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bndstr-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+  release_gate:
+    name: Follow-Up Release Decision
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build_and_apk
+    outputs:
+      persist_build: ${{ steps.gate.outputs.persist_build }}
+      persist_apk: ${{ steps.gate.outputs.persist_apk }}
+      decision: ${{ steps.gate.outputs.decision }}
+    steps:
+      - name: Wait For User Input
+        id: gate
+        uses: actions/github-script@v7
+        env:
+          COMMIT_SHORT: ${{ needs.build_and_apk.outputs.commit_short }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const actor = context.actor;
+            const commitShort = process.env.COMMIT_SHORT;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const deadlineMs = 14 * 60 * 1000;
+            const pollMs = 15000;
+            const startedAt = Date.now();
+
+            const issue = await github.rest.issues.create({
+              owner,
+              repo,
+              title: `Release decision required for ${commitShort}`,
+              body: [
+                `Build run: ${runUrl}`,
+                ``,
+                `Reply with one command in a comment (by @${actor}):`,
+                `- \`/persist build\``,
+                `- \`/persist apk\``,
+                `- \`/persist both\``,
+                `- \`/persist none\``,
+                ``,
+                `This gate times out after 15 minutes.`
+              ].join('\n')
+            });
+
+            core.info(`Created decision issue #${issue.data.number}`);
+            let decision = '';
+
+            try {
+              while (Date.now() - startedAt < deadlineMs) {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner,
+                  repo,
+                  issue_number: issue.data.number,
+                  per_page: 100
+                });
+
+                const relevant = comments
+                  .filter((c) => c.user?.login === actor)
+                  .map((c) => c.body || '')
+                  .map((body) => body.trim().toLowerCase());
+
+                for (const body of relevant.reverse()) {
+                  const m = body.match(/^\/persist\s+(build|apk|both|none)\s*$/);
+                  if (m) {
+                    decision = m[1];
+                    break;
+                  }
+                }
+
+                if (decision) break;
+                await new Promise((resolve) => setTimeout(resolve, pollMs));
+              }
+            } finally {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.data.number,
+                state: 'closed'
+              });
+            }
+
+            if (!decision) {
+              core.setFailed('Timed out waiting for release decision (15 minutes).');
+              return;
+            }
+
+            const persistBuild = decision === 'build' || decision === 'both';
+            const persistApk = decision === 'apk' || decision === 'both';
+
+            core.info(`Decision: ${decision}`);
+            core.setOutput('decision', decision);
+            core.setOutput('persist_build', String(persistBuild));
+            core.setOutput('persist_apk', String(persistApk));
+
+  release:
+    name: Persist Release Assets
+    runs-on: ubuntu-latest
+    needs: [build_and_apk, release_gate]
+    if: needs.release_gate.outputs.decision != 'none'
+    steps:
+      - name: Download Docker Image Artifact
+        if: needs.release_gate.outputs.persist_build == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: bndstr-prod-image
+          path: release-assets
+
+      - name: Download APK Artifact
+        if: needs.release_gate.outputs.persist_apk == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: bndstr-apk
+          path: release-assets
+
+      - name: Collect Release Files
+        id: files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -d release-assets ]]; then
+            echo "No release-assets directory found."
+            exit 1
+          fi
+          mapfile -t FILES < <(find release-assets -type f | sort)
+          if [[ ${#FILES[@]} -eq 0 ]]; then
+            echo "No files to attach to release."
+            exit 1
+          fi
+          {
+            echo "files<<EOF"
+            printf '%s\n' "${FILES[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bndstr-${{ needs.build_and_apk.outputs.commit_short }}
+          name: bndstr-${{ needs.build_and_apk.outputs.commit_short }}
+          files: ${{ steps.files.outputs.files }}
+          generate_release_notes: true

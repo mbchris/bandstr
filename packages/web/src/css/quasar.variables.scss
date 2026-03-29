@@ -1,0 +1,21 @@
+// Quasar SCSS variable overrides — "modernity facelift"
+// These change the DNA of every Quasar component globally.
+
+// Brand colors — sophisticated Indigo + Slate palette
+$primary   : #6366f1;
+$secondary : #94a3b8;
+$accent    : #f43f5e;
+$dark      : #161b22;
+$positive  : #10b981;
+$negative  : #ef4444;
+$info      : #3b82f6;
+$warning   : #f59e0b;
+
+// Component shapes
+$button-border-radius : 8px;
+$card-border-radius   : 12px;
+$card-shadow          : none;
+
+// Typography
+$body-font-size   : 14px;
+$body-line-height  : 1.6;

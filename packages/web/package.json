@@ -1,0 +1,43 @@
+{
+  "name": "@bandstr/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "prebuild": "bash ../../scripts/sync-assets.sh",
+    "dev": "quasar dev",
+    "build": "quasar build",
+    "prebuild:ios": "bash ../../scripts/sync-assets.sh",
+    "build:ios": "quasar build -m capacitor -T ios",
+    "prebuild:android": "bash ../../scripts/sync-assets.sh",
+    "build:android": "quasar build -m capacitor -T android",
+    "lint": "eslint --ext .js,.ts,.vue .",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@capacitor/app": "^7.0.0",
+    "@quasar/extras": "^1.16.12",
+    "better-auth": "^1.5.6",
+    "marked": "^15.0.11",
+    "pinia": "^2.3.1",
+    "quasar": "^2.17.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/cli": "^7.2.0",
+    "@capacitor/core": "^7.2.0",
+    "@capacitor/ios": "^7.2.0",
+    "@quasar/app-vite": "2.1.4",
+    "@types/node": "^22.15.18",
+    "@vue/eslint-config-typescript": "^14.5.0",
+    "eslint": "^9.28.0",
+    "eslint-plugin-vue": "^10.1.0",
+    "typescript": "^5.8.3",
+    "vue-tsc": "^2.2.10"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
