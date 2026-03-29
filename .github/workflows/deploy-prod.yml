@@ -32,6 +32,6 @@ jobs:
         run: |
           set -euo pipefail
           curl --silent --show-error \
-            -H "authorization: ${COOLIFY_AUTH_TOKEN}" \
+            -H "Authorization: ${COOLIFY_AUTH_TOKEN}" \
             "${COOLIFY_DEPLOY_URL}"
           echo "Coolify deploy trigger requested."
