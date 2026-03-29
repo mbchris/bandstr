@@ -7,22 +7,22 @@ VALUES ('Legacy Imported Band', 'legacy-imported-band', 'free', now())
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at)
-VALUES ('legacy-user-1', 'Chris Admin', 'schneider.chris@gmx.de', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
+VALUES ('legacy-user-1', 'Chris Admin', 'bandsharelogin@gmail.com', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at)
-VALUES ('legacy-user-2', 'Andre', 'andrehoyer.ah@googlemail.com', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
+VALUES ('legacy-user-2', 'Chuck Norris', 'user2@example.org', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at)
-VALUES ('legacy-user-3', 'Stefan', 'streu79@googlemail.com', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
+VALUES ('legacy-user-3', 'Karl Klammer', 'user3@example.org', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at)
-VALUES ('legacy-user-4', 'Andreas', 'aschulzebw@googlemail.com', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
+VALUES ('legacy-user-4', 'Bibi Blocksberg', 'user4@example.org', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at)
-VALUES ('legacy-user-5', 'Daniel', 'd.vollkommer@gmail.com', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
+VALUES ('legacy-user-5', 'Albert Einstein', 'user5@example.org', true, NULL, (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END), (CASE WHEN 1774085091233 < 100000000000 THEN to_timestamp(1774085091233) ELSE to_timestamp(1774085091233 / 1000.0) END))
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at)
-VALUES ('legacy-user-6', 'Chris', 'christian.familie.schneider@gmail.com', true, NULL, (CASE WHEN 1774087137000 < 100000000000 THEN to_timestamp(1774087137000) ELSE to_timestamp(1774087137000 / 1000.0) END), (CASE WHEN 1774087137000 < 100000000000 THEN to_timestamp(1774087137000) ELSE to_timestamp(1774087137000 / 1000.0) END))
+VALUES ('legacy-user-6', 'Donald Duck', 'christian.familie.schneider@gmail.com', true, NULL, (CASE WHEN 1774087137000 < 100000000000 THEN to_timestamp(1774087137000) ELSE to_timestamp(1774087137000 / 1000.0) END), (CASE WHEN 1774087137000 < 100000000000 THEN to_timestamp(1774087137000) ELSE to_timestamp(1774087137000 / 1000.0) END))
 ON CONFLICT (id) DO NOTHING;
 
 UPDATE "user"
