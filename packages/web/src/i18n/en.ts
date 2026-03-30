@@ -171,6 +171,8 @@ export default {
     lookupFailed: 'Could not find song details. Please fill in manually.',
     exportExcel: 'Export to Excel',
     avg: 'Avg',
+    selfVoteHint: 'Tap your avatar to vote',
+    chooseYourVote: 'Choose your vote',
   },
 
   // Setlist page

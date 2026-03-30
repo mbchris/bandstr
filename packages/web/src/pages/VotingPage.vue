@@ -53,46 +53,52 @@
                   <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
                   <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
                 </div>
-                <div class="row q-gutter-xs q-mt-sm">
-                  <div v-for="member in visibleMembers" :key="member.id" class="row items-center no-wrap bg-widget-surface rounded-borders q-px-xs q-py-xxs">
-                    <q-avatar
-                      size="22px"
-                      :class="getMemberVoteRingClass(song, member.id)"
-                      :color="member.image ? undefined : getMemberFallbackColor(song, member.id)"
-                      :text-color="member.image ? undefined : 'white'"
+                <div class="votes-grid q-mt-sm">
+                  <div class="votes-self">
+                    <button
+                      type="button"
+                      class="own-vote-trigger bg-widget-surface rounded-borders"
+                      @click="openVotePicker(song)"
+                      :disabled="!currentUserId"
                     >
-                      <img v-if="member.image" :src="member.image" />
-                      <span v-else style="font-size: 10px">{{ member.name?.charAt(0) }}</span>
-                    </q-avatar>
-                    <span class="text-caption text-weight-bold q-ml-xs">{{ getMemberVoteLabel(song, member.id) }}</span>
-                    <q-tooltip>{{ member.name }}</q-tooltip>
+                      <q-avatar
+                        size="26px"
+                        :class="getMemberVoteRingClass(song, currentUserId)"
+                        :color="currentUser?.image ? undefined : getMemberFallbackColor(song, currentUserId)"
+                        :text-color="currentUser?.image ? undefined : 'white'"
+                      >
+                        <img v-if="currentUser?.image" :src="currentUser.image" />
+                        <span v-else style="font-size: 11px">{{ getNameInitial(currentUser?.name || authStore.user?.name) }}</span>
+                      </q-avatar>
+                      <span class="text-caption text-weight-bold q-ml-xs">{{ getMemberVoteLabel(song, currentUserId) }}</span>
+                      <q-icon name="touch_app" size="16px" color="primary" class="q-ml-xs" />
+                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
+                    </button>
+                  </div>
+
+                  <div class="votes-others">
+                    <div
+                      v-for="member in otherMembers"
+                      :key="member.id"
+                      class="row items-center no-wrap bg-widget-surface rounded-borders q-px-xs q-py-xxs"
+                    >
+                      <q-avatar
+                        size="22px"
+                        :class="getMemberVoteRingClass(song, member.id)"
+                        :color="member.image ? undefined : getMemberFallbackColor(song, member.id)"
+                        :text-color="member.image ? undefined : 'white'"
+                      >
+                        <img v-if="member.image" :src="member.image" />
+                        <span v-else style="font-size: 10px">{{ member.name?.charAt(0) }}</span>
+                      </q-avatar>
+                      <span class="text-caption text-weight-bold q-ml-xs">{{ getMemberVoteLabel(song, member.id) }}</span>
+                      <q-tooltip>{{ member.name }}</q-tooltip>
+                    </div>
                   </div>
                 </div>
-              </q-item-section>
-
-              <!-- Vote buttons -->
-              <q-item-section side class="song-order-votes">
-                <div class="column items-end vote-controls">
-                  <div class="row q-gutter-xs vote-buttons">
-                    <q-btn
-                      v-for="sc in [0, 1, 2, 3]"
-                      :key="sc"
-                      :label="isCompactVotes ? voteShortLabels[sc] : voteLabels[sc]"
-                      :color="song.hasVoted === sc ? voteColors[sc] : 'grey-7'"
-                      :text-color="song.hasVoted === sc ? 'white' : 'grey-2'"
-                      :class="{ 'vote-btn-compact': isCompactVotes }"
-                      dense
-                      size="sm"
-                      no-caps
-                      @click="toggleVote(song, sc)"
-                    >
-                      <q-tooltip>{{ voteLabels[sc] }}</q-tooltip>
-                    </q-btn>
-                  </div>
                   <div class="text-caption text-grey-8 q-mt-xs text-right">
                     {{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }} • {{ song.voteCount }} {{ t('voting.votes') }}
                   </div>
-                </div>
               </q-item-section>
 
               <!-- Actions -->
@@ -154,6 +160,32 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Vote Picker -->
+    <q-dialog v-model="showVotePicker">
+      <q-card class="vote-picker-card">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('voting.chooseYourVote') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-separator />
+        <q-list separator>
+          <q-item clickable v-ripple @click="selectOwnVote(0)">
+            <q-item-section>0 (Veto!)</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple @click="selectOwnVote(1)">
+            <q-item-section>1 (OK)</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple @click="selectOwnVote(2)">
+            <q-item-section>2 (Good)</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple @click="selectOwnVote(3)">
+            <q-item-section>3 (Great)</q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -180,17 +212,15 @@ const sortOptions = computed(() => [
   { label: t('voting.customOrder'), value: 'custom' },
 ])
 
-const voteLabels = computed<Record<number, string>>(() => ({ 0: t('voting.veto'), 1: t('voting.ok'), 2: t('voting.good'), 3: t('voting.great') }))
-const voteShortLabels: Record<number, string> = { 0: '-', 1: 'OK', 2: '+', 3: '++' }
-const voteColors: Record<number, string> = { 0: 'red', 1: 'orange', 2: 'primary', 3: 'green' }
-const isCompactVotes = computed(() => $q.screen.lt.sm)
-
 const isAdmin = computed(() => {
   const band = authStore.activeBand
   return band && ['owner', 'admin'].includes(band.role)
 })
 
 const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
+const currentUserId = computed(() => authStore.user?.id || '')
+const currentUser = computed(() => visibleMembers.value.find((m) => m.id === currentUserId.value) || null)
+const otherMembers = computed(() => visibleMembers.value.filter((m) => m.id !== currentUserId.value))
 
 const filteredSongs = computed(() => {
   let list = songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist)
@@ -220,9 +250,14 @@ function getMemberFallbackColor(song: Song, userId: string) {
 }
 
 function getMemberVoteLabel(song: Song, userId: string) {
+  if (!userId) return '-'
   const vote = song.allVotes?.find((v) => v.userId === userId)
   if (!vote) return '-'
   return String(vote.score)
+}
+
+function getNameInitial(name?: string | null) {
+  return (name?.trim()?.charAt(0) || '?').toUpperCase()
 }
 
 // Voting
@@ -232,6 +267,21 @@ async function toggleVote(song: Song, score: number) {
     await apiJson('/votes', { method: 'POST', body: JSON.stringify({ songId: song.id, score: remove ? undefined : score, remove }) })
     await songsStore.fetchSongs()
   } catch (e: any) { $q.notify({ message: e.message || t('voting.failedVote'), color: 'negative' }) }
+}
+
+const showVotePicker = ref(false)
+const voteSong = ref<Song | null>(null)
+
+function openVotePicker(song: Song) {
+  if (!currentUserId.value) return
+  voteSong.value = song
+  showVotePicker.value = true
+}
+
+async function selectOwnVote(score: number) {
+  if (!voteSong.value) return
+  await toggleVote(voteSong.value, score)
+  showVotePicker.value = false
 }
 
 async function togglePin(song: Song) {
@@ -375,24 +425,9 @@ onMounted(() => {
     flex: 1 1 0;
   }
 
-  .song-order-votes {
-    width: 100%;
-    order: 10;
-  }
-
   .song-order-actions {
     width: 100%;
-    order: 11;
-  }
-
-  .vote-controls {
-    width: 100%;
-    align-items: flex-start;
-  }
-
-  .vote-buttons {
-    flex-wrap: wrap;
-    gap: 4px;
+    order: 10;
   }
 
   .song-actions {
@@ -400,9 +435,41 @@ onMounted(() => {
   }
 }
 
-.vote-btn-compact {
-  min-width: 38px;
-  padding-left: 6px;
-  padding-right: 6px;
+.votes-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 18px;
+  width: 100%;
+}
+
+.votes-self {
+  flex: 0 0 auto;
+}
+
+.own-vote-trigger {
+  border: 1px dashed var(--q-primary);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.own-vote-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.votes-others {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vote-picker-card {
+  min-width: 280px;
 }
 </style>
