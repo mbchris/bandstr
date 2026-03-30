@@ -95,6 +95,28 @@ function pushMapValue<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   map.set(key, [value])
 }
 
+function sanitizeCell(value: string): string {
+  // Strip ASCII control chars (including ESC sequences) to keep CLI output stable/readable.
+  return value.replace(/[\u0000-\u001F\u007F]/g, '')
+}
+
+function printTextTable(headers: string[], rows: string[][]): void {
+  const safeRows = rows.map((row) => row.map((cell) => sanitizeCell(cell)))
+  const safeHeaders = headers.map((header) => sanitizeCell(header))
+  const widths = safeHeaders.map((header, colIndex) =>
+    Math.max(header.length, ...safeRows.map((row) => (row[colIndex] ?? '').length)),
+  )
+
+  const formatRow = (row: string[]): string =>
+    row.map((cell, colIndex) => (cell ?? '').padEnd(widths[colIndex])).join('  ')
+
+  console.log(formatRow(safeHeaders))
+  console.log(widths.map((width) => '-'.repeat(width)).join('  '))
+  for (const row of safeRows) {
+    console.log(formatRow(row))
+  }
+}
+
 async function listUsers(): Promise<void> {
   const result = await pool.query<{
     id: string
@@ -122,11 +144,16 @@ async function listUsers(): Promise<void> {
     return
   }
 
-  for (const row of result.rows) {
-    console.log(
-      `${row.id}\t${row.email}\t${row.name}\tdevProPlan=${row.dev_pro_plan ? 'yes' : 'no'}\tbands=${row.band_count}`,
-    )
-  }
+  printTextTable(
+    ['ID', 'Email', 'Name', 'Dev Pro', 'Bands'],
+    result.rows.map((row) => [
+      row.id,
+      row.email,
+      row.name,
+      row.dev_pro_plan ? 'yes' : 'no',
+      row.band_count,
+    ]),
+  )
 }
 
 async function listBands(): Promise<void> {
@@ -165,13 +192,17 @@ async function listBands(): Promise<void> {
     return
   }
 
-  for (const row of result.rows) {
-    console.log(
-      `${row.id}\t${row.slug}\t${row.name}\tplan=${row.plan}\tmembers=${row.member_count}\tinheritedAdminPro=${
-        row.inherited_admin_pro ? 'yes' : 'no'
-      }`,
-    )
-  }
+  printTextTable(
+    ['ID', 'Slug', 'Name', 'Plan', 'Members', 'Inherited Admin Pro'],
+    result.rows.map((row) => [
+      String(row.id),
+      row.slug,
+      row.name,
+      row.plan,
+      row.member_count,
+      row.inherited_admin_pro ? 'yes' : 'no',
+    ]),
+  )
 }
 
 async function addUser(options: Record<string, string | boolean>): Promise<void> {
@@ -699,3 +730,4 @@ main()
   .finally(async () => {
     await pool.end()
   })
+

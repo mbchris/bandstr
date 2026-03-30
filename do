@@ -9,6 +9,7 @@ command="${1:-}"
 env_profile="local"
 build_apk_sign=1
 build_apk_install=1
+build_bundle_sign=1
 deploy_apk_device_id=""
 sign_apk_input_path=""
 apk_api_url=""
@@ -55,6 +56,20 @@ Commands:
       ANDROID_SIGNING_KEYSTORE_PASSWORD
       ANDROID_SIGNING_KEY_PASSWORD
 
+  create-apk-bundle [local|production] [--no-sign]
+    Build Android App Bundle (.aab) for Play Store upload.
+    - local uses .env.local (fallback .env)
+    - production uses .env.production (fallback .env)
+    - --no-sign skips signing/validation and leaves raw app-release.aab
+    Signing env vars for release key (base64):
+      ANDROID_SIGNING_KEYSTORE_BASE64
+      ANDROID_SIGNING_KEY_ALIAS
+      ANDROID_SIGNING_KEYSTORE_PASSWORD
+      ANDROID_SIGNING_KEY_PASSWORD
+
+  install-bundletool
+    Download bundletool JAR into ./.tools/bundletool (if missing).
+
   sign-apk [local|production] [APK_PATH]
     Sign an existing Android APK without rebuilding.
     - If APK_PATH is omitted, defaults to:
@@ -92,6 +107,20 @@ if [[ "$command" == "build-apk" ]]; then
       *)
         echo "Error: Unknown option for build-apk: $arg"
         echo "Usage: ./do build-apk [local|production] [--no-sign] [--no-install]"
+        exit 1
+        ;;
+    esac
+  done
+elif [[ "$command" == "create-apk-bundle" ]]; then
+  env_profile="${2:-local}"
+  for arg in "${@:3}"; do
+    case "$arg" in
+      --no-sign)
+        build_bundle_sign=0
+        ;;
+      *)
+        echo "Error: Unknown option for create-apk-bundle: $arg"
+        echo "Usage: ./do create-apk-bundle [local|production] [--no-sign]"
         exit 1
         ;;
     esac
@@ -151,7 +180,7 @@ if [[ "$command" == "keygen-apk" ]]; then
   exit $?
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "deploy-apk" || "$command" == "sign-apk" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "sign-apk" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -162,30 +191,32 @@ elif [[ "$env_profile" != "local" ]]; then
   exit 1
 fi
 
-if [[ "$env_profile" == "production" ]]; then
-  if [[ -f ".env.production" ]]; then
-    env_file=".env.production"
-  elif [[ -f ".env" ]]; then
-    echo "Warning: .env.production not found. Falling back to .env"
-    env_file=".env"
+if [[ "$command" != "install-bundletool" ]]; then
+  if [[ "$env_profile" == "production" ]]; then
+    if [[ -f ".env.production" ]]; then
+      env_file=".env.production"
+    elif [[ -f ".env" ]]; then
+      echo "Warning: .env.production not found. Falling back to .env"
+      env_file=".env"
+    else
+      echo "Error: Neither .env.production nor .env found."
+      exit 1
+    fi
   else
-    echo "Error: Neither .env.production nor .env found."
-    exit 1
+    if [[ -f ".env.local" ]]; then
+      env_file=".env.local"
+    elif [[ -f ".env" ]]; then
+      echo "Warning: .env.local not found. Falling back to .env"
+      env_file=".env"
+    else
+      echo "Error: Neither .env.local nor .env found."
+      exit 1
+    fi
   fi
-else
-  if [[ -f ".env.local" ]]; then
-    env_file=".env.local"
-  elif [[ -f ".env" ]]; then
-    echo "Warning: .env.local not found. Falling back to .env"
-    env_file=".env"
-  else
-    echo "Error: Neither .env.local nor .env found."
-    exit 1
-  fi
-fi
 
-echo "Using environment configuration: $env_file"
-export ENV_FILE="$env_file"
+  echo "Using environment configuration: $env_file"
+  export ENV_FILE="$env_file"
+fi
 
 get_env_value() {
   local key="$1"
@@ -204,7 +235,7 @@ get_env_value() {
   printf '%s\n' "$value"
 }
 
-if [[ "$command" == "build-apk" || "$command" == "deploy-apk" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" ]]; then
   apk_api_url="$(get_env_value API_URL "$env_file" || true)"
   if [[ -z "$apk_api_url" ]]; then
     echo "Error: API_URL is not set in $env_file."
@@ -337,6 +368,77 @@ verify_apk_signature() {
   "$apksigner_bin" verify --print-certs "$apk_path" >/dev/null
 }
 
+resolve_jarsigner_bin() {
+  if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/jarsigner" ]]; then
+    printf '%s\n' "$JAVA_HOME/bin/jarsigner"
+    return 0
+  fi
+
+  if command -v jarsigner >/dev/null 2>&1; then
+    printf '%s\n' "jarsigner"
+    return 0
+  fi
+
+  return 1
+}
+
+resolve_bundletool_jar() {
+  local version="${BUNDLETOOL_VERSION:-1.18.1}"
+  local tools_dir="$SCRIPT_DIR/.tools/bundletool"
+  local jar_path="$tools_dir/bundletool-all-$version.jar"
+
+  if [[ -f "$jar_path" ]]; then
+    printf '%s\n' "$jar_path"
+    return 0
+  fi
+
+  mkdir -p "$tools_dir"
+  local download_url="https://github.com/google/bundletool/releases/download/$version/bundletool-all-$version.jar"
+  echo "Installing bundletool $version to $jar_path"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL "$download_url" -o "$jar_path"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "$jar_path" "$download_url"
+  else
+    echo "Error: curl or wget is required to download bundletool."
+    return 1
+  fi
+
+  if [[ ! -s "$jar_path" ]]; then
+    echo "Error: bundletool download failed ($jar_path is empty)."
+    return 1
+  fi
+
+  printf '%s\n' "$jar_path"
+}
+
+run_bundletool() {
+  if command -v bundletool >/dev/null 2>&1; then
+    bundletool "$@"
+    return $?
+  fi
+
+  local jar_path=""
+  jar_path="$(resolve_bundletool_jar || true)"
+  if [[ -z "$jar_path" ]]; then
+    return 1
+  fi
+
+  local java_bin="java"
+  if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+    java_bin="$JAVA_HOME/bin/java"
+  fi
+
+  "$java_bin" -jar "$jar_path" "$@"
+}
+
+install_bundletool() {
+  local jar_path=""
+  jar_path="$(resolve_bundletool_jar)"
+  echo "bundletool ready: $jar_path"
+}
+
 sign_apk_file() {
   local input_apk="$1"
   local output_apk="$2"
@@ -423,6 +525,92 @@ sign_apk_file() {
   fi
   if ! verify_apk_signature "$apksigner_bin" "$verify_target"; then
     echo "Error: APK signature verification failed for $output_apk."
+    return 1
+  fi
+
+  return 0
+}
+
+sign_aab_file_for_playstore() {
+  local input_aab="$1"
+  local output_aab="$2"
+  local is_windows_shell=0
+  if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
+    is_windows_shell=1
+  fi
+
+  local jarsigner_bin=""
+  local encoded_keystore="${ANDROID_SIGNING_KEYSTORE_BASE64:-}"
+  local keystore_password="${ANDROID_SIGNING_KEYSTORE_PASSWORD:-}"
+  local key_alias="${ANDROID_SIGNING_KEY_ALIAS:-}"
+  local key_password="${ANDROID_SIGNING_KEY_PASSWORD:-}"
+  local temp_keystore=""
+  local cleanup_temp_keystore=0
+  local user_home="${USERPROFILE:-$HOME}"
+
+  if [[ -z "$encoded_keystore" || -z "$keystore_password" || -z "$key_alias" || -z "$key_password" ]]; then
+    echo "Error: create-apk-bundle requires release signing env vars:"
+    echo "  ANDROID_SIGNING_KEYSTORE_BASE64"
+    echo "  ANDROID_SIGNING_KEYSTORE_PASSWORD"
+    echo "  ANDROID_SIGNING_KEY_ALIAS"
+    echo "  ANDROID_SIGNING_KEY_PASSWORD"
+    return 1
+  fi
+
+  jarsigner_bin="$(resolve_jarsigner_bin || true)"
+  if [[ -z "$jarsigner_bin" ]]; then
+    echo "Error: jarsigner not found."
+    return 1
+  fi
+
+  local temp_root="${TMPDIR:-${TEMP:-${TMP:-}}}"
+  if [[ -z "$temp_root" && "$is_windows_shell" == "1" ]]; then
+    temp_root="${LOCALAPPDATA:-$user_home/AppData/Local}/Temp"
+  fi
+  temp_root="${temp_root:-/tmp}"
+  mkdir -p "$temp_root"
+  temp_keystore="$(mktemp "$temp_root/bandstr-signing-XXXXXX.jks")"
+  if ! printf '%s' "$encoded_keystore" | base64 --decode > "$temp_keystore" 2>/dev/null; then
+    if ! printf '%s' "$encoded_keystore" | base64 -d > "$temp_keystore" 2>/dev/null; then
+      rm -f "$temp_keystore"
+      echo "Error: failed to decode ANDROID_SIGNING_KEYSTORE_BASE64."
+      return 1
+    fi
+  fi
+  cleanup_temp_keystore=1
+
+  cp "$input_aab" "$output_aab"
+
+  local ks_for_sign="$temp_keystore"
+  local out_for_sign="$output_aab"
+  if [[ "$is_windows_shell" == "1" ]]; then
+    ks_for_sign="$(to_windows_path "$ks_for_sign" || printf '%s' "$ks_for_sign")"
+    out_for_sign="$(to_windows_path "$out_for_sign" || printf '%s' "$out_for_sign")"
+  fi
+
+  "$jarsigner_bin" \
+    -sigalg SHA256withRSA \
+    -digestalg SHA-256 \
+    -keystore "$ks_for_sign" \
+    -storepass "$keystore_password" \
+    -keypass "$key_password" \
+    "$out_for_sign" \
+    "$key_alias" >/dev/null
+
+  if [[ "$cleanup_temp_keystore" == "1" ]]; then
+    rm -f "$temp_keystore"
+  fi
+
+  if ! "$jarsigner_bin" -verify -strict "$out_for_sign" >/dev/null 2>&1; then
+    echo "Error: AAB signature verification failed for $output_aab."
+    return 1
+  fi
+
+  if ! run_bundletool validate --bundle="$output_aab" >/dev/null 2>&1; then
+    echo "Error: bundletool validation failed for $output_aab."
+    echo "Run manually for details:"
+    echo "  bundletool validate --bundle=\"$output_aab\""
+    run_bundletool validate --bundle="$output_aab" || true
     return 1
   fi
 
@@ -679,6 +867,47 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
   install_android_apk "$final_apk"
 }
 
+build_android_bundle() {
+  local sign_bundle="$1"
+
+  # Reuse the existing Android build preparation (Java/SDK checks + Capacitor release build).
+  build_android_apk 0 0
+
+  local android_dir="packages/web/src-capacitor/android"
+  local release_aab="packages/web/src-capacitor/android/app/build/outputs/bundle/release/app-release.aab"
+  local release_signed_aab="packages/web/src-capacitor/android/app/build/outputs/bundle/release/app-release-signed.aab"
+
+  if [[ ! -f "$release_aab" ]]; then
+    echo "Generating release App Bundle (.aab) via Gradle bundleRelease..."
+    if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
+      (
+        cd "$android_dir"
+        cmd.exe //c gradlew.bat bundleRelease
+      )
+    else
+      (
+        cd "$android_dir"
+        ./gradlew bundleRelease
+      )
+    fi
+  fi
+
+  if [[ ! -f "$release_aab" ]]; then
+    echo "Error: AAB build finished but file not found at: $release_aab"
+    exit 1
+  fi
+
+  if [[ "$sign_bundle" == "1" ]]; then
+    if ! sign_aab_file_for_playstore "$release_aab" "$release_signed_aab"; then
+      exit 1
+    fi
+    echo "AAB built, signed, and validated successfully: $release_signed_aab"
+  else
+    echo "AAB built successfully (unsigned): $release_aab"
+    echo "Signing skipped due to --no-sign."
+  fi
+}
+
 sync_assets() {
   echo "Syncing assets from ./assets to build locations..."
   bash ./scripts/sync-assets.sh
@@ -801,11 +1030,18 @@ case "$command" in
     sync_assets
     build_android_apk "$build_apk_sign" "$build_apk_install"
     ;;
+  create-apk-bundle)
+    sync_assets
+    build_android_bundle "$build_bundle_sign"
+    ;;
   deploy-apk)
     deploy_android_apk "$env_profile" "$deploy_apk_device_id"
     ;;
   sign-apk)
     sign_existing_android_apk "$env_profile" "$sign_apk_input_path"
+    ;;
+  install-bundletool)
+    install_bundletool
     ;;
   sync-assets)
     sync_assets

@@ -55,7 +55,9 @@
 
                 <q-separator />
                 <q-item disable>
-                  <q-item-section>{{ t('admin.role') }}: {{ activeBandRole }}</q-item-section>
+                  <q-item-section>
+                    {{ t('nav.loggedInAs') }}: {{ activeUserName }} ({{ activeBandRole }})
+                  </q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="goBilling">
                   <q-item-section>{{ t('nav.subscriptions') }}</q-item-section>
@@ -139,6 +141,7 @@ const activeBandId = computed({
 })
 
 const activeBandRole = computed(() => authStore.activeBand?.role ?? 'none')
+const activeUserName = computed(() => authStore.user?.name ?? authStore.user?.email ?? 'Unknown user')
 
 const activeLogoSrc = computed(() => {
   const customLogo = authStore.activeBand?.logo
@@ -200,11 +203,24 @@ function goBilling() {
 
 async function handleLogout() {
   const { authClient } = await import('../boot/auth')
+  const apiBase = (process.env.API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '')
   try {
-    // Revoke the session server-side (invalidates the token)
     if (authStore.token) {
-      const apiBase = (process.env.API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '')
-      await fetch(`${apiBase}/api/auth/sign-out`, {
+      let revoked = false
+
+      const revokeRes = await fetch(`${apiBase}/api/mobile-auth/revoke-token`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authStore.token}`,
+        },
+        credentials: 'omit',
+      })
+      if (revokeRes.ok) {
+        revoked = true
+      }
+
+      // Keep Better Auth state/cookies in sync too (especially for web sessions).
+      const signOutRes = await fetch(`${apiBase}/api/auth/sign-out`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -212,11 +228,22 @@ async function handleLogout() {
         },
         credentials: 'include',
       })
+      if (signOutRes.ok) {
+        revoked = true
+      }
+
+      if (!revoked) {
+        throw new Error('Token revocation failed')
+      }
     } else {
       await authClient.signOut()
     }
   } catch {
-    // Continue with local cleanup even if server call fails
+    $q.notify({
+      type: 'negative',
+      message: 'Logout failed. Please try again.',
+    })
+    return
   }
   authStore.clearSession()
   window.location.href = '/login'
