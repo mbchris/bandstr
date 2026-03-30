@@ -1001,11 +1001,11 @@ bump_android_version_code() {
   local tmp_file
   tmp_file="$(mktemp "$temp_root/bandstr-versioncode-XXXXXX")"
 
-  if ! awk -v next="$next_version_code" '
+  if ! awk -v nextversion="$next_version_code" '
     BEGIN { updated = 0 }
     {
       if (!updated && $0 ~ /^[[:space:]]*versionCode[[:space:]]+[0-9]+[[:space:]]*$/) {
-        sub(/[0-9]+[[:space:]]*$/, next)
+        sub(/[0-9]+[[:space:]]*$/, nextversion)
         updated = 1
       }
       print
