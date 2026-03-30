@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@quasar/app-vite@2.1.4':
+    hash: d851421e2edc05804d257214cdd106f9c6b37fd651e76aebfaf1c6890ce53d0e
+    path: patches/@quasar__app-vite@2.1.4.patch
+
 importers:
 
   .: {}
@@ -97,7 +102,7 @@ importers:
         version: 7.6.1(@capacitor/core@7.6.1)
       '@quasar/app-vite':
         specifier: 2.1.4
-        version: 2.1.4(@types/node@22.19.15)(eslint@9.39.4(jiti@2.6.1))(jiti@2.6.1)(lightningcss@1.32.0)(pinia@2.3.1(typescript@5.9.3)(vue@3.5.31(typescript@5.9.3)))(quasar@2.19.1)(rollup@4.60.0)(sass@1.98.0)(terser@5.46.1)(tsx@4.21.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.31(typescript@5.9.3)))(vue@3.5.31(typescript@5.9.3))(yaml@2.8.3)
+        version: 2.1.4(patch_hash=d851421e2edc05804d257214cdd106f9c6b37fd651e76aebfaf1c6890ce53d0e)(@types/node@22.19.15)(eslint@9.39.4(jiti@2.6.1))(jiti@2.6.1)(lightningcss@1.32.0)(pinia@2.3.1(typescript@5.9.3)(vue@3.5.31(typescript@5.9.3)))(quasar@2.19.1)(rollup@4.60.0)(sass@1.98.0)(terser@5.46.1)(tsx@4.21.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.31(typescript@5.9.3)))(vue@3.5.31(typescript@5.9.3))(yaml@2.8.3)
       '@types/node':
         specifier: ^22.15.18
         version: 22.19.15
@@ -4596,7 +4601,7 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@quasar/app-vite@2.1.4(@types/node@22.19.15)(eslint@9.39.4(jiti@2.6.1))(jiti@2.6.1)(lightningcss@1.32.0)(pinia@2.3.1(typescript@5.9.3)(vue@3.5.31(typescript@5.9.3)))(quasar@2.19.1)(rollup@4.60.0)(sass@1.98.0)(terser@5.46.1)(tsx@4.21.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.31(typescript@5.9.3)))(vue@3.5.31(typescript@5.9.3))(yaml@2.8.3)':
+  '@quasar/app-vite@2.1.4(patch_hash=d851421e2edc05804d257214cdd106f9c6b37fd651e76aebfaf1c6890ce53d0e)(@types/node@22.19.15)(eslint@9.39.4(jiti@2.6.1))(jiti@2.6.1)(lightningcss@1.32.0)(pinia@2.3.1(typescript@5.9.3)(vue@3.5.31(typescript@5.9.3)))(quasar@2.19.1)(rollup@4.60.0)(sass@1.98.0)(terser@5.46.1)(tsx@4.21.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.31(typescript@5.9.3)))(vue@3.5.31(typescript@5.9.3))(yaml@2.8.3)':
     dependencies:
       '@quasar/render-ssr-error': 1.0.4
       '@quasar/ssl-certificate': 1.0.0

@@ -1,0 +1,19 @@
+diff --git a/lib/modes/capacitor/capacitor-builder.js b/lib/modes/capacitor/capacitor-builder.js
+index 6173df1a94be1a41c9e4cef8e3a70ed0a645f5e8..70da6da213a570fc662a3149106d458066299ef6 100644
+--- a/lib/modes/capacitor/capacitor-builder.js
++++ b/lib/modes/capacitor/capacitor-builder.js
+@@ -1,4 +1,4 @@
+-import { join } from 'node:path'
++import { join, resolve } from 'node:path'
+ import fse from 'fs-extra'
+ 
+ import { AppBuilder } from '../../app-builder.js'
+@@ -122,7 +122,7 @@ export class QuasarModeBuilder extends AppBuilder {
+     log('Building Android app...')
+ 
+     await spawnSync(
+-      `./gradlew${ process.platform === 'win32' ? '.bat' : '' }`,
++      resolve(this.ctx.appPaths.resolve.capacitor('android'), `gradlew${ process.platform === 'win32' ? '.bat' : '' }`),
+       [ `assemble${ this.quasarConf.metaConf.debugging ? 'Debug' : 'Release' }` ].concat(this.argv._),
+       { cwd: this.ctx.appPaths.resolve.capacitor('android') },
+       () => {
