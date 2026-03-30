@@ -101,8 +101,10 @@ The `./do` script wraps common Docker/dev tasks:
 ./do stop local
 ./do build local
 ./do build-apk local
+./do create-apk-bundle local
 ./do deploy-apk local [DEVICE_ID]
 ./do keygen-apk --store-pass "<strong-password>"
+./do install-bundletool
 ./do --help
 ./do sync-assets
 ./do cleanup-resources
@@ -111,6 +113,7 @@ The `./do` script wraps common Docker/dev tasks:
 Notes:
 - `build-apk` and `deploy-apk` support `local|production`.
 - `build-apk` supports `--no-sign` and `--no-install`.
+- `create-apk-bundle` builds a Play Store `.aab` and signs/validates it by default (`--no-sign` disables that).
 - `./do` reads `.env.local` first, then falls back to `.env` (or `.env.production` in production mode).
 - For production signing, set:
   - `ANDROID_SIGNING_KEYSTORE_BASE64`

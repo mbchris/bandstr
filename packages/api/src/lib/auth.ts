@@ -20,6 +20,17 @@ const configuredApiUrl = process.env.API_URL ?? 'http://localhost:3001'
 export const authBaseUrl = normalizeAuthBaseUrl(configuredApiUrl)
 export const AUTH_BASE_PATH = '/api/auth'
 const isProduction = (process.env.NODE_ENV ?? '').toLowerCase() === 'production'
+const DEFAULT_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 365 * 3 // 3 years
+
+function getSessionExpiresInSeconds(): number {
+  const fromEnv = Number.parseInt(process.env.AUTH_SESSION_EXPIRES_IN_SECONDS ?? '', 10)
+  if (Number.isInteger(fromEnv) && fromEnv > 0) {
+    return fromEnv
+  }
+  return DEFAULT_SESSION_EXPIRES_IN_SECONDS
+}
+
+const sessionExpiresInSeconds = getSessionExpiresInSeconds()
 const MOBILE_LOCAL_ORIGINS = [
   'capacitor://localhost',
   'http://localhost',
@@ -81,6 +92,10 @@ export const auth = betterAuth({
   },
 
   session: {
+    // Default to effectively non-expiring sessions (100y) unless overridden by env.
+    // Session/token invalidation is handled explicitly via logout/revocation.
+    expiresIn: sessionExpiresInSeconds,
+    disableSessionRefresh: true,
     // Support both cookie (web) and bearer token (mobile/Capacitor)
     cookieCache: {
       enabled: true,

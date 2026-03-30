@@ -251,6 +251,27 @@ app.get('/api/mobile-auth/error', (c) => {
   return c.html(deepLinkRedirectPage(target, 'auth_error'))
 })
 
+// Explicit bearer-token revocation endpoint used by app logout.
+app.post('/api/mobile-auth/revoke-token', async (c) => {
+  const authHeader = c.req.header('Authorization') ?? ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : ''
+
+  if (!token) {
+    return c.json({ error: 'Missing bearer token' }, 400)
+  }
+
+  const [deleted] = await db
+    .delete(sessions)
+    .where(eq(sessions.token, token))
+    .returning({ id: sessions.id })
+
+  if (!deleted) {
+    return c.json({ error: 'Session token not found' }, 404)
+  }
+
+  return c.json({ ok: true })
+})
+
 // Routes
 const authMethods = ['GET', 'POST', 'OPTIONS']
 const authCanonical = AUTH_BASE_PATH.replace(/\/+$/, '')

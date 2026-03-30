@@ -14,6 +14,7 @@ export default {
     menu: 'Menü',
     allBands: 'Alle Bands',
     active: 'Aktiv',
+    loggedInAs: 'Eingeloggt als',
     subscriptions: 'Abonnements',
     impress: 'Impressum',
   },
