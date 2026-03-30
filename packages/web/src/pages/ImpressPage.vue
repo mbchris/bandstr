@@ -7,6 +7,15 @@
       <div class="impress-card">
         <Markdown :content="impressMarkdown" :breaks="true" />
       </div>
+      <div class="q-mt-md">
+        <q-btn
+          outline
+          color="primary"
+          icon="privacy_tip"
+          label="Zur Datenschutzerklärung"
+          @click="goToPrivacy"
+        />
+      </div>
       <div class="impress-rev q-mt-md text-caption text-grey-5">Build: {{ gitRev }}</div>
     </div>
   </q-page>
@@ -26,6 +35,10 @@ function goBack() {
     return
   }
   void router.push('/')
+}
+
+function goToPrivacy() {
+  void router.push('/gdpr')
 }
 
 onMounted(async () => {

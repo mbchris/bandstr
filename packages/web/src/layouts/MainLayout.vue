@@ -65,6 +65,9 @@
                 <q-item clickable v-close-popup @click="router.push('/impress')">
                   <q-item-section>{{ t('nav.impress') }}</q-item-section>
                 </q-item>
+                <q-item clickable v-close-popup @click="goDeleteAccount">
+                  <q-item-section>{{ t('nav.deleteAccount') }}</q-item-section>
+                </q-item>
                 <q-item clickable v-close-popup @click="handleLogout">
                   <q-item-section>{{ t('nav.signOut') }}</q-item-section>
                 </q-item>
@@ -199,6 +202,10 @@ function goDashboard() {
 
 function goBilling() {
   router.push('/billing')
+}
+
+function goDeleteAccount() {
+  router.push('/delete-account')
 }
 
 async function handleLogout() {

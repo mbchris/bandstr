@@ -21,8 +21,8 @@
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
-            <q-item v-for="song in filteredSongs" :key="song.id" class="q-pa-sm">
-              <q-item-section side>
+            <q-item v-for="song in filteredSongs" :key="song.id" class="q-pa-sm song-item">
+              <q-item-section side class="song-order-controls">
                 <div class="column items-center q-gutter-xs">
                   <template v-if="sortBy === 'custom'">
                     <q-btn flat round dense icon="keyboard_arrow_up" size="xs" @click="moveSong(song, -1)" />
@@ -33,7 +33,7 @@
               </q-item-section>
 
               <!-- Thumbnail -->
-              <q-item-section side>
+              <q-item-section side class="song-order-thumb">
                 <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank">
                   <q-avatar rounded size="48px"><img :src="song.thumbnailUrl" /></q-avatar>
                 </a>
@@ -41,7 +41,7 @@
               </q-item-section>
 
               <!-- Info -->
-              <q-item-section>
+              <q-item-section class="song-order-info">
                 <q-item-label class="text-weight-bold">
                   {{ song.title }}
                   <q-icon v-if="song.notes" name="info" color="grey" size="xs" class="cursor-pointer">
@@ -71,20 +71,23 @@
               </q-item-section>
 
               <!-- Vote buttons -->
-              <q-item-section side>
-                <div class="column items-end">
-                  <div class="row q-gutter-xs">
+              <q-item-section side class="song-order-votes">
+                <div class="column items-end vote-controls">
+                  <div class="row q-gutter-xs vote-buttons">
                     <q-btn
                       v-for="sc in [0, 1, 2, 3]"
                       :key="sc"
-                      :label="voteLabels[sc]"
+                      :label="isCompactVotes ? voteShortLabels[sc] : voteLabels[sc]"
                       :color="song.hasVoted === sc ? voteColors[sc] : 'grey-7'"
                       :text-color="song.hasVoted === sc ? 'white' : 'grey-2'"
+                      :class="{ 'vote-btn-compact': isCompactVotes }"
                       dense
                       size="sm"
                       no-caps
                       @click="toggleVote(song, sc)"
-                    />
+                    >
+                      <q-tooltip>{{ voteLabels[sc] }}</q-tooltip>
+                    </q-btn>
                   </div>
                   <div class="text-caption text-grey-8 q-mt-xs text-right">
                     {{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }} • {{ song.voteCount }} {{ t('voting.votes') }}
@@ -93,8 +96,8 @@
               </q-item-section>
 
               <!-- Actions -->
-              <q-item-section side>
-                <div class="column q-gutter-xs">
+              <q-item-section side class="song-order-actions">
+                <div class="column q-gutter-xs song-actions">
                   <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" color="grey" size="sm" @click="openTransferModal(song)">
                     <q-tooltip>{{ t('voting.sendToSetlist') }}</q-tooltip>
                   </q-btn>
@@ -178,7 +181,9 @@ const sortOptions = computed(() => [
 ])
 
 const voteLabels = computed<Record<number, string>>(() => ({ 0: t('voting.veto'), 1: t('voting.ok'), 2: t('voting.good'), 3: t('voting.great') }))
+const voteShortLabels: Record<number, string> = { 0: '-', 1: 'OK', 2: '+', 3: '++' }
 const voteColors: Record<number, string> = { 0: 'red', 1: 'orange', 2: 'primary', 3: 'green' }
+const isCompactVotes = computed(() => $q.screen.lt.sm)
 
 const isAdmin = computed(() => {
   const band = authStore.activeBand
@@ -356,5 +361,48 @@ onMounted(() => {
 
 .member-vote-great {
   border: 2px solid #22c55e;
+}
+
+@media (max-width: 768px) {
+  .song-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 0;
+  }
+
+  .song-order-info {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .song-order-votes {
+    width: 100%;
+    order: 10;
+  }
+
+  .song-order-actions {
+    width: 100%;
+    order: 11;
+  }
+
+  .vote-controls {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .vote-buttons {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .song-actions {
+    flex-direction: row;
+  }
+}
+
+.vote-btn-compact {
+  min-width: 38px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 </style>

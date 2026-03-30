@@ -10,6 +10,7 @@ import { calendar } from './routes/calendar.js'
 import { gigs } from './routes/gigs.js'
 import { rehearsals } from './routes/rehearsals.js'
 import { usersRouter as users } from './routes/users.js'
+import { account } from './routes/account.js'
 import { admin } from './routes/admin.js'
 import { billing } from './routes/billing.js'
 import { runMigrations } from './db/migrate.js'
@@ -296,6 +297,7 @@ app.route('/api/calendar', calendar)
 app.route('/api/gigs', gigs)
 app.route('/api/rehearsals', rehearsals)
 app.route('/api/users', users)
+app.route('/api/account', account)
 app.route('/api/admin', admin)
 app.route('/api/billing', billing)
 
