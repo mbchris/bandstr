@@ -47,4 +47,26 @@ Useful commands:
 - Check bundled migration files
   ls -la /app/packages/api/dist/db/migrations
 
+- Admin CLI help
+  /app/bandstr-cli help
+
+- List users / bands
+  /app/bandstr-cli list-users
+  /app/bandstr-cli list-bands
+
+- Add/delete user
+  /app/bandstr-cli add-user --name "Jane Admin" --email "jane@example.com"
+  /app/bandstr-cli delete-user --user-id "<user-id>"
+
+- Assign/remove band membership
+  /app/bandstr-cli assign-user-to-band --user-id "<user-id>" --band-id 1 --role admin
+  /app/bandstr-cli remove-user-from-band --user-id "<user-id>" --band-id 1
+
+- Import songs/votings from another SQL(Postgres) DB
+  /app/bandstr-cli import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1
+  /app/bandstr-cli import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1
+
+- Toggle per-user pro subscription override (band inherits for owner/admin users)
+  /app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true
+
 EOF

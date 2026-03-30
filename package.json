@@ -24,7 +24,9 @@
     "db:init": "bash ./scripts/init-empty-db.sh",
     "db:reset": "bash ./scripts/reset-db.sh",
     "db:studio": "pnpm --filter @bandstr/api run db:studio",
-    "db:seed": "pnpm --filter @bandstr/api run db:seed"
+    "db:seed": "pnpm --filter @bandstr/api run db:seed",
+    "cli:admin": "pnpm --filter @bandstr/api run cli:admin",
+    "cli:admin:dev": "pnpm --filter @bandstr/api run cli:admin:dev"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
