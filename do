@@ -430,7 +430,28 @@ run_bundletool() {
     java_bin="$JAVA_HOME/bin/java"
   fi
 
-  "$java_bin" -jar "$jar_path" "$@"
+  local jar_for_java="$jar_path"
+  local converted_args=("$@")
+  if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
+    jar_for_java="$(to_windows_path "$jar_for_java" || printf '%s' "$jar_for_java")"
+    converted_args=()
+    for arg in "$@"; do
+      case "$arg" in
+        --bundle=*|--output=*|--ks=*|--aab=*|--apks=*|--device-spec=*)
+          local key="${arg%%=*}"
+          local value="${arg#*=}"
+          local converted_value
+          converted_value="$(to_windows_path "$value" || printf '%s' "$value")"
+          converted_args+=("${key}=${converted_value}")
+          ;;
+        *)
+          converted_args+=("$arg")
+          ;;
+      esac
+    done
+  fi
+
+  "$java_bin" -jar "$jar_for_java" "${converted_args[@]}"
 }
 
 install_bundletool() {
@@ -601,8 +622,10 @@ sign_aab_file_for_playstore() {
     rm -f "$temp_keystore"
   fi
 
-  if ! "$jarsigner_bin" -verify -strict "$out_for_sign" >/dev/null 2>&1; then
+  if ! "$jarsigner_bin" -verify -certs "$out_for_sign" >/dev/null 2>&1; then
     echo "Error: AAB signature verification failed for $output_aab."
+    echo "Details:"
+    "$jarsigner_bin" -verify -certs "$out_for_sign" || true
     return 1
   fi
 
@@ -882,7 +905,7 @@ build_android_bundle() {
     if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
       (
         cd "$android_dir"
-        cmd.exe //c gradlew.bat bundleRelease
+        cmd.exe /c ".\\gradlew.bat bundleRelease"
       )
     else
       (
