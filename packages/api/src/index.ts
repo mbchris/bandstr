@@ -161,6 +161,26 @@ app.get('/api/mobile-auth/start', (c) => {
   return c.html(html)
 })
 
+// Serve an HTML page that redirects to a custom-scheme URL.
+// HTTP 302 redirects to custom schemes are unreliable on mobile browsers (especially
+// Firefox on Android). JS redirect + meta refresh + clickable link covers all cases.
+function deepLinkRedirectPage(target: string, label: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta http-equiv="refresh" content="1;url=${escapeHtml(target)}" />
+    <title>Returning to bandstr…</title>
+  </head>
+  <body>
+    <p>Returning to the app…</p>
+    <p><a href="${escapeHtml(target)}">Tap here if you are not redirected</a></p>
+    <script>window.location.href = ${JSON.stringify(target)};</script>
+  </body>
+</html>`
+}
+
 // Native OAuth completion bridge:
 // Better Auth callback lands here first (same browser context where auth cookie exists).
 // We exchange session cookie -> bearer token and deep-link into the app with the token.
@@ -178,7 +198,7 @@ app.get('/api/mobile-auth/complete', async (c) => {
         `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}error=missing_session` +
         '&mobileAuth=missing_session'
       console.warn('[mobile-auth/complete] missing session, redirecting to app callback')
-      return c.redirect(target, 302)
+      return c.html(deepLinkRedirectPage(target, 'missing_session'))
     }
 
     const row = await db.select({ token: sessions.token }).from(sessions).where(eq(sessions.id, sessionId)).limit(1)
@@ -189,20 +209,20 @@ app.get('/api/mobile-auth/complete', async (c) => {
         `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}error=missing_token` +
         '&mobileAuth=missing_token'
       console.warn('[mobile-auth/complete] missing token row for session, redirecting to app callback')
-      return c.redirect(target, 302)
+      return c.html(deepLinkRedirectPage(target, 'missing_token'))
     }
 
     const target =
       `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` +
       '&mobileAuth=ok'
     console.log('[mobile-auth/complete] token issued, redirecting to app callback')
-    return c.redirect(target, 302)
+    return c.html(deepLinkRedirectPage(target, 'token_issued'))
   } catch {
     const target =
       `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}error=token_exchange_failed` +
       '&mobileAuth=token_exchange_failed'
     console.error('[mobile-auth/complete] token exchange failed, redirecting with error')
-    return c.redirect(target, 302)
+    return c.html(deepLinkRedirectPage(target, 'token_exchange_failed'))
   }
 })
 
@@ -228,7 +248,7 @@ app.get('/api/mobile-auth/error', (c) => {
   const target = qs ? `${appErrorURL}${separator}${qs}` : appErrorURL
 
   console.warn('[mobile-auth/error] redirecting error to app callback:', target)
-  return c.redirect(target, 302)
+  return c.html(deepLinkRedirectPage(target, 'auth_error'))
 })
 
 // Routes
