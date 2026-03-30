@@ -43,12 +43,12 @@
                 >
                   <q-item-section>
                     <q-item-label>{{ band.name }}</q-item-label>
-                    <q-item-label caption>{{ formatPlanLabel(band.plan) }}</q-item-label>
+                    <q-item-label caption>{{ formatPlanLabel(band.plan, band.hasProPlan) }}</q-item-label>
                   </q-item-section>
                   <q-item-section side>
                     <div class="column items-end q-gutter-xs">
                       <q-badge v-if="activeBandId === band.id" color="primary">{{ t('nav.active') }}</q-badge>
-                      <q-badge outline color="secondary">{{ formatPlanLabel(band.plan) }}</q-badge>
+                      <q-badge outline color="secondary">{{ formatPlanLabel(band.plan, band.hasProPlan) }}</q-badge>
                     </div>
                   </q-item-section>
                 </q-item>
@@ -188,8 +188,8 @@ function selectBand(id: number) {
   activeBandId.value = id
 }
 
-function formatPlanLabel(plan: string | null | undefined) {
-  const normalized = (plan ?? 'free').toUpperCase()
+function formatPlanLabel(plan: string | null | undefined, hasProPlan?: boolean) {
+  const normalized = (hasProPlan ? 'pro' : (plan ?? 'free')).toUpperCase()
   return `${normalized} plan`
 }
 
