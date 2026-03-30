@@ -11,7 +11,9 @@ build_apk_sign=1
 build_apk_install=1
 build_bundle_sign=1
 deploy_apk_device_id=""
+deploy_ios_device_id=""
 sign_apk_input_path=""
+upload_ios_input_path=""
 apk_api_url=""
 
 print_usage() {
@@ -85,6 +87,25 @@ Commands:
     DEVICE_ID can also be set via ANDROID_DEVICE_ID or ADB_DEVICE_ID in env file.
     If the resolved APK is unsigned, it will be signed automatically before install.
 
+  build-ios [local|production] [--no-sign]
+    Build iOS archive and export IPA on macOS.
+    - local uses .env.local (fallback .env)
+    - production uses .env.production (fallback .env)
+    - --no-sign skips IPA export and creates only an unsigned archive
+
+  deploy-ios [local|production] [DEVICE_ID]
+    Build and deploy iOS app to a connected device on macOS.
+    DEVICE_ID can also be set via IOS_DEVICE_ID in env file.
+    Requires `ios-deploy` and valid iOS signing setup.
+
+  upload-ios [IPA_PATH]
+    Upload an IPA to App Store Connect using iTMSTransporter.
+    Required env vars:
+      APPSTORE_CONNECT_API_KEY_ID
+      APPSTORE_CONNECT_ISSUER_ID
+    Optional:
+      APPSTORE_CONNECT_API_KEY_PATH
+
   keygen-apk [args...]
     Create a release signing key and print CI env vars.
     Pass-through to: ./scripts/create-android-signing-key.sh
@@ -143,6 +164,18 @@ elif [[ "$command" == "deploy-apk" ]]; then
     env_profile="local"
     deploy_apk_device_id="$deploy_arg"
   fi
+elif [[ "$command" == "deploy-ios" ]]; then
+  deploy_arg="${2:-}"
+  if [[ -z "$deploy_arg" ]]; then
+    env_profile="local"
+    deploy_ios_device_id=""
+  elif [[ "$deploy_arg" == "local" || "$deploy_arg" == "production" ]]; then
+    env_profile="$deploy_arg"
+    deploy_ios_device_id="${3:-}"
+  else
+    env_profile="local"
+    deploy_ios_device_id="$deploy_arg"
+  fi
 elif [[ "$command" == "sign-apk" ]]; then
   sign_arg="${2:-}"
   if [[ -z "$sign_arg" ]]; then
@@ -166,6 +199,9 @@ elif [[ "$command" == "sign-apk" ]]; then
       exit 1
     fi
   fi
+elif [[ "$command" == "upload-ios" ]]; then
+  env_profile="local"
+  upload_ios_input_path="${2:-}"
 else
   env_profile="${2:-local}"
 fi
@@ -185,7 +221,7 @@ if [[ "$command" == "keygen-apk" ]]; then
   exit $?
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "sign-apk" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -196,7 +232,7 @@ elif [[ "$env_profile" != "local" ]]; then
   exit 1
 fi
 
-if [[ "$command" != "install-bundletool" ]]; then
+if [[ "$command" != "install-bundletool" && "$command" != "upload-ios" ]]; then
   if [[ "$env_profile" == "production" ]]; then
     if [[ -f ".env.production" ]]; then
       env_file=".env.production"
@@ -240,7 +276,7 @@ get_env_value() {
   printf '%s\n' "$value"
 }
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "build-ios" ]]; then
   apk_api_url="$(get_env_value API_URL "$env_file" || true)"
   if [[ -z "$apk_api_url" ]]; then
     echo "Error: API_URL is not set in $env_file."
@@ -1216,6 +1252,20 @@ case "$command" in
     ;;
   deploy-apk)
     deploy_android_apk "$env_profile" "$deploy_apk_device_id"
+    ;;
+  build-ios)
+    export_env_file "$env_file"
+    bash ./scripts/build-ios.sh "$env_profile" "${@:3}"
+    ;;
+  deploy-ios)
+    export_env_file "$env_file"
+    if [[ -z "$deploy_ios_device_id" ]]; then
+      deploy_ios_device_id="$(get_env_value IOS_DEVICE_ID "$env_file" || true)"
+    fi
+    bash ./scripts/deploy-ios.sh "$env_profile" "$deploy_ios_device_id"
+    ;;
+  upload-ios)
+    bash ./scripts/upload-ios-appstore.sh "$upload_ios_input_path"
     ;;
   sign-apk)
     sign_existing_android_apk "$env_profile" "$sign_apk_input_path"

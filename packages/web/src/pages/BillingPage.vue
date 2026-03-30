@@ -104,6 +104,14 @@ import {
   queryPlaySubscriptions,
   type PlayBillingProduct,
 } from '../plugins/playBilling'
+import {
+  initializeAppStoreBilling,
+  isIosNative,
+  openAppStoreSubscriptions,
+  purchaseAppStoreSubscription,
+  queryAppStoreSubscriptions,
+  type AppStoreBillingProduct,
+} from '../plugins/appStoreBilling'
 
 type PlanId = 'free' | 'pro' | 'pro-zero'
 type BillingInterval = 'monthly' | 'yearly'
@@ -143,6 +151,9 @@ const selectedInterval = ref<BillingInterval | null>(null)
 const playReady = ref(false)
 const playProducts = ref<Record<BillingInterval, PlayBillingProduct | null>>({ monthly: null, yearly: null })
 const playProductIds = ref<Record<BillingInterval, string | null>>({ monthly: null, yearly: null })
+const appStoreReady = ref(false)
+const appStoreProducts = ref<Record<BillingInterval, AppStoreBillingProduct | null>>({ monthly: null, yearly: null })
+const appStoreProductIds = ref<Record<BillingInterval, string | null>>({ monthly: null, yearly: null })
 
 const canManageBilling = computed(() => {
   const role = authStore.activeBand?.role
@@ -214,6 +225,10 @@ async function loadBilling() {
         packageName: string | null
         proProducts: { monthly: string | null; yearly: string | null }
       }
+      ios: {
+        bundleId: string | null
+        proProducts: { monthly: string | null; yearly: string | null }
+      }
       plans: Plan[]
     }>('/billing/plans')
 
@@ -225,12 +240,16 @@ async function loadBilling() {
     cancelAtPeriodEnd.value = data.currentSubscription.cancelAtPeriodEnd
     plans.value = data.plans
     playProductIds.value = data.android.proProducts
+    appStoreProductIds.value = data.ios.proProducts
 
     const memberships = await apiJson<typeof authStore.bands>('/bands')
     authStore.setBands(memberships)
 
     if (isAndroidNative()) {
       await loadPlayProducts()
+    }
+    if (isIosNative()) {
+      await loadAppStoreProducts()
     }
   } catch (error) {
     Notify.create({
@@ -264,6 +283,30 @@ async function loadPlayProducts() {
   }
 }
 
+async function loadAppStoreProducts() {
+  try {
+    const init = await initializeAppStoreBilling()
+    appStoreReady.value = !!init.ready
+    if (!appStoreReady.value) return
+
+    const ids = [appStoreProductIds.value.monthly, appStoreProductIds.value.yearly].filter(
+      (id): id is string => !!id,
+    )
+    if (ids.length === 0) return
+
+    const result = await queryAppStoreSubscriptions(ids)
+    appStoreProducts.value.monthly =
+      result.items.find((item) => item.productId === appStoreProductIds.value.monthly) ?? null
+    appStoreProducts.value.yearly =
+      result.items.find((item) => item.productId === appStoreProductIds.value.yearly) ?? null
+  } catch (error) {
+    Notify.create({
+      type: 'warning',
+      message: error instanceof Error ? error.message : 'Apple In-App Purchases unavailable. Falling back to web checkout.',
+    })
+  }
+}
+
 async function startCheckout(interval: BillingInterval) {
   loadingCheckout.value = true
   selectedPlan.value = 'pro'
@@ -285,6 +328,24 @@ async function startCheckout(interval: BillingInterval) {
         }),
       })
       Notify.create({ type: 'positive', message: 'Subscription activated via Google Play.' })
+      await loadBilling()
+      return
+    }
+    if (isIosNative() && appStoreReady.value) {
+      const product = appStoreProducts.value[interval]
+      if (!product) throw new Error(`Apple product missing for ${interval}`)
+
+      const purchase = await purchaseAppStoreSubscription(product.productId)
+      await apiJson('/billing/apple/activate', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: product.productId,
+          transactionId: purchase.purchase.orderId ?? undefined,
+          originalTransactionId: purchase.purchase.purchaseToken,
+          interval,
+        }),
+      })
+      Notify.create({ type: 'positive', message: 'Subscription activated via Apple In-App Purchase.' })
       await loadBilling()
       return
     }
@@ -315,6 +376,10 @@ async function openPortal() {
   try {
     if (isAndroidNative() && playReady.value) {
       await openPlaySubscriptions()
+      return
+    }
+    if (isIosNative() && appStoreReady.value) {
+      await openAppStoreSubscriptions()
       return
     }
     const data = await apiJson<{ url: string }>('/billing/portal')

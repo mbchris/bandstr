@@ -104,6 +104,11 @@ function googlePlayProductIdForPro(interval: BillingInterval) {
   return process.env.GPLAY_PRODUCT_PRO_MONTHLY
 }
 
+function appleProductIdForPro(interval: BillingInterval) {
+  if (interval === 'yearly') return process.env.APPLE_PRODUCT_PRO_YEARLY
+  return process.env.APPLE_PRODUCT_PRO_MONTHLY
+}
+
 function billingIntervalFromPrice(price?: Stripe.Price): BillingInterval | null {
   const recurring = price?.recurring?.interval
   if (recurring === 'year') return 'yearly'
@@ -180,6 +185,13 @@ billing.get('/plans', requireAuth, requireTenant, async (c) => {
         yearly: googlePlayProductIdForPro('yearly') ?? null,
       },
     },
+    ios: {
+      bundleId: process.env.APPLE_BUNDLE_ID ?? null,
+      proProducts: {
+        monthly: appleProductIdForPro('monthly') ?? null,
+        yearly: appleProductIdForPro('yearly') ?? null,
+      },
+    },
     plans: PLANS,
   })
 })
@@ -219,6 +231,49 @@ billing.post(
         subscriptionInterval: resolvedInterval,
         subscriptionCurrentPeriodEnd: periodEnd,
         stripeSubscriptionId: `gplay:${productId}:${purchaseToken.slice(0, 32)}`,
+        subscriptionCancelAtPeriodEnd: false,
+      })
+      .where(eq(bands.id, band.id))
+
+    return c.json({ ok: true })
+  },
+)
+
+billing.post(
+  '/apple/activate',
+  requireAuth,
+  requireTenant,
+  requireRole('admin'),
+  zValidator(
+    'json',
+    z.object({
+      productId: z.string().min(1),
+      originalTransactionId: z.string().min(1),
+      transactionId: z.string().optional(),
+      interval: z.enum(['monthly', 'yearly']).optional(),
+    }),
+  ),
+  async (c) => {
+    const bandId = c.get('bandId')
+    const { productId, originalTransactionId, interval } = c.req.valid('json')
+    const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
+    if (!band) return c.json({ error: 'Band not found' }, 404)
+
+    const resolvedInterval: BillingInterval =
+      interval ??
+      (productId === appleProductIdForPro('yearly') ? 'yearly' : 'monthly')
+
+    const periodEnd = new Date()
+    periodEnd.setMonth(periodEnd.getMonth() + (resolvedInterval === 'yearly' ? 12 : 1))
+
+    await db
+      .update(bands)
+      .set({
+        plan: 'pro',
+        subscriptionStatus: 'active',
+        subscriptionInterval: resolvedInterval,
+        subscriptionCurrentPeriodEnd: periodEnd,
+        stripeSubscriptionId: `apple:${productId}:${originalTransactionId.slice(0, 32)}`,
         subscriptionCancelAtPeriodEnd: false,
       })
       .where(eq(bands.id, band.id))
