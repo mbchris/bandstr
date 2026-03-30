@@ -201,8 +201,22 @@
 **Backlog:** [`docs/backlog/iter-10-android-app.md`](./backlog/iter-10-android-app.md)
 
 
+## Iteration 11 - iOS app
 
-## Iteration 11 - User self-registration
+**Goal:** A native iOS app is created
+
+- The app is available as an iOS bundle
+- the app is ready to be pushed to the Apple Store
+- the subscriptions can be managed using Apple InApp Payments
+- ./do build–<whatever-the-format-is>  is created
+- ./do deployd–<whatever-the-format-is>  is created  (for local deployment to connected devices)
+- scripts with toolings required for Apple Store uploads are created (code signing? bundle creation?)
+
+
+**Backlog:** [`docs/backlog/iter-11-ios-app.md`](./backlog/iter-11-ios-app.md)
+
+
+## Iteration 12 - User self-registration
 
 **Goal:** Users who do not want to use google/github for logging in can create an account
 

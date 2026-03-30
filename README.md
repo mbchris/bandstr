@@ -21,7 +21,7 @@ cp .env.web.template .env.web
 ```
 
 Key files:
-- `.env.api` for API runtime vars (DB, auth, OAuth, billing)
+- `.env.api` for API runtime vars (DB, auth, OAuth, billing incl. Stripe/Google Play/App Store)
 - `.env.web` for web build/runtime vars (`API_URL`, `DEBUG_MODE`, `MOBILE_CALLBACK_URL`)
 - `.env` / `.env.local` / `.env.production` are used by `./do` and compose profile workflows
 
@@ -103,6 +103,9 @@ The `./do` script wraps common Docker/dev tasks:
 ./do build-apk local
 ./do create-apk-bundle local
 ./do deploy-apk local [DEVICE_ID]
+./do build-ios local
+./do deploy-ios local [DEVICE_ID]
+./do upload-ios [IPA_PATH]
 ./do keygen-apk --store-pass "<strong-password>"
 ./do install-bundletool
 ./do --help
@@ -114,6 +117,9 @@ Notes:
 - `build-apk` and `deploy-apk` support `local|production`.
 - `build-apk` supports `--no-sign` and `--no-install`.
 - `create-apk-bundle` builds a Play Store `.aab` and signs/validates it by default (`--no-sign` disables that).
+- `build-ios` and `deploy-ios` require macOS + Xcode.
+- `build-ios` exports an IPA by default (`--no-sign` creates archive only).
+- `upload-ios` uses App Store Connect API key auth (`APPSTORE_CONNECT_API_KEY_ID`, `APPSTORE_CONNECT_ISSUER_ID`).
 - `build-apk` and `create-apk-bundle` auto-increment Android `versionCode` on each run.
 - Both commands also create named artifacts: `<appName>-vc<versionCode>-b<buildId>.apk|.aab`.
 - `./do` reads `.env.local` first, then falls back to `.env` (or `.env.production` in production mode).
