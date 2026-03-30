@@ -81,6 +81,7 @@ COPY --from=build /app/packages/api/dist/ packages/api/dist/
 COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
 # Seed data used by dist/db/seed.js inside container shells
 COPY --from=build /app/scripts/seed_example.sql /app/scripts/seed_example.sql
+COPY --from=build /app/scripts/bandstr-cli.sh /app/bandstr-cli
 
 # For the unified container, nginx proxies to localhost instead of "api" hostname
 RUN sed -i 's|http://api:3001|http://127.0.0.1:3001|g' /etc/nginx/conf.d/bandstr.conf
@@ -99,6 +100,7 @@ LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 
 # Interactive shell notes (shown on docker exec -it <container> sh)
 COPY scripts/container-shell-notes.sh /etc/bandstr_shell_rc
+RUN chmod +x /app/bandstr-cli
 
 EXPOSE 80
 

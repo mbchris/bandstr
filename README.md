@@ -164,6 +164,30 @@ APP_CONTAINER="<your-app-container>"
 docker exec -it "$APP_CONTAINER" sh -lc 'node /app/packages/api/dist/db/seed.js'
 ```
 
+Admin CLI in deployed app container:
+
+```bash
+APP_CONTAINER="<your-app-container>"
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli help'
+
+# list
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli list-users'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli list-bands'
+
+# user + membership
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli add-user --name "Jane Admin" --email "jane@example.com"'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli delete-user --user-id "<user-id>"'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli assign-user-to-band --user-id "<user-id>" --band-id 1 --role admin'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli remove-user-from-band --user-id "<user-id>" --band-id 1'
+
+# imports from external SQL (Postgres) DB
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1'
+
+# user subscription override (affects owner/admin band inheritance)
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true'
+```
+
 ## Repo Layout
 
 ```text
