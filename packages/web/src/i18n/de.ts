@@ -172,6 +172,8 @@ export default {
     lookupFailed: 'Songdetails konnten nicht gefunden werden. Bitte manuell ausfüllen.',
     exportExcel: 'Als Excel exportieren',
     avg: 'Ø',
+    selfVoteHint: 'Tippe auf dein Avatar zum Abstimmen',
+    chooseYourVote: 'Wähle deine Stimme',
   },
 
   // Setlist page
