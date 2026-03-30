@@ -79,6 +79,7 @@ Commands:
   deploy-apk [local|production] [DEVICE_ID]
     Install an already built APK to a connected device via adb.
     DEVICE_ID can also be set via ANDROID_DEVICE_ID or ADB_DEVICE_ID in env file.
+    If the resolved APK is unsigned, it will be signed automatically before install.
 
   keygen-apk [args...]
     Create a release signing key and print CI env vars.
@@ -970,11 +971,23 @@ deploy_android_apk() {
   local explicit_device_id="${2:-}"
   local apk_path=""
 
+  export_env_file "$env_file"
+
   apk_path="$(resolve_android_apk_path || true)"
   if [[ -z "$apk_path" ]]; then
     echo "Error: No built APK found."
     echo "Run './do build-apk $profile --no-install' first."
     exit 1
+  fi
+
+  # adb install requires a signed APK. Auto-sign unsigned release APKs.
+  if [[ "$apk_path" == *"-unsigned.apk" ]]; then
+    local signed_apk="${apk_path%-unsigned.apk}-signed.apk"
+    echo "Found unsigned APK. Signing it before deploy: $apk_path -> $signed_apk"
+    if ! sign_apk_file "$apk_path" "$signed_apk"; then
+      exit 1
+    fi
+    apk_path="$signed_apk"
   fi
 
   echo "Deploying existing APK ($profile): $apk_path"

@@ -462,6 +462,8 @@ Serverside log is:
 <-- GET /api/auth/get-session
 --> GET /api/auth/get-session 200 5ms
 10.0.1.6 - - [30/Mar/2026:06:36:40 +0000] "GET /api/auth/get-session HTTP/1.1" 200 4 "https://localhost/" "Mozilla/5.0 (Linux; Android 16; Pixel 7a Build/CP1A.260305.018; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/146.0.7680.119 Mobile Safari/537.36" "93.206.43.60"
+--> GET /api/mobile-auth/complete?appCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F 302 4ms
+10.0.1.6 - - [30/Mar/2026:06:37:43 +0000] "GET /api/mobile-auth/complete?appCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F HTTP/1.1" 302 5 "-" "Mozilla/5.0 (Android 16; Mobile; rv:149.0) Gecko/149.0 Firefox/149.0" "93.206.43.60"
 <-- GET /api/mobile-auth/start?provider=google&callbackURL=https%3A%2F%2Fbandstr.apps.4ki.app%2Fapi%2Fmobile-auth%2Fcomplete%3FappCallbackURL%3Dorg.capacitor.bndstr%253A%252F%252Flocalhost%252F%2523%252Flogin%253Fredirect%253D%25252F&errorCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F
 --> GET /api/mobile-auth/start?provider=google&callbackURL=https%3A%2F%2Fbandstr.apps.4ki.app%2Fapi%2Fmobile-auth%2Fcomplete%3FappCallbackURL%3Dorg.capacitor.bndstr%253A%252F%252Flocalhost%252F%2523%252Flogin%253Fredirect%253D%25252F&errorCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F 200 2ms
 10.0.1.6 - - [30/Mar/2026:06:36:48 +0000] "GET /api/mobile-auth/start?provider=google&callbackURL=https%3A%2F%2Fbandstr.apps.4ki.app%2Fapi%2Fmobile-auth%2Fcomplete%3FappCallbackURL%3Dorg.capacitor.bndstr%253A%252F%252Flocalhost%252F%2523%252Flogin%253Fredirect%253D%25252F&errorCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F HTTP/1.1" 200 790 "-" "Mozilla/5.0 (Android 16; Mobile; rv:149.0) Gecko/149.0 Firefox/149.0" "93.206.43.60"
@@ -477,5 +479,118 @@ Serverside log is:
 10.0.1.6 - - [30/Mar/2026:06:37:34 +0000] "GET /api/mobile-auth/complete?appCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F HTTP/1.1" 302 5 "https://accounts.google.com/" "Mozilla/5.0 (Android 16; Mobile; rv:149.0) Gecko/149.0 Firefox/149.0" "93.206.43.60"
 <-- GET /api/mobile-auth/complete?appCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F
 [mobile-auth/complete] token issued, redirecting to app callback
---> GET /api/mobile-auth/complete?appCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F 302 4ms
-10.0.1.6 - - [30/Mar/2026:06:37:43 +0000] "GET /api/mobile-auth/complete?appCallbackURL=org.capacitor.bndstr%3A%2F%2Flocalhost%2F%23%2Flogin%3Fredirect%3D%252F HTTP/1.1" 302 5 "-" "Mozilla/5.0 (Android 16; Mobile; rv:149.0) Gecko/149.0 Firefox/149.0" "93.206.43.60"
+
+
+# Update 02 after some other deployment.
+
+A "logout" feature has been implemented to invalidate the token.
+If another login is performed, there is no more redirect to the app.
+The OIDC auth provder page opens.
+Redirect stays on browser side.
+
+Redirected URL is:
+https://bandstr.apps.4ki.app/api/auth/callback/google?state=T0u6_BftM5AQoM-M4aFGax0tz6C904CA&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8zTbkm9iQtst0nl3wvERXBtN9oxzPK2ZwIbAlxmKqiaVsbwNURnngMDLh1GtRHsA&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&authuser=0&prompt=none
+
+From the web UI:
+https://bandstr.apps.4ki.app/api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8uM17Lf-8VnJyak6qoiqY5gby6RF97FwnvozwlvsXYjj-6zFVMW00lUKJil3Ktrw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&authuser=2&prompt=none
+
+it says for the web UI: "Looks like there’s a problem with this site
+
+Firefox can’t connect to the server at bandstr.apps.4ki.app
+What can you do about it?
+
+The site could be temporarily unavailable or too busy. Try again in a few moments.
+"
+
+Docker Log state:
+
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /api/auth/get-session HTTP/1.1" 200 4 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/AuthLayout-IB-a-RTe.js HTTP/1.1" 200 811 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/QPage-BK2j87JY.js HTTP/1.1" 200 896 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/QLayout-CPxZieds.js HTTP/1.1" 200 3758 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/AuthLayout-BV5WFN0t.css HTTP/1.1" 200 526 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/LoginPage-DMvYbaq1.js HTTP/1.1" 200 4435 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/QSpace-UPjd7QG1.js HTTP/1.1" 200 141 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/useI18n-D5twcTjN.js HTTP/1.1" 200 7171 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/LoginPage-CekmyMxn.css HTTP/1.1" 200 495 "https://bandstr.apps.4ki.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/rehearsal_dyn_v2.mp4 HTTP/1.1" 206 3787648 "https://bandstr.apps.4ki.app/login?redirect=/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/rehearsal_dyn_v2.mp4 HTTP/1.1" 206 28616 "https://bandstr.apps.4ki.app/login?redirect=/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:17:30 +0000] "GET /assets/rehearsal_dyn_v2.mp4 HTTP/1.1" 206 3928008 "https://bandstr.apps.4ki.app/login?redirect=/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- POST /api/auth/sign-in/social
+--> POST /api/auth/sign-in/social 200 15ms
+10.0.1.6 - - [30/Mar/2026:09:17:32 +0000] "POST /api/auth/sign-in/social HTTP/1.1" 200 433 "https://bandstr.apps.4ki.app/login?redirect=/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- GET /api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8uM17Lf-8VnJyak6qoiqY5gby6RF97FwnvozwlvsXYjj-6zFVMW00lUKJil3Ktrw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&authuser=2&prompt=none
+2026-03-30T09:17:37.162Z ERROR [Better Auth]: Error Error: Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.
+    at _serialize (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:55:34)
+    at serializeSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:79:9)
+    at async Object.setSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/context.mjs:57:19)
+    at async setSessionCookie (file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/cookies/index.mjs:128:2)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/routes/callback.mjs:164:2
+    at async internalHandler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/endpoint.mjs:30:20)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/to-auth-endpoints.mjs:72:21
+    at async processRequest (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:83:11)
+    at async handler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:106:16)
+    at async file:///app/node_modules/.pnpm/@better-auth+core@1.5.6_@better-auth+utils@0.3.1_@better-fetch+fetch@1.1.21_@openteleme_ff474e0f73c5d4511fe48692fe38115a/node_modules/@better-auth/core/dist/context/transaction.mjs:37:13
+# SERVER_ERROR:  Error: Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.
+    at _serialize (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:55:34)
+    at serializeSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:79:9)
+    at async Object.setSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/context.mjs:57:19)
+    at async setSessionCookie (file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/cookies/index.mjs:128:2)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/routes/callback.mjs:164:2
+    at async internalHandler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/endpoint.mjs:30:20)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/to-auth-endpoints.mjs:72:21
+    at async processRequest (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:83:11)
+    at async handler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:106:16)
+    at async file:///app/node_modules/.pnpm/@better-auth+core@1.5.6_@better-auth+utils@0.3.1_@better-fetch+fetch@1.1.21_@openteleme_ff474e0f73c5d4511fe48692fe38115a/node_modules/@better-auth/core/dist/context/transaction.mjs:37:13
+--> GET /api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8uM17Lf-8VnJyak6qoiqY5gby6RF97FwnvozwlvsXYjj-6zFVMW00lUKJil3Ktrw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&authuser=2&prompt=none 500 118ms
+10.0.1.6 - - [30/Mar/2026:09:17:37 +0000] "GET /api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8uM17Lf-8VnJyak6qoiqY5gby6RF97FwnvozwlvsXYjj-6zFVMW00lUKJil3Ktrw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&authuser=2&prompt=none HTTP/1.1" 500 5 "https://accounts.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- GET /api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8g90i1p3QBZt_wfhUMzFt7w75owjjydcQOcbKwtTXeRtGt0O31lxRbRSiK2klDXw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid&authuser=2&prompt=none
+2026-03-30T09:18:01.572Z ERROR [Better Auth]: Failed to parse state [StateError [BetterAuthError]: State mismatch: verification not found] {
+  code: 'state_mismatch',
+  details: { state: 'LuZ5za23UNOvylaQjwigmlLV0JlEjnxc' }
+}
+--> GET /api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8g90i1p3QBZt_wfhUMzFt7w75owjjydcQOcbKwtTXeRtGt0O31lxRbRSiK2klDXw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid&authuser=2&prompt=none 302 12ms
+10.0.1.6 - - [30/Mar/2026:09:18:01 +0000] "GET /api/auth/callback/google?state=LuZ5za23UNOvylaQjwigmlLV0JlEjnxc&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E8g90i1p3QBZt_wfhUMzFt7w75owjjydcQOcbKwtTXeRtGt0O31lxRbRSiK2klDXw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid&authuser=2&prompt=none HTTP/1.1" 302 5 "https://accounts.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- GET /api/auth/error?error=please_restart_the_process
+--> GET /api/auth/error?error=please_restart_the_process 302 3ms
+10.0.1.6 - - [30/Mar/2026:09:18:01 +0000] "GET /api/auth/error?error=please_restart_the_process HTTP/1.1" 302 5 "https://accounts.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:18:01 +0000] "GET /?error=please_restart_the_process HTTP/1.1" 200 511 "https://accounts.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- GET /api/auth/get-session
+--> GET /api/auth/get-session 200 2ms
+10.0.1.6 - - [30/Mar/2026:09:18:01 +0000] "GET /api/auth/get-session HTTP/1.1" 200 4 "https://bandstr.apps.4ki.app/?error=please_restart_the_process" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- GET /api/auth/get-session
+--> GET /api/auth/get-session 200 3ms
+10.0.1.6 - - [30/Mar/2026:09:18:01 +0000] "GET /api/auth/get-session HTTP/1.1" 200 4 "https://bandstr.apps.4ki.app/?error=please_restart_the_process" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:18:02 +0000] "GET /assets/rehearsal_dyn_v2.mp4 HTTP/1.1" 206 3993544 "https://bandstr.apps.4ki.app/login?redirect=/?error=please_restart_the_process" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:18:02 +0000] "GET /assets/rehearsal_dyn_v2.mp4 HTTP/1.1" 206 28616 "https://bandstr.apps.4ki.app/login?redirect=/?error=please_restart_the_process" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+10.0.1.6 - - [30/Mar/2026:09:18:02 +0000] "GET /assets/rehearsal_dyn_v2.mp4 HTTP/1.1" 206 3960776 "https://bandstr.apps.4ki.app/login?redirect=/?error=please_restart_the_process" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- POST /api/auth/sign-in/social
+--> POST /api/auth/sign-in/social 200 13ms
+10.0.1.6 - - [30/Mar/2026:09:18:04 +0000] "POST /api/auth/sign-in/social HTTP/1.1" 200 433 "https://bandstr.apps.4ki.app/login?redirect=/?error=please_restart_the_process" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+<-- GET /api/auth/callback/google?state=odlopW1yr39_bWyrO5gKnOVfIfs_N0Sm&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E-b7tEMLA2jV93ZN5pW5EaHW7vL2LC5XFTjuiw7ru6xHgB65bICNONs9WzcwzsonA&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&authuser=2&prompt=none
+--> GET /api/auth/callback/google?state=odlopW1yr39_bWyrO5gKnOVfIfs_N0Sm&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E-b7tEMLA2jV93ZN5pW5EaHW7vL2LC5XFTjuiw7ru6xHgB65bICNONs9WzcwzsonA&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&authuser=2&prompt=none 500 103ms
+2026-03-30T09:18:08.281Z ERROR [Better Auth]: Error Error: Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.
+    at _serialize (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:55:34)
+    at serializeSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:79:9)
+    at async Object.setSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/context.mjs:57:19)
+    at async setSessionCookie (file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/cookies/index.mjs:128:2)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/routes/callback.mjs:164:2
+10.0.1.6 - - [30/Mar/2026:09:18:08 +0000] "GET /api/auth/callback/google?state=odlopW1yr39_bWyrO5gKnOVfIfs_N0Sm&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E-b7tEMLA2jV93ZN5pW5EaHW7vL2LC5XFTjuiw7ru6xHgB65bICNONs9WzcwzsonA&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&authuser=2&prompt=none HTTP/1.1" 500 5 "https://accounts.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0" "93.206.43.60"
+    at async internalHandler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/endpoint.mjs:30:20)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/to-auth-endpoints.mjs:72:21
+    at async processRequest (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:83:11)
+    at async handler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:106:16)
+    at async file:///app/node_modules/.pnpm/@better-auth+core@1.5.6_@better-auth+utils@0.3.1_@better-fetch+fetch@1.1.21_@openteleme_ff474e0f73c5d4511fe48692fe38115a/node_modules/@better-auth/core/dist/context/transaction.mjs:37:13
+# SERVER_ERROR:  Error: Cookies Max-Age SHOULD NOT be greater than 400 days (34560000 seconds) in duration.
+    at _serialize (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:55:34)
+    at serializeSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/cookies.mjs:79:9)
+    at async Object.setSignedCookie (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/context.mjs:57:19)
+    at async setSessionCookie (file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/cookies/index.mjs:128:2)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/routes/callback.mjs:164:2
+    at async internalHandler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/endpoint.mjs:30:20)
+    at async file:///app/node_modules/.pnpm/better-auth@1.5.6_@opentelemetry+api@1.9.1_better-sqlite3@9.6.0_drizzle-kit@0.31.10_dri_227178a40192a82b6f550a648121fe8f/node_modules/better-auth/dist/api/to-auth-endpoints.mjs:72:21
+    at async processRequest (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:83:11)
+    at async handler (file:///app/node_modules/.pnpm/better-call@1.3.2_zod@4.3.6/node_modules/better-call/dist/router.mjs:106:16)
+    at async file:///app/node_modules/.pnpm/@better-auth+core@1.5.6_@better-auth+utils@0.3.1_@better-fetch+fetch@1.1.21_@openteleme_ff474e0f73c5d4511fe48692fe38115a/node_modules/@better-auth/core/dist/context/transaction.mjs:37:13
+	
+	
