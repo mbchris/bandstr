@@ -48,7 +48,7 @@
                 </q-item-section>
                 <q-item-section side>
                   <div class="row q-gutter-xs">
-                    <q-badge outline color="secondary" :label="formatPlanLabel(band.plan)" />
+                    <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
                     <q-badge v-if="authStore.activeBandId === band.id" color="primary" label="Active" />
                     <q-btn flat round dense icon="check_circle" @click="selectBandOnly(band.id)">
                       <q-tooltip>Select Band</q-tooltip>
@@ -300,7 +300,9 @@ type InviteCode = {
   expired: boolean
 }
 
-const activePlanLabel = computed(() => authStore.activeBand?.plan ?? 'free')
+const activePlanLabel = computed(() =>
+  formatPlanLabel(authStore.activeBand?.plan, authStore.activeBand?.hasProPlan),
+)
 const userIdentity = computed(() => {
   const name = authStore.user?.name?.trim() || 'Unknown user'
   const email = authStore.user?.email?.trim() || 'no-email'
@@ -337,8 +339,8 @@ function formatDateTime(value: string | null) {
   return new Date(value).toLocaleString()
 }
 
-function formatPlanLabel(plan: string | null | undefined) {
-  const normalized = (plan ?? 'free').toUpperCase()
+function formatPlanLabel(plan: string | null | undefined, hasProPlan?: boolean) {
+  const normalized = (hasProPlan ? 'pro' : (plan ?? 'free')).toUpperCase()
   return `${normalized} plan`
 }
 

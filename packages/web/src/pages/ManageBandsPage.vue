@@ -27,7 +27,7 @@
             </q-item-section>
             <q-item-section side>
               <div class="row q-gutter-xs">
-                <q-badge outline color="secondary" :label="formatPlanLabel(band.plan)" />
+                <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
                 <q-btn flat dense icon="check_circle" label="Select" @click="switchBand(band.id)" />
                 <q-btn
                   v-if="canManageBand(band.role)"
@@ -244,8 +244,8 @@ async function refreshBands() {
   await authStore.loadBands()
 }
 
-function formatPlanLabel(plan: string | null | undefined) {
-  const normalized = (plan ?? 'free').toUpperCase()
+function formatPlanLabel(plan: string | null | undefined, hasProPlan?: boolean) {
+  const normalized = (hasProPlan ? 'pro' : (plan ?? 'free')).toUpperCase()
   return `${normalized} plan`
 }
 

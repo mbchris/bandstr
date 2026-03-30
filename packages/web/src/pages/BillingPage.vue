@@ -4,6 +4,7 @@
       <div class="col">
         <div class="text-h5">Billing</div>
         <div class="text-caption text-grey-6">Current plan: <span class="text-weight-bold">{{ currentPlanLabel }}</span></div>
+        <div v-if="isInheritedPro" class="text-caption text-positive">Pro access is inherited from an owner/admin user.</div>
         <div class="text-caption text-grey-6">Band pro access: <span class="text-weight-bold">{{ hasProPlan ? 'Enabled' : 'Disabled' }}</span></div>
         <div class="text-caption text-grey-6">Status: <span class="text-weight-bold">{{ statusLabel }}</span></div>
         <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">Interval: {{ subscriptionIntervalLabel }}</div>
@@ -47,7 +48,7 @@
 
           <q-card-actions align="right" class="q-gutter-sm">
             <q-chip
-              v-if="currentPlan === plan.id"
+              v-if="effectivePlanId === plan.id"
               color="primary"
               text-color="white"
               size="sm"
@@ -148,9 +149,18 @@ const canManageBilling = computed(() => {
   return role === 'owner' || role === 'admin'
 })
 
+const effectivePlanId = computed<PlanId>(() => {
+  if (hasProPlan.value && currentPlan.value === 'free') return 'pro'
+  return currentPlan.value
+})
+
+const isInheritedPro = computed(() => currentPlan.value === 'free' && hasProPlan.value)
+
 const currentPlanLabel = computed(() => {
-  const plan = plans.value.find((p) => p.id === currentPlan.value)
-  return plan?.name ?? currentPlan.value
+  const plan = plans.value.find((p) => p.id === effectivePlanId.value)
+  if (!plan) return effectivePlanId.value
+  if (isInheritedPro.value) return `${plan.name} (inherited)`
+  return plan.name
 })
 
 const statusLabel = computed(() => {
