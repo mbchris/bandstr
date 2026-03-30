@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-import { auth, AUTH_BASE_PATH } from './lib/auth.js'
+import { auth, AUTH_BASE_PATH, authBaseUrl } from './lib/auth.js'
 import { bands } from './routes/bands.js'
 import { songs } from './routes/songs.js'
 import { votes } from './routes/votes.js'
@@ -110,7 +110,12 @@ app.get('/api/mobile-auth/start', (c) => {
     return c.text('Missing callbackURL', 400)
   }
 
-  const errorCallbackURL = (c.req.query('errorCallbackURL') ?? callbackURL).trim()
+  const rawErrorCallbackURL = (c.req.query('errorCallbackURL') ?? '').trim()
+  // Better Auth rejects non-HTTP(S) errorCallbackURLs (e.g. custom schemes like
+  // org.capacitor.bandstr://). Use a server-side error bridge that redirects to the app.
+  const errorBridgeURL = rawErrorCallbackURL
+    ? `${authBaseUrl}/api/mobile-auth/error?appErrorURL=${encodeURIComponent(rawErrorCallbackURL)}`
+    : callbackURL
   const formAction = `${authCanonical}/sign-in/social`
 
   const html = `<!doctype html>
@@ -132,7 +137,7 @@ app.get('/api/mobile-auth/start', (c) => {
             body: JSON.stringify({
               provider: ${JSON.stringify(provider)},
               callbackURL: ${JSON.stringify(callbackURL)},
-              errorCallbackURL: ${JSON.stringify(errorCallbackURL)},
+              errorCallbackURL: ${JSON.stringify(errorBridgeURL)},
               disableRedirect: true
             })
           });
@@ -144,7 +149,7 @@ app.get('/api/mobile-auth/start', (c) => {
 
           window.location.href = String(payload.url);
         } catch (err) {
-          const target = ${JSON.stringify(errorCallbackURL)};
+          const target = ${JSON.stringify(rawErrorCallbackURL || callbackURL)};
           const msg = err instanceof Error ? err.message : String(err);
           window.location.href = target + (target.includes('?') ? '&' : '?') + 'error=' + encodeURIComponent(msg);
         }
@@ -199,6 +204,31 @@ app.get('/api/mobile-auth/complete', async (c) => {
     console.error('[mobile-auth/complete] token exchange failed, redirecting with error')
     return c.redirect(target, 302)
   }
+})
+
+// Native OAuth error bridge:
+// Better Auth redirects here on error (it requires an HTTPS errorCallbackURL).
+// We forward the error to the native app via its custom-scheme URL.
+app.get('/api/mobile-auth/error', (c) => {
+  const appErrorURL = (c.req.query('appErrorURL') ?? '').trim()
+  if (!appErrorURL) {
+    return c.text('Missing appErrorURL', 400)
+  }
+
+  const url = new URL(c.req.url)
+  // Forward all query params except appErrorURL to the app callback
+  const params = new URLSearchParams()
+  for (const [key, value] of url.searchParams.entries()) {
+    if (key !== 'appErrorURL') {
+      params.set(key, value)
+    }
+  }
+  const qs = params.toString()
+  const separator = appErrorURL.includes('?') ? '&' : '?'
+  const target = qs ? `${appErrorURL}${separator}${qs}` : appErrorURL
+
+  console.warn('[mobile-auth/error] redirecting error to app callback:', target)
+  return c.redirect(target, 302)
 })
 
 // Routes

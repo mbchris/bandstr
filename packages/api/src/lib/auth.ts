@@ -17,7 +17,7 @@ function normalizeAuthBaseUrl(apiUrl: string): string {
 }
 
 const configuredApiUrl = process.env.API_URL ?? 'http://localhost:3001'
-const authBaseUrl = normalizeAuthBaseUrl(configuredApiUrl)
+export const authBaseUrl = normalizeAuthBaseUrl(configuredApiUrl)
 export const AUTH_BASE_PATH = '/api/auth'
 const isProduction = (process.env.NODE_ENV ?? '').toLowerCase() === 'production'
 const MOBILE_LOCAL_ORIGINS = [
