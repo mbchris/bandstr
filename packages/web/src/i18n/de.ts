@@ -17,6 +17,7 @@ export default {
     loggedInAs: 'Eingeloggt als',
     subscriptions: 'Abonnements',
     impress: 'Impressum',
+    deleteAccount: 'Konto löschen',
   },
 
   // Common

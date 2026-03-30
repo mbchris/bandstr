@@ -114,6 +114,8 @@ Notes:
 - `build-apk` and `deploy-apk` support `local|production`.
 - `build-apk` supports `--no-sign` and `--no-install`.
 - `create-apk-bundle` builds a Play Store `.aab` and signs/validates it by default (`--no-sign` disables that).
+- `build-apk` and `create-apk-bundle` auto-increment Android `versionCode` on each run.
+- Both commands also create named artifacts: `<appName>-vc<versionCode>-b<buildId>.apk|.aab`.
 - `./do` reads `.env.local` first, then falls back to `.env` (or `.env.production` in production mode).
 - For production signing, set:
   - `ANDROID_SIGNING_KEYSTORE_BASE64`

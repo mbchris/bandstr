@@ -55,6 +55,8 @@ Commands:
       ANDROID_SIGNING_KEY_ALIAS
       ANDROID_SIGNING_KEYSTORE_PASSWORD
       ANDROID_SIGNING_KEY_PASSWORD
+    Note: versionCode is auto-incremented on every build.
+    Output: creates named artifact like <appName>-vc<versionCode>-b<buildId>.apk.
 
   create-apk-bundle [local|production] [--no-sign]
     Build Android App Bundle (.aab) for Play Store upload.
@@ -66,6 +68,8 @@ Commands:
       ANDROID_SIGNING_KEY_ALIAS
       ANDROID_SIGNING_KEYSTORE_PASSWORD
       ANDROID_SIGNING_KEY_PASSWORD
+    Note: versionCode is auto-incremented on every build.
+    Output: creates named artifact like <appName>-vc<versionCode>-b<buildId>.aab.
 
   install-bundletool
     Download bundletool JAR into ./.tools/bundletool (if missing).
@@ -336,6 +340,77 @@ resolve_android_apk_path() {
   else
     return 1
   fi
+}
+
+resolve_android_version_code() {
+  local gradle_file="packages/web/src-capacitor/android/app/build.gradle"
+  if [[ ! -f "$gradle_file" ]]; then
+    return 1
+  fi
+  grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' "$gradle_file" | head -n 1 | awk '{print $2}'
+}
+
+sanitize_filename_component() {
+  local value="$1"
+  local normalized
+  normalized="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g')"
+  if [[ -z "$normalized" ]]; then
+    normalized="unknown"
+  fi
+  printf '%s\n' "$normalized"
+}
+
+resolve_android_app_name() {
+  local config_file="packages/web/src-capacitor/capacitor.config.json"
+  if [[ -f "$config_file" ]]; then
+    local parsed
+    parsed="$(sed -n -E 's/.*"appName"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$config_file" | head -n 1)"
+    if [[ -n "$parsed" ]]; then
+      printf '%s\n' "$parsed"
+      return 0
+    fi
+  fi
+  printf 'bandstr\n'
+}
+
+resolve_build_id() {
+  local from_env="${SOURCE_COMMIT:-}"
+  if [[ -n "$from_env" && "$from_env" != "UNKNOWN" && "$from_env" != "unknown" ]]; then
+    printf '%s\n' "$(sanitize_filename_component "${from_env:0:12}")"
+    return 0
+  fi
+
+  if git rev-parse --short HEAD >/dev/null 2>&1; then
+    printf '%s\n' "$(sanitize_filename_component "$(git rev-parse --short HEAD)")"
+    return 0
+  fi
+
+  printf '%s\n' "$(date +%Y%m%d%H%M%S)"
+}
+
+create_named_android_artifact() {
+  local source_path="$1"
+  if [[ ! -f "$source_path" ]]; then
+    echo "Error: Artifact not found: $source_path"
+    return 1
+  fi
+
+  local extension="${source_path##*.}"
+  local artifact_dir
+  artifact_dir="$(dirname "$source_path")"
+  local app_name
+  app_name="$(sanitize_filename_component "$(resolve_android_app_name)")"
+  local version_code
+  version_code="$(resolve_android_version_code || true)"
+  if [[ -z "$version_code" ]]; then
+    version_code="0"
+  fi
+  local build_id
+  build_id="$(resolve_build_id)"
+
+  local named_path="${artifact_dir}/${app_name}-vc${version_code}-b${build_id}.${extension}"
+  cp -f "$source_path" "$named_path"
+  printf '%s\n' "$named_path"
 }
 
 resolve_apksigner_bin() {
@@ -775,6 +850,8 @@ build_android_apk() {
     fi
   fi
 
+  bump_android_version_code
+
   echo "Building Android APK (debug)..."
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
   local gradle_java_home="${JAVA_HOME:-}"
@@ -884,11 +961,68 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
   fi
 
   if [[ "$install_apk" != "1" ]]; then
+    local named_apk=""
+    named_apk="$(create_named_android_artifact "$final_apk")"
+    if [[ -n "$named_apk" ]]; then
+      echo "Named APK artifact: $named_apk"
+    fi
     echo "APK install skipped due to --no-install."
     return 0
   fi
 
-  install_android_apk "$final_apk"
+  local deploy_apk="$final_apk"
+  local named_apk=""
+  named_apk="$(create_named_android_artifact "$final_apk")"
+  if [[ -n "$named_apk" ]]; then
+    echo "Named APK artifact: $named_apk"
+    deploy_apk="$named_apk"
+  fi
+
+  install_android_apk "$deploy_apk"
+}
+
+bump_android_version_code() {
+  local gradle_file="packages/web/src-capacitor/android/app/build.gradle"
+  if [[ ! -f "$gradle_file" ]]; then
+    echo "Error: Android Gradle file not found: $gradle_file"
+    exit 1
+  fi
+
+  local current_version_code=""
+  current_version_code="$(grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' "$gradle_file" | head -n 1 | awk '{print $2}')"
+  if [[ -z "$current_version_code" ]]; then
+    echo "Error: Could not determine current versionCode in $gradle_file"
+    exit 1
+  fi
+
+  local next_version_code=$((current_version_code + 1))
+  local temp_root="${TMPDIR:-${TEMP:-${TMP:-/tmp}}}"
+  mkdir -p "$temp_root"
+  local tmp_file
+  tmp_file="$(mktemp "$temp_root/bandstr-versioncode-XXXXXX")"
+
+  if ! awk -v next="$next_version_code" '
+    BEGIN { updated = 0 }
+    {
+      if (!updated && $0 ~ /^[[:space:]]*versionCode[[:space:]]+[0-9]+[[:space:]]*$/) {
+        sub(/[0-9]+[[:space:]]*$/, next)
+        updated = 1
+      }
+      print
+    }
+    END {
+      if (!updated) {
+        exit 2
+      }
+    }
+  ' "$gradle_file" > "$tmp_file"; then
+    rm -f "$tmp_file"
+    echo "Error: Failed to update versionCode in $gradle_file"
+    exit 1
+  fi
+
+  mv "$tmp_file" "$gradle_file"
+  echo "Android versionCode bumped: $current_version_code -> $next_version_code"
 }
 
 build_android_bundle() {
@@ -926,9 +1060,19 @@ build_android_bundle() {
       exit 1
     fi
     echo "AAB built, signed, and validated successfully: $release_signed_aab"
+    local named_aab=""
+    named_aab="$(create_named_android_artifact "$release_signed_aab")"
+    if [[ -n "$named_aab" ]]; then
+      echo "Named AAB artifact: $named_aab"
+    fi
   else
     echo "AAB built successfully (unsigned): $release_aab"
     echo "Signing skipped due to --no-sign."
+    local named_aab=""
+    named_aab="$(create_named_android_artifact "$release_aab")"
+    if [[ -n "$named_aab" ]]; then
+      echo "Named AAB artifact: $named_aab"
+    fi
   fi
 }
 
