@@ -33,7 +33,10 @@
       "esbuild",
       "sqlite3",
       "vue-demi"
-    ]
+    ],
+    "patchedDependencies": {
+      "@quasar/app-vite@2.1.4": "patches/@quasar__app-vite@2.1.4.patch"
+    }
   },
   "engines": {
     "node": ">=20.0.0"
