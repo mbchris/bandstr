@@ -21,6 +21,9 @@ COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/web/package.json packages/web/
 
+# Copy patches for pnpm patching
+COPY patches/ patches/
+
 # Install all dependencies
 RUN NODE_ENV=development pnpm install --frozen-lockfile || pnpm install
 
@@ -52,6 +55,7 @@ COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=build /app/packages/api/package.json packages/api/
 COPY --from=build /app/packages/shared/package.json packages/shared/
 COPY pnpm-lock.yaml* ./
+COPY patches/ patches/
 
 RUN pnpm install --filter @bandstr/api --filter @bandstr/shared --prod --frozen-lockfile || pnpm install --filter @bandstr/api --filter @bandstr/shared --prod
 
