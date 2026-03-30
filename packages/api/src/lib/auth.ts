@@ -20,7 +20,7 @@ const configuredApiUrl = process.env.API_URL ?? 'http://localhost:3001'
 export const authBaseUrl = normalizeAuthBaseUrl(configuredApiUrl)
 export const AUTH_BASE_PATH = '/api/auth'
 const isProduction = (process.env.NODE_ENV ?? '').toLowerCase() === 'production'
-const DEFAULT_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 365 * 3 // 3 years
+const DEFAULT_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 365 * 1 // 1 year
 
 function getSessionExpiresInSeconds(): number {
   const fromEnv = Number.parseInt(process.env.AUTH_SESSION_EXPIRES_IN_SECONDS ?? '', 10)
