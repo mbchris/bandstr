@@ -369,8 +369,14 @@ onMounted(async () => {
 
 :global(body.body--dark) .bottom-nav-label {
   color: #f8fafc !important;
-  opacity: 0.9;
-  text-shadow: 0 0 8px rgba(148, 163, 184, 0.35);
+  opacity: 1;
+  text-shadow: none;
+}
+
+:global(body.body--dark) .bottom-nav-btn:not(.bottom-nav-btn--active) .bottom-nav-label {
+  color: #edf4ff !important;
+  opacity: 1 !important;
+  filter: none;
 }
 
 :global(body.body--dark) .bottom-nav-btn .bottom-nav-icon--inactive {
