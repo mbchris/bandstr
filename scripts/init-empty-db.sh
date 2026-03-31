@@ -8,6 +8,7 @@ cd "${REPO_ROOT}"
 
 RUN_SQL_INIT=1
 RUN_SEED=1
+RUN_IMPORT_AT_ISSUE=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -17,9 +18,12 @@ for arg in "$@"; do
     --no-seed)
       RUN_SEED=0
       ;;
+    --import-at-issue)
+      RUN_IMPORT_AT_ISSUE=1
+      ;;
     *)
       echo "Unknown option: $arg"
-      echo "Usage: bash ./scripts/init-empty-db.sh [--skip-sql-init] [--no-seed]"
+      echo "Usage: bash ./scripts/init-empty-db.sh [--skip-sql-init] [--no-seed] [--import-at-issue]"
       exit 1
       ;;
   esac
@@ -63,6 +67,16 @@ if [[ "$RUN_SEED" == "1" ]]; then
   run_pnpm --filter @bandstr/api run db:seed
 else
   echo "3/3 Skipping seed (--no-seed)"
+fi
+
+if [[ "$RUN_IMPORT_AT_ISSUE" == "1" ]]; then
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "Error: psql is required for at issue import but was not found."
+    exit 1
+  fi
+
+  echo "Importing at issue backup (scripts/import-at-issue.sql)"
+  psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 -f "${REPO_ROOT}/scripts/import-at-issue.sql"
 fi
 
 echo "Database initialization complete."

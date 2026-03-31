@@ -66,6 +66,9 @@ Useful commands:
   /app/bandstr-cli import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1
   /app/bandstr-cli import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1
 
+- Import bundled at issue predecessor backup (creates/replaces band slug "at-issue")
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /app/scripts/import-at-issue.sql
+
 - Toggle per-user pro subscription override (band inherits for owner/admin users)
   /app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true
 
