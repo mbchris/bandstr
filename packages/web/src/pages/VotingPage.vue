@@ -7,7 +7,7 @@
             <div class="text-h5 text-weight-bold">{{ t('voting.heading') }}</div>
             <div class="row q-gutter-sm">
               <q-btn flat round icon="download" @click="handleExport" />
-              <q-btn round color="primary" icon="add" @click="openAddModal" />
+              <q-btn round color="primary" icon="add" class="round-add-btn" @click="openAddModal" />
             </div>
           </div>
         </q-card-section>
@@ -17,17 +17,22 @@
             <q-input v-model="searchQuery" dense outlined :placeholder="t('voting.filterSongs')" class="col" clearable>
               <template #prepend><q-icon name="search" /></template>
             </q-input>
-            <q-select v-model="sortBy" :options="sortOptions" emit-value map-options dense outlined style="width: 160px" />
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
-            <q-item v-for="song in filteredSongs" :key="song.id" class="q-pa-sm song-item">
+            <q-item
+              v-for="(song, index) in filteredSongs"
+              :key="song.id"
+              class="q-pa-sm song-item"
+              :draggable="!searchQuery"
+              @dragstart="onDragStart(index)"
+              @dragover.prevent
+              @drop="onDrop(index)"
+              @dragend="onDragEnd"
+            >
               <q-item-section side class="song-order-controls">
                 <div class="column items-center q-gutter-xs">
-                  <template v-if="sortBy === 'custom'">
-                    <q-btn flat round dense icon="keyboard_arrow_up" size="xs" @click="moveSong(song, -1)" />
-                    <q-btn flat round dense icon="keyboard_arrow_down" size="xs" @click="moveSong(song, 1)" />
-                  </template>
+                  <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
                   <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
                 </div>
               </q-item-section>
@@ -205,12 +210,7 @@ const bandStore = useBandStore()
 const { t } = useI18n()
 
 const searchQuery = ref('')
-const sortBy = ref('newest')
-const sortOptions = computed(() => [
-  { label: t('voting.mostVotes'), value: 'votes' },
-  { label: t('voting.newest'), value: 'newest' },
-  { label: t('voting.customOrder'), value: 'custom' },
-])
+const draggingIndex = ref<number | null>(null)
 
 const isAdmin = computed(() => {
   const band = authStore.activeBand
@@ -228,9 +228,11 @@ const filteredSongs = computed(() => {
     const q = searchQuery.value.toLowerCase()
     list = list.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q))
   }
-  if (sortBy.value === 'votes') list = [...list].sort((a, b) => (b.voteAverage || 0) - (a.voteAverage || 0))
-  else if (sortBy.value === 'custom') list = [...list].sort((a, b) => { if (a.isPinned && !b.isPinned) return -1; if (!a.isPinned && b.isPinned) return 1; return a.position - b.position })
-  else list = [...list].sort((a, b) => b.id - a.id)
+  list = [...list].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    return a.position - b.position
+  })
   return list
 })
 
@@ -291,13 +293,27 @@ async function togglePin(song: Song) {
   } catch { /* ignore */ }
 }
 
-async function moveSong(song: Song, dir: number) {
-  const idx = filteredSongs.value.findIndex((s) => s.id === song.id)
-  const target = idx + dir
-  if (target < 0 || target >= filteredSongs.value.length) return
-  const items = [...filteredSongs.value]
-  ;[items[idx], items[target]] = [items[target], items[idx]]
+async function reorderSongs(items: Song[]) {
   await songsStore.reorderSongs(items.map((s, i) => ({ id: s.id, position: i })))
+}
+
+function onDragStart(index: number) {
+  if (searchQuery.value) return
+  draggingIndex.value = index
+}
+
+async function onDrop(index: number) {
+  if (searchQuery.value) return
+  if (draggingIndex.value === null || draggingIndex.value === index) return
+  const items = [...filteredSongs.value]
+  const [moved] = items.splice(draggingIndex.value, 1)
+  items.splice(index, 0, moved)
+  draggingIndex.value = null
+  await reorderSongs(items)
+}
+
+function onDragEnd() {
+  draggingIndex.value = null
 }
 
 async function deleteSong(song: Song) {
@@ -471,5 +487,17 @@ onMounted(() => {
 
 .vote-picker-card {
   min-width: 280px;
+}
+
+.round-add-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 9999px;
+}
+
+.cursor-grab {
+  cursor: grab;
 }
 </style>

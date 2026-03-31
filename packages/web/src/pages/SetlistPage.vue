@@ -4,15 +4,12 @@
       <q-card flat bordered>
         <q-card-section>
           <div class="row items-center justify-between">
-            <div class="row items-center q-gutter-sm">
-              <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
-              <q-select v-model="selectedGigId" :options="gigOptions" emit-value map-options dense outlined style="width: 200px" />
-            </div>
+            <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
             <div class="row q-gutter-sm">
-              <q-btn flat round icon="download" @click="handleExport" />
               <q-btn flat round icon="pause_circle" @click="openSpecialModal('pause')" />
               <q-btn flat round icon="tune" @click="openSpecialModal('tuning')" />
-              <q-btn round color="primary" icon="add" @click="openAddSongModal" />
+              <q-btn flat round icon="download" @click="handleExport" />
+              <q-btn round color="primary" icon="add" class="round-add-btn" @click="openAddSongModal" />
             </div>
           </div>
         </q-card-section>
@@ -22,7 +19,7 @@
             <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
               <template #prepend><q-icon name="search" /></template>
             </q-input>
-            <q-select v-model="sortBy" :options="sortOptions" emit-value map-options dense outlined style="width: 160px" />
+            <q-select v-model="selectedGigId" :options="gigOptions" emit-value map-options dense outlined style="width: 200px" />
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
@@ -34,15 +31,17 @@
                 'bg-blue-1': item.isPinned,
                 'border-dashed': item.type !== 'song'
               }"
+              :draggable="!searchQuery"
+              @dragstart="onDragStart(index)"
+              @dragover.prevent
+              @drop="onDrop(index)"
+              @dragend="onDragEnd"
             >
               <!-- Reorder + Pin -->
               <q-item-section side>
                 <div class="column items-center q-gutter-xs">
-                  <template v-if="sortBy === 'custom'">
-                    <q-btn flat round dense icon="keyboard_arrow_up" size="xs" :disable="index === 0" @click="moveItem(index, -1)" />
-                    <span class="text-caption text-grey">{{ index + 1 }}</span>
-                    <q-btn flat round dense icon="keyboard_arrow_down" size="xs" :disable="index === filteredSongs.length - 1" @click="moveItem(index, 1)" />
-                  </template>
+                  <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                  <span class="text-caption text-grey">{{ index + 1 }}</span>
                   <q-btn flat round dense :icon="item.isPinned ? 'lock' : 'lock_open'" :color="item.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(item)" />
                 </div>
               </q-item-section>
@@ -258,12 +257,7 @@ const songsStore = useSongsStore()
 const { t } = useI18n()
 
 const searchQuery = ref('')
-const sortBy = ref('custom')
-const sortOptions = computed(() => [
-  { label: t('setlist.orderCustom'), value: 'custom' },
-  { label: t('setlist.orderTitle'), value: 'title' },
-  { label: t('setlist.orderArtist'), value: 'artist' },
-])
+const draggingIndex = ref<number | null>(null)
 
 // Gig selection
 const selectedGigId = ref<number | null>(null)
@@ -296,9 +290,11 @@ const filteredSongs = computed(() => {
     list = list.filter((s) => s.title.toLowerCase().includes(q) || (s.artist && s.artist.toLowerCase().includes(q)))
   }
 
-  if (sortBy.value === 'title') list.sort((a, b) => a.title.localeCompare(b.title))
-  else if (sortBy.value === 'artist') list.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''))
-  else list.sort((a, b) => { if (a.isPinned && !b.isPinned) return -1; if (!a.isPinned && b.isPinned) return 1; return a.position - b.position })
+  list.sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    return a.position - b.position
+  })
 
   return list
 })
@@ -348,12 +344,7 @@ watch(selectedGigId, (newVal) => {
 })
 
 // Reorder
-async function moveItem(index: number, direction: number) {
-  const targetIndex = index + direction
-  if (targetIndex < 0 || targetIndex >= filteredSongs.value.length) return
-
-  const items = [...filteredSongs.value]
-  ;[items[index], items[targetIndex]] = [items[targetIndex], items[index]]
+async function reorderItems(items: Song[]) {
   const updates = items.map((itm, idx) => ({ id: itm.id, position: idx }))
 
   try {
@@ -367,6 +358,25 @@ async function moveItem(index: number, direction: number) {
     $q.notify({ message: t('setlist.failedReorder'), color: 'negative' })
     await refreshAll()
   }
+}
+
+function onDragStart(index: number) {
+  if (searchQuery.value) return
+  draggingIndex.value = index
+}
+
+async function onDrop(index: number) {
+  if (searchQuery.value) return
+  if (draggingIndex.value === null || draggingIndex.value === index) return
+  const items = [...filteredSongs.value]
+  const [moved] = items.splice(draggingIndex.value, 1)
+  items.splice(index, 0, moved)
+  draggingIndex.value = null
+  await reorderItems(items)
+}
+
+function onDragEnd() {
+  draggingIndex.value = null
 }
 
 async function togglePin(item: Song) {
@@ -588,3 +598,17 @@ onMounted(() => {
   fetchPersonalNotes()
 })
 </script>
+
+<style scoped>
+.round-add-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 9999px;
+}
+
+.cursor-grab {
+  cursor: grab;
+}
+</style>

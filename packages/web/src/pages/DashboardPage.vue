@@ -7,65 +7,45 @@
           <div class="text-body2 text-grey-7">Manage your bands, subscription, and invitation access.</div>
           <div class="text-caption text-grey-8 q-mt-xs">Logged in as {{ userIdentity }}</div>
         </div>
-        <div class="col-12 col-md-auto">
-          <q-btn color="primary" round dense icon="home" @click="openActiveBandApp">
-            <q-tooltip>Open Band App</q-tooltip>
-          </q-btn>
-        </div>
       </div>
 
       <div class="row q-col-gutter-lg">
         <div class="col-12 col-lg-7">
           <q-card flat bordered class="q-mb-lg">
-            <q-card-section class="row items-center justify-between q-gutter-sm">
-              <div>
+            <q-card-section class="q-gutter-sm">
+              <div class="row items-center justify-between">
                 <div class="text-h6">Manage Bands</div>
-                <div class="text-caption text-grey-7">Select your active band, then open the main app.</div>
+                <div class="row q-gutter-xs">
+                  <q-btn flat round dense icon="refresh" @click="refreshBands">
+                    <q-tooltip>Refresh</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    color="primary"
+                    round
+                    dense
+                    icon="add"
+                    :disable="!canCreateBand"
+                    :title="canCreateBand ? 'Create a new band' : 'Free plan supports only one created band'"
+                    @click="showCreateBandDialog = true"
+                  >
+                    <q-tooltip>Create Band</q-tooltip>
+                  </q-btn>
+                </div>
               </div>
-              <div class="row q-gutter-xs">
-                <q-btn flat round dense icon="refresh" @click="refreshBands">
-                  <q-tooltip>Refresh</q-tooltip>
-                </q-btn>
-                <q-btn
-                  color="primary"
-                  round
-                  dense
-                  icon="add"
-                  :disable="!canCreateBand"
-                  :title="canCreateBand ? 'Create a new band' : 'Free plan supports only one created band'"
-                  @click="showCreateBandDialog = true"
-                >
-                  <q-tooltip>Create Band</q-tooltip>
-                </q-btn>
-              </div>
+              <div class="text-caption text-grey-7">Select your active band, then open the main app.</div>
             </q-card-section>
             <q-separator />
             <q-list separator>
               <q-item v-for="band in authStore.bands" :key="band.id">
                 <q-item-section>
                   <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
-                  <q-item-label caption>Slug: {{ band.slug }} | Role: {{ band.role }} | Pro access: {{ band.hasProPlan ? 'yes' : 'no' }}</q-item-label>
+                  <div class="row items-center q-gutter-xs q-mt-xs">
+                    <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
+                    <q-badge v-if="authStore.activeBandId === band.id" color="primary" label="Active" />
+                  </div>
                 </q-item-section>
                 <q-item-section side>
                   <div class="row q-gutter-xs">
-                    <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
-                    <q-badge v-if="authStore.activeBandId === band.id" color="primary" label="Active" />
-                    <q-btn flat round dense icon="check_circle" @click="selectBandOnly(band.id)">
-                      <q-tooltip>Select Band</q-tooltip>
-                    </q-btn>
-                    <q-btn color="primary" round dense icon="launch" @click="selectBandAndOpen(band.id)">
-                      <q-tooltip>Open App</q-tooltip>
-                    </q-btn>
-                    <q-btn
-                      v-if="canManageBand(band.role)"
-                      flat
-                      round
-                      dense
-                      icon="edit"
-                      @click="openEdit(band)"
-                    >
-                      <q-tooltip>Edit Band</q-tooltip>
-                    </q-btn>
                     <q-btn
                       v-if="canManageBand(band.role)"
                       flat
@@ -77,6 +57,19 @@
                       <q-tooltip>Invite</q-tooltip>
                     </q-btn>
                     <q-btn
+                      v-if="canManageBand(band.role)"
+                      flat
+                      round
+                      dense
+                      icon="edit"
+                      @click="openEdit(band)"
+                    >
+                      <q-tooltip>Edit Band</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense icon="check_circle" @click="selectBandOnly(band.id)">
+                      <q-tooltip>Select Band</q-tooltip>
+                    </q-btn>
+                    <q-btn
                       v-if="canDeleteBand(band.role)"
                       flat
                       round
@@ -86,6 +79,9 @@
                       @click="deleteBand(band.id)"
                     >
                       <q-tooltip>Delete Band</q-tooltip>
+                    </q-btn>
+                    <q-btn color="primary" round dense icon="launch" @click="selectBandAndOpen(band.id)">
+                      <q-tooltip>Open App</q-tooltip>
                     </q-btn>
                   </div>
                 </q-item-section>
@@ -102,8 +98,8 @@
             </q-card-section>
             <q-separator />
             <q-card-section>
-              <div class="row q-col-gutter-md items-end">
-                <div class="col-12 col-md">
+              <div class="row items-center q-gutter-sm">
+                <div class="col">
                   <q-input
                     v-model="joinCode"
                     label="Invitation code"
@@ -113,10 +109,8 @@
                     @keyup.enter="joinBand"
                   />
                 </div>
-                <div class="col-12 col-md-auto">
-                  <q-btn color="primary" round dense icon="group_add" :loading="joining" @click="joinBand">
-                    <q-tooltip>Join Band</q-tooltip>
-                  </q-btn>
+                <div>
+                  <q-btn color="primary" dense label="Join" :loading="joining" @click="joinBand" />
                 </div>
               </div>
             </q-card-section>
@@ -429,18 +423,6 @@ async function selectBandAndOpen(bandId: number) {
   authStore.setActiveBand(bandId)
   await bandStore.fetchMembers()
   await router.push('/')
-}
-
-async function openActiveBandApp() {
-  if (!authStore.activeBandId && authStore.bands[0]) {
-    authStore.setActiveBand(authStore.bands[0].id)
-  }
-  if (authStore.activeBandId) {
-    await bandStore.fetchMembers()
-    await router.push('/')
-    return
-  }
-  Notify.create({ type: 'warning', message: 'No band selected yet.' })
 }
 
 async function joinBand() {
