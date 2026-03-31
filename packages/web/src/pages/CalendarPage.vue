@@ -375,10 +375,14 @@ onMounted(() => {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  width: 100%;
   gap: 2px;
 }
 .calendar-cell {
+  width: 100%;
+  min-width: 0;
   min-height: 80px;
+  box-sizing: border-box;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 4px;
   transition: background-color 0.2s;
@@ -387,6 +391,9 @@ onMounted(() => {
   background-color: rgba(0, 0, 0, 0.03);
 }
 .event-chip {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   font-size: 10px;
   line-height: 1.2;
   padding: 1px 4px;

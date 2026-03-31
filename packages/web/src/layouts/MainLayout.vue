@@ -33,32 +33,25 @@
                 <q-item clickable v-close-popup @click="goDashboard">
                   <q-item-section>{{ t('nav.dashboard') }}</q-item-section>
                 </q-item>
-                <q-item-label header>{{ t('nav.allBands') }}</q-item-label>
-                <q-item
-                  v-for="band in authStore.bands"
-                  :key="band.id"
-                  clickable
-                  v-close-popup
-                  @click="selectBand(band.id)"
-                >
-                  <q-item-section>
-                    <q-item-label>{{ band.name }}</q-item-label>
-                    <q-item-label caption>{{ formatPlanLabel(band.plan, band.hasProPlan) }}</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <div class="column items-end q-gutter-xs">
-                      <q-badge v-if="activeBandId === band.id" color="primary">{{ t('nav.active') }}</q-badge>
-                      <q-badge outline color="secondary">{{ formatPlanLabel(band.plan, band.hasProPlan) }}</q-badge>
-                    </div>
-                  </q-item-section>
-                </q-item>
+                <q-separator />
+                <template v-for="band in authStore.bands" :key="band.id">
+                  <q-item
+                    clickable
+                    v-close-popup
+                    class="band-menu-item"
+                    @click="selectBand(band.id)"
+                  >
+                    <q-item-section>
+                      <q-item-label>{{ band.name }}</q-item-label>
+                      <q-item-label v-if="activeBandId === band.id" caption class="text-primary text-weight-medium">
+                        {{ t('nav.active') }}
+                      </q-item-label>
+                    </q-item-section>
+                  </q-item>
+                  <q-separator />
+                </template>
 
                 <q-separator />
-                <q-item disable>
-                  <q-item-section>
-                    {{ t('nav.loggedInAs') }}: {{ activeUserName }} ({{ activeBandRole }})
-                  </q-item-section>
-                </q-item>
                 <q-item clickable v-close-popup @click="goBilling">
                   <q-item-section>{{ t('nav.subscriptions') }}</q-item-section>
                 </q-item>
@@ -70,6 +63,13 @@
                 </q-item>
                 <q-item clickable v-close-popup @click="handleLogout">
                   <q-item-section>{{ t('nav.signOut') }}</q-item-section>
+                </q-item>
+                <q-separator class="account-menu-separator" />
+                <q-item disable>
+                  <q-item-section>
+                    <q-item-label>{{ t('nav.loggedInAs') }}: {{ activeUserName }} ({{ activeBandRole }})</q-item-label>
+                    <q-item-label caption>{{ activeUserEmail }}</q-item-label>
+                  </q-item-section>
                 </q-item>
               </q-list>
             </q-menu>
@@ -98,9 +98,13 @@
           >
             <span class="bottom-nav-content">
               <img
-                :src="isActiveRoute(link.to) ? link.iconActive : link.iconInactive"
+                :src="getNavIcon(link)"
                 :alt="link.label"
                 class="bottom-nav-icon"
+                :class="{
+                  'bottom-nav-icon--inactive': !isActiveRoute(link.to),
+                  'bottom-nav-icon--admin-dark': $q.dark.isActive && link.to === '/admin'
+                }"
               />
               <span class="bottom-nav-label">{{ link.label }}</span>
             </span>
@@ -148,6 +152,7 @@ const activeBandId = computed({
 
 const activeBandRole = computed(() => authStore.activeBand?.role ?? 'none')
 const activeUserName = computed(() => authStore.user?.name ?? authStore.user?.email ?? 'Unknown user')
+const activeUserEmail = computed(() => authStore.user?.email ?? '')
 
 const activeLogoSrc = computed(() => {
   const band = authStore.activeBand
@@ -164,14 +169,14 @@ const isAdmin = computed(() => {
 
 const navLinks = computed(() => {
   const links = [
-    { label: t('nav.home'), to: '/', iconInactive: homeBl, iconActive: homeWh },
-    { label: t('nav.voting'), to: '/voting', iconInactive: votingBl, iconActive: votingWh },
-    { label: t('nav.setlist'), to: '/setlist', iconInactive: setlistBl, iconActive: setlistWh },
-    { label: t('nav.calendar'), to: '/calendar', iconInactive: calendarBl, iconActive: calendarWh },
+    { label: t('nav.home'), to: '/', iconLight: homeBl, iconDark: homeWh, iconActive: homeWh },
+    { label: t('nav.voting'), to: '/voting', iconLight: votingBl, iconDark: votingWh, iconActive: votingWh },
+    { label: t('nav.setlist'), to: '/setlist', iconLight: setlistBl, iconDark: setlistWh, iconActive: setlistWh },
+    { label: t('nav.calendar'), to: '/calendar', iconLight: calendarBl, iconDark: calendarWh, iconActive: calendarWh },
   ]
 
   if (isAdmin.value) {
-    links.push({ label: t('nav.admin'), to: '/admin', iconInactive: adminBl, iconActive: adminBl })
+    links.push({ label: t('nav.admin'), to: '/admin', iconLight: adminBl, iconDark: adminBl, iconActive: adminBl })
   }
 
   // links.push({ icon: 'payment', label: 'Billing', to: '/billing' })
@@ -185,6 +190,11 @@ const routerViewKey = computed(() => `${route.fullPath}::band-${authStore.active
 
 function isActiveRoute(path: string) {
   return route.path === path
+}
+
+function getNavIcon(link: { to: string; iconLight: string; iconDark: string; iconActive: string }) {
+  if (isActiveRoute(link.to)) return link.iconActive
+  return $q.dark.isActive ? link.iconDark : link.iconLight
 }
 
 function toggleDarkMode() {
@@ -319,6 +329,14 @@ onMounted(async () => {
   object-fit: contain;
 }
 
+.bottom-nav-icon--inactive {
+  opacity: 0.92;
+}
+
+.bottom-nav-icon--admin-dark {
+  filter: brightness(0) invert(1);
+}
+
 .bottom-nav-content {
   display: flex;
   flex-direction: column;
@@ -329,9 +347,9 @@ onMounted(async () => {
 }
 
 .bottom-nav-label {
-  font-size: 0.62rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #111827;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -349,7 +367,7 @@ onMounted(async () => {
 }
 
 :global(body.body--dark) .bottom-nav-label {
-  color: #dbeafe;
+  color: #f8fafc;
 }
 
 :global(body.body--dark) .bottom-nav-btn--active {
@@ -373,6 +391,14 @@ onMounted(async () => {
   height: 34px;
   max-width: 190px;
   object-fit: contain;
+}
+
+.band-menu-item {
+  padding-left: 16px;
+}
+
+.account-menu-separator {
+  opacity: 1;
 }
 
 </style>
