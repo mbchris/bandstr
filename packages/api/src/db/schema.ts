@@ -18,6 +18,8 @@ export const bands = pgTable('bands', {
   slug: text('slug').notNull().unique(),
   plan: text('plan').notNull().default('free'), // 'free' | 'pro' | 'pro-zero'
   logo: text('logo'),
+  logoDark: text('logo_dark'),
+  logoBright: text('logo_bright'),
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
   subscriptionStatus: text('subscription_status').notNull().default('none'), // 'none' | 'active' | 'canceled' | 'past_due' | 'trialing'

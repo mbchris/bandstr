@@ -113,6 +113,16 @@ async function ensureUserProPlanColumns() {
   `)
 }
 
+async function ensureBandLogoVariantColumns() {
+  if (!(await publicTableExists('bands'))) return
+
+  await pool.query(`
+    ALTER TABLE "bands"
+      ADD COLUMN IF NOT EXISTS "logo_dark" text,
+      ADD COLUMN IF NOT EXISTS "logo_bright" text;
+  `)
+}
+
 export async function runMigrations(options: { closePoolOnDone?: boolean } = {}) {
   const { closePoolOnDone = false } = options
   const started = Date.now()
@@ -120,6 +130,7 @@ export async function runMigrations(options: { closePoolOnDone?: boolean } = {})
     await baselineLegacySchemaIfNeeded()
     await ensureBandsMonetizationColumns()
     await ensureUserProPlanColumns()
+    await ensureBandLogoVariantColumns()
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
     const ms = Date.now() - started
     console.log(`DB migrations applied in ${ms}ms`)

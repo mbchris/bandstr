@@ -35,6 +35,8 @@ bands.get('/', requireAuth, async (c) => {
       slug: bandsTable.slug,
       plan: bandsTable.plan,
       logo: bandsTable.logo,
+      logoDark: bandsTable.logoDark,
+      logoBright: bandsTable.logoBright,
       subscriptionStatus: bandsTable.subscriptionStatus,
       subscriptionInterval: bandsTable.subscriptionInterval,
       subscriptionCurrentPeriodEnd: bandsTable.subscriptionCurrentPeriodEnd,
@@ -381,6 +383,8 @@ bands.post('/join', requireAuth, zValidator('json', joinBandSchema), async (c) =
       plan: normalizedPlan,
       hasProPlan: await bandHasProPlan(band.id),
       logo: band.logo,
+      logoDark: band.logoDark,
+      logoBright: band.logoBright,
       role: 'member',
     }
   })
