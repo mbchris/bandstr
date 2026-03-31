@@ -115,6 +115,9 @@ Commands:
   sync-assets local
     Sync assets from ./assets to app/public targets.
 
+  security-scan local
+    Run security scans for web and backend dependencies.
+
   cleanup-resources local
     Cleanup generated or unneeded resources.
 EOF
@@ -232,7 +235,7 @@ elif [[ "$env_profile" != "local" ]]; then
   exit 1
 fi
 
-if [[ "$command" != "install-bundletool" && "$command" != "upload-ios" ]]; then
+if [[ "$command" != "install-bundletool" && "$command" != "upload-ios" && "$command" != "security-scan" ]]; then
   if [[ "$env_profile" == "production" ]]; then
     if [[ -f ".env.production" ]]; then
       env_file=".env.production"
@@ -1117,6 +1120,11 @@ sync_assets() {
   bash ./scripts/sync-assets.sh
 }
 
+run_security_scan() {
+  echo "Running security scans (web + backend)..."
+  pnpm run security
+}
+
 resolve_git_rev() {
   local from_env="${SOURCE_COMMIT:-}"
   if [[ -n "$from_env" && "$from_env" != "UNKNOWN" && "$from_env" != "unknown" ]]; then
@@ -1275,6 +1283,9 @@ case "$command" in
     ;;
   sync-assets)
     sync_assets
+    ;;
+  security-scan)
+    run_security_scan
     ;;
   cleanup-resources)
     echo "Cleaning unneeded resources..."
