@@ -1,7 +1,6 @@
 BEGIN;
 
--- Re-import support: remove previous at issue band and all band-scoped data first.
-DELETE FROM bands WHERE slug = 'at-issue';
+-- Idempotent import: upserts only, no existing data is deleted.
 
 INSERT INTO bands (name, slug, plan, created_at)
 VALUES ('at issue', 'at-issue', 'free', now())
@@ -185,15 +184,11 @@ CREATE TEMP TABLE at_issue_rehearsal_songs (
 DO $$
 DECLARE
   v_band_id integer;
-  v_song_offset integer;
-  v_event_offset integer;
-  v_vote_offset integer;
 BEGIN
   SELECT id INTO v_band_id FROM bands WHERE slug = 'at-issue' LIMIT 1;
 
-  SELECT COALESCE(MAX(id), 0) INTO v_song_offset FROM songs;
+  -- Songs: skip rows that already exist (matched by band + title + artist + type).
   INSERT INTO songs (
-    id,
     band_id,
     title,
     artist,
@@ -210,7 +205,6 @@ BEGIN
     created_at
   )
   SELECT
-    s.old_id + v_song_offset,
     v_band_id,
     s.title,
     s.artist,
@@ -227,11 +221,25 @@ BEGIN
     CASE WHEN s.created_at < 100000000000 THEN to_timestamp(s.created_at) ELSE to_timestamp(s.created_at / 1000.0) END
   FROM at_issue_songs s
   LEFT JOIN at_issue_user_map um ON um.old_id = s.added_by_old
+  WHERE NOT EXISTS (
+    SELECT 1 FROM songs ex
+    WHERE ex.band_id = v_band_id AND ex.title = s.title AND ex.artist = s.artist AND ex.type = s.type
+  )
   ORDER BY s.old_id;
 
-  SELECT COALESCE(MAX(id), 0) INTO v_event_offset FROM calendar_events;
+  -- Build song old_id → new id mapping via natural key lookup.
+  CREATE TEMP TABLE at_issue_song_map (
+    old_id integer PRIMARY KEY,
+    song_id integer NOT NULL
+  ) ON COMMIT DROP;
+
+  INSERT INTO at_issue_song_map (old_id, song_id)
+  SELECT s.old_id, ex.id
+  FROM at_issue_songs s
+  JOIN songs ex ON ex.band_id = v_band_id AND ex.title = s.title AND ex.artist = s.artist AND ex.type = s.type;
+
+  -- Events: skip rows that already exist (matched by band + title + start_time).
   INSERT INTO calendar_events (
-    id,
     band_id,
     title,
     description,
@@ -244,7 +252,6 @@ BEGIN
     created_at
   )
   SELECT
-    e.old_id + v_event_offset,
     v_band_id,
     e.title,
     e.description,
@@ -258,11 +265,27 @@ BEGIN
   FROM at_issue_events e
   LEFT JOIN at_issue_user_map u ON u.old_id = e.user_id_old
   LEFT JOIN at_issue_user_map bo ON bo.old_id = e.bierwart_override_id_old
+  WHERE NOT EXISTS (
+    SELECT 1 FROM calendar_events ex
+    WHERE ex.band_id = v_band_id AND ex.title = e.title
+      AND ex.start_time = CASE WHEN e.start_time < 100000000000 THEN to_timestamp(e.start_time) ELSE to_timestamp(e.start_time / 1000.0) END
+  )
   ORDER BY e.old_id;
 
-  SELECT COALESCE(MAX(id), 0) INTO v_vote_offset FROM votes;
+  -- Build event old_id → new id mapping via natural key lookup.
+  CREATE TEMP TABLE at_issue_event_map (
+    old_id integer PRIMARY KEY,
+    event_id integer NOT NULL
+  ) ON COMMIT DROP;
+
+  INSERT INTO at_issue_event_map (old_id, event_id)
+  SELECT e.old_id, ex.id
+  FROM at_issue_events e
+  JOIN calendar_events ex ON ex.band_id = v_band_id AND ex.title = e.title
+    AND ex.start_time = CASE WHEN e.start_time < 100000000000 THEN to_timestamp(e.start_time) ELSE to_timestamp(e.start_time / 1000.0) END;
+
+  -- Votes: use unique constraint (song_id, user_id) to skip duplicates.
   INSERT INTO votes (
-    id,
     band_id,
     song_id,
     user_id,
@@ -271,28 +294,27 @@ BEGIN
     created_at
   )
   SELECT
-    v.old_id + v_vote_offset,
     v_band_id,
-    v.song_id_old + v_song_offset,
+    sm.song_id,
     um.user_id,
     v.score,
     v.comment,
     CASE WHEN v.created_at < 100000000000 THEN to_timestamp(v.created_at) ELSE to_timestamp(v.created_at / 1000.0) END
   FROM at_issue_votes v
   JOIN at_issue_user_map um ON um.old_id = v.user_id_old
-  ORDER BY v.old_id;
+  JOIN at_issue_song_map sm ON sm.old_id = v.song_id_old
+  ON CONFLICT (song_id, user_id) DO NOTHING;
 
+  -- Rehearsal songs: use unique constraint (rehearsal_id, song_id) to skip duplicates.
   INSERT INTO rehearsal_songs (band_id, rehearsal_id, song_id)
   SELECT
     v_band_id,
-    rs.rehearsal_id_old + v_event_offset,
-    rs.song_id_old + v_song_offset
+    em.event_id,
+    sm.song_id
   FROM at_issue_rehearsal_songs rs
+  JOIN at_issue_event_map em ON em.old_id = rs.rehearsal_id_old
+  JOIN at_issue_song_map sm ON sm.old_id = rs.song_id_old
   ON CONFLICT (rehearsal_id, song_id) DO NOTHING;
 END $$;
-
-SELECT setval(pg_get_serial_sequence('songs','id'), COALESCE((SELECT MAX(id) FROM songs), 1), true);
-SELECT setval(pg_get_serial_sequence('calendar_events','id'), COALESCE((SELECT MAX(id) FROM calendar_events), 1), true);
-SELECT setval(pg_get_serial_sequence('votes','id'), COALESCE((SELECT MAX(id) FROM votes), 1), true);
 
 COMMIT;

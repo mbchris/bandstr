@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
-import { eq, sql } from 'drizzle-orm'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { bandMembers, bands, users } from '../db/schema.js'
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
@@ -7,6 +9,33 @@ import { requireAuth, type AuthEnv } from '../middleware/auth.js'
 export const account = new Hono<AuthEnv>()
 
 account.use('*', requireAuth)
+
+const setDefaultBandSchema = z.object({
+  bandId: z.number().int().positive(),
+})
+
+account.put('/default-band', zValidator('json', setDefaultBandSchema), async (c) => {
+  const userId = c.get('user').id
+  const { bandId } = c.req.valid('json')
+
+  const [membership] = await db
+    .select({ userId: bandMembers.userId })
+    .from(bandMembers)
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.userId, userId)))
+    .limit(1)
+
+  if (!membership) {
+    return c.json({ error: 'Forbidden: not a member of this band' }, 403)
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({ defaultBandId: bandId })
+    .where(eq(users.id, userId))
+    .returning({ defaultBandId: users.defaultBandId })
+
+  return c.json({ defaultBandId: updated?.defaultBandId ?? bandId })
+})
 
 account.delete('/', async (c) => {
   const userId = c.get('user').id

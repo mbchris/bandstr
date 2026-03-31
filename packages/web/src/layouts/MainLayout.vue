@@ -340,6 +340,28 @@ onMounted(async () => {
   color: #ffffff;
 }
 
+:global(body.body--dark) .bottom-nav {
+  background: rgba(30, 41, 59, 0.96);
+}
+
+:global(body.body--dark) .bottom-nav-btn {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+:global(body.body--dark) .bottom-nav-label {
+  color: #dbeafe;
+}
+
+:global(body.body--dark) .bottom-nav-btn--active {
+  background: #334155;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 1px rgba(147, 197, 253, 0.45) inset;
+}
+
+:global(body.body--dark) .bottom-nav-btn--active .bottom-nav-label {
+  color: #ffffff;
+}
+
 .brand-link {
   display: inline-flex;
   align-items: center;

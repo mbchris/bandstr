@@ -15,6 +15,7 @@ export type BandMembership = {
   slug: string
   plan: string
   hasProPlan?: boolean
+  isDefault?: boolean
   subscriptionStatus?: 'none' | 'active' | 'canceled' | 'past_due' | 'trialing' | null
   subscriptionInterval?: 'monthly' | 'yearly' | null
   subscriptionCurrentPeriodEnd?: string | null
@@ -135,8 +136,23 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setBands(list: BandMembership[]) {
     bands.value = list
-    // Auto-select if only one band or saved band no longer accessible
-    if (list.length > 0 && !list.find((b) => b.id === activeBandId.value)) {
+    if (list.length === 0) {
+      setActiveBand(null)
+      return
+    }
+
+    const defaultBand = list.find((b) => b.isDefault)
+    if (defaultBand) {
+      setActiveBand(defaultBand.id)
+      return
+    }
+
+    if (list.length === 1) {
+      setActiveBand(list[0].id)
+      return
+    }
+
+    if (!list.find((b) => b.id === activeBandId.value)) {
       setActiveBand(list[0].id)
     }
   }
