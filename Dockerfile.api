@@ -51,6 +51,7 @@ ARG SOURCE_COMMIT=unknown
 WORKDIR /app
 
 RUN corepack enable
+RUN apk add --no-cache postgresql-client
 
 # Copy workspace root for pnpm resolution
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./
@@ -68,6 +69,7 @@ COPY --from=build /app/packages/api/dist/ packages/api/dist/
 # Runtime migrations for drizzle migrator
 COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
 COPY --from=build /app/packages/shared/ packages/shared/
+COPY --from=build /app/do /app/do
 
 # Runtime config
 ENV HOST=0.0.0.0
@@ -83,6 +85,7 @@ LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 
 # Interactive shell notes (shown on docker exec -it <container> sh)
 COPY scripts/container-shell-notes.sh /etc/bandstr_shell_rc
+RUN chmod +x /app/do
 
 EXPOSE 3001
 
