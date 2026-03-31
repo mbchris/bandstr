@@ -150,7 +150,8 @@
                 <q-badge v-else-if="code.expired" color="warning" text-color="dark" label="Expired" />
                 <q-badge v-else color="info" label="Active" />
                 <q-btn flat dense icon="qr_code_2" label="QR" @click="openQr(code.code)" />
-                <q-btn flat dense icon="content_copy" label="Copy" @click="copyInviteCode(code.code)" />
+                <q-btn flat dense icon="content_copy" label="Copy Invite" @click="copyInviteCode(code.code)" />
+                <q-btn flat dense icon="share" label="Share" @click="shareInviteCode(code.code)" />
                 <q-btn
                   flat
                   dense
@@ -227,6 +228,7 @@ const inviteBand = ref<BandMembership | null>(null)
 const inviteCodes = ref<InviteCode[]>([])
 const selectedInviteCode = ref('')
 const qrImageUrl = ref('')
+const APP_INVITE_BASE_URL = 'org.capacitor.bandstr://localhost/#/dashboard'
 
 const canCreateBand = computed(() => {
   const ownedBands = authStore.bands.filter((band) => band.role === 'owner')
@@ -258,6 +260,16 @@ async function refreshBands() {
 function formatPlanLabel(plan: string | null | undefined, hasProPlan?: boolean) {
   const normalized = (hasProPlan ? 'pro' : (plan ?? 'free')).toUpperCase()
   return `${normalized} plan`
+}
+
+function buildInviteDeepLink(invitationCode: string) {
+  return `${APP_INVITE_BASE_URL}?inviteCode=${encodeURIComponent(invitationCode)}`
+}
+
+function buildInviteShareText(invitationCode: string) {
+  const bandName = inviteBand.value?.name ?? 'your band'
+  const deepLink = buildInviteDeepLink(invitationCode)
+  return `You have been invited to join the band '${bandName}' on Bandster! Click this link '${deepLink}' to join using the app or enter the following code in the app '${invitationCode}'`
 }
 
 function switchBand(bandId: number) {
@@ -391,16 +403,34 @@ async function createInviteCode() {
 
 function openQr(code: string) {
   selectedInviteCode.value = code
-  qrImageUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(code)}`
+  qrImageUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(buildInviteDeepLink(code))}`
   showQrDialog.value = true
 }
 
 async function copyInviteCode(code: string) {
   try {
-    await copyToClipboard(code)
-    $q.notify({ type: 'positive', message: 'Invitation code copied' })
+    await copyToClipboard(buildInviteShareText(code))
+    $q.notify({ type: 'positive', message: 'Invitation text copied' })
   } catch {
-    $q.notify({ type: 'negative', message: 'Failed to copy invitation code' })
+    $q.notify({ type: 'negative', message: 'Failed to copy invitation text' })
+  }
+}
+
+async function shareInviteCode(code: string) {
+  const text = buildInviteShareText(code)
+  if (navigator.share) {
+    try {
+      await navigator.share({ text })
+      return
+    } catch {
+      // Fall back to clipboard if native share is canceled/unavailable.
+    }
+  }
+  try {
+    await copyToClipboard(text)
+    $q.notify({ type: 'positive', message: 'Invitation text copied' })
+  } catch {
+    $q.notify({ type: 'negative', message: 'Failed to share invitation text' })
   }
 }
 function invalidateInviteCode(inviteId: number) {

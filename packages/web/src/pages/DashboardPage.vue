@@ -211,7 +211,10 @@
                   <q-tooltip>Show QR</q-tooltip>
                 </q-btn>
                 <q-btn flat round dense icon="content_copy" @click="copyInviteCode(code.code)">
-                  <q-tooltip>Copy code</q-tooltip>
+                  <q-tooltip>Copy invite text</q-tooltip>
+                </q-btn>
+                <q-btn flat round dense icon="share" @click="shareInviteCode(code.code)">
+                  <q-tooltip>Share invite</q-tooltip>
                 </q-btn>
                 <q-btn
                   flat
@@ -254,13 +257,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Notify, copyToClipboard, useQuasar } from 'quasar'
 import { apiJson } from '../boot/api'
 import { useAuthStore, type BandMembership } from '../stores/auth'
 import { useBandStore } from '../stores/band'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const bandStore = useBandStore()
 const $q = useQuasar()
@@ -280,6 +284,7 @@ const inviteBand = ref<BandMembership | null>(null)
 const inviteCodes = ref<InviteCode[]>([])
 const selectedInviteCode = ref('')
 const qrImageUrl = ref('')
+const APP_INVITE_BASE_URL = 'org.capacitor.bandstr://localhost/#/dashboard'
 
 type InviteCode = {
   id: number
@@ -336,6 +341,24 @@ function formatDateTime(value: string | null) {
 function formatPlanLabel(plan: string | null | undefined, hasProPlan?: boolean) {
   const normalized = (hasProPlan ? 'pro' : (plan ?? 'free')).toUpperCase()
   return `${normalized} plan`
+}
+
+function buildInviteDeepLink(invitationCode: string) {
+  return `${APP_INVITE_BASE_URL}?inviteCode=${encodeURIComponent(invitationCode)}`
+}
+
+function buildInviteShareText(invitationCode: string) {
+  const bandName = inviteBand.value?.name ?? 'your band'
+  const deepLink = buildInviteDeepLink(invitationCode)
+  return `You have been invited to join the band '${bandName}' on Bandster! Click this link '${deepLink}' to join using the app or enter the following code in the app '${invitationCode}'`
+}
+
+function prefillJoinCodeFromRoute() {
+  const queryValue = route.query.inviteCode ?? route.query.invitationCode
+  const inviteCode = Array.isArray(queryValue) ? queryValue[0] : queryValue
+  if (typeof inviteCode === 'string' && inviteCode.trim()) {
+    joinCode.value = inviteCode.trim().toUpperCase()
+  }
 }
 
 async function refreshBands() {
@@ -493,16 +516,34 @@ async function createInviteCode() {
 
 function openQr(code: string) {
   selectedInviteCode.value = code
-  qrImageUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(code)}`
+  qrImageUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(buildInviteDeepLink(code))}`
   showQrDialog.value = true
 }
 
 async function copyInviteCode(code: string) {
   try {
-    await copyToClipboard(code)
-    Notify.create({ type: 'positive', message: 'Invitation code copied' })
+    await copyToClipboard(buildInviteShareText(code))
+    Notify.create({ type: 'positive', message: 'Invitation text copied' })
   } catch {
-    Notify.create({ type: 'negative', message: 'Failed to copy invitation code' })
+    Notify.create({ type: 'negative', message: 'Failed to copy invitation text' })
+  }
+}
+
+async function shareInviteCode(code: string) {
+  const text = buildInviteShareText(code)
+  if (navigator.share) {
+    try {
+      await navigator.share({ text })
+      return
+    } catch {
+      // Fall back to clipboard if native share is canceled/unavailable.
+    }
+  }
+  try {
+    await copyToClipboard(text)
+    Notify.create({ type: 'positive', message: 'Invitation text copied' })
+  } catch {
+    Notify.create({ type: 'negative', message: 'Failed to share invitation text' })
   }
 }
 function invalidateInviteCode(inviteId: number) {
@@ -534,6 +575,7 @@ function invalidateInviteCode(inviteId: number) {
 }
 
 onMounted(async () => {
+  prefillJoinCodeFromRoute()
   await refreshBands()
 })
 </script>
