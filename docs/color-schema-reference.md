@@ -23,13 +23,13 @@ Edit file: `packages/web/src/css/app.scss`
 
 | Element | Dark Mode Color(s) | Bright Mode Color(s) | Text Example |
 |---|---|---|---|
-| App background | `--surface: #161b22` | default Quasar light background | `Dashboard`, `Admin` pages |
-| Raised cards | `--surface-raised: #18181b` | default card background | `Manage Bands`, `Band Members` cards |
-| Overlay/dialog/menu | `--surface-overlay: #27272a` | default dialog/menu background | `Create Band`, `Invitation Codes` dialogs |
-| Main text | `--text: #f4f4f5` | default Quasar text | `Manage your bands...` |
-| Muted text | `--text-muted: #a1a1aa` | `text-grey-*` utility shades | `Current plan: ...`, caption lines |
-| Borders | `--border: rgba(255,255,255,0.08)` | light borders from Quasar | card/table/input borders |
-| Strong borders | `--border-strong: rgba(255,255,255,0.14)` | light equivalents from Quasar | focused surfaces, menus |
+| App background | `--surface: #161b22` | `--surface: #ffffff` | `Dashboard`, `Admin` pages |
+| Raised cards | `--surface-raised: #18181b` | `--surface-raised: #f9fafb` | `Manage Bands`, `Band Members` cards |
+| Overlay/dialog/menu | `--surface-overlay: #27272a` | `--surface-overlay: #ffffff` | `Create Band`, `Invitation Codes` dialogs |
+| Main text | `--text: #f4f4f5` | `--text: #111827` | `Manage your bands...` |
+| Muted text | `--text-muted: #a1a1aa` | `--text-muted: #6b7280` | `Current plan: ...`, caption lines |
+| Borders | `--border: rgba(255,255,255,0.08)` | `--border: rgba(0,0,0,0.08)` | card/table/input borders |
+| Strong borders | `--border-strong: rgba(255,255,255,0.14)` | `--border-strong: rgba(0,0,0,0.16)` | focused surfaces, menus |
 
 ## 3) Top Navigation Bar Colors
 
@@ -37,12 +37,14 @@ Edit file: `packages/web/src/layouts/MainLayout.vue`
 
 | Element | Bright Mode Color | Dark Mode Color | Text Example |
 |---|---|---|---|
-| Top nav background | `rgba(243, 244, 246, 0.92)` | inherited from dark header styles | nav row containing `Home`, `Voting`, `Setlist` |
-| Top nav border | `rgba(17, 24, 39, 0.08)` | inherited from dark header styles | separator below toolbar |
-| Nav text | `#374151` | inherited dark text styles | `Home`, `Calendar` |
-| Active nav bg | `rgba(148, 163, 184, 0.24)` | inherited dark active styles | selected nav item |
-| Active nav border | `rgba(100, 116, 139, 0.42)` | inherited dark active styles | selected nav item border |
-| Active nav text | `#111827` | inherited dark active text | selected nav label |
+| Top nav background | `rgba(250, 251, 253, 0.96)` | `rgba(24, 24, 27, 0.96)` | nav row containing `Home`, `Voting`, `Setlist` |
+| Top nav border | `rgba(148, 163, 184, 0.2)` | `var(--border)` (`rgba(255, 255, 255, 0.08)`) | separator below toolbar |
+| Nav button bg | `rgba(255, 255, 255, 0.45)` | `rgba(39, 39, 42, 0.42)` | nav item tile |
+| Nav button border | `rgba(15, 23, 42, 0.08)` | `rgba(255, 255, 255, 0.12)` | nav item tile border |
+| Nav text | `#0f172a` | `#e5e7eb` | `Home`, `Calendar` |
+| Active nav bg | `#111827` | `#27272a` | selected nav item |
+| Active nav border | `#111827` | `rgba(255, 255, 255, 0.2)` | selected nav item border |
+| Active nav text | `#ffffff` | `#ffffff` | selected nav label |
 
 ## 4) Other Explicit Color Codes In Components
 

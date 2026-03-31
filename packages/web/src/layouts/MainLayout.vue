@@ -295,10 +295,10 @@ onMounted(async () => {
 
 .bottom-nav {
   background: rgba(250, 251, 253, 0.96);
-  --nav-btn-bg: rgba(255, 255, 255, 0.45);
+  --nav-btn-bg: rgba(39, 39, 42, 0.42);
   --nav-btn-border: rgba(15, 23, 42, 0.08);
-  --nav-label: #0f172a;
-  --nav-label-active: #ffffff;
+  --nav-label: #e5e7eb;
+  --nav-label-active: #f4f4f5;
   --nav-active-bg: #111827;
   --nav-active-border: #111827;
   --nav-active-glow: 0 0 0 1px rgba(17, 24, 39, 0.16) inset;
@@ -375,7 +375,7 @@ onMounted(async () => {
   --nav-btn-bg: rgba(39, 39, 42, 0.42);
   --nav-btn-border: rgba(255, 255, 255, 0.12);
   --nav-label: #e5e7eb;
-  --nav-label-active: #ffffff;
+  --nav-label-active: ##f4f4f5;
   --nav-active-bg: #27272a;
   --nav-active-border: rgba(255, 255, 255, 0.2);
   --nav-active-glow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
