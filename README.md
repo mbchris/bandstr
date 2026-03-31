@@ -75,6 +75,12 @@ pnpm db:seed
 pnpm db:studio
 ```
 
+Import historical at issue backup into a dedicated band:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/import-at-issue.sql
+```
+
 ## Developer QuickInfo
 
 CI/CD chain overview:
@@ -194,6 +200,9 @@ docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli remove-user-from-band 
 # imports from external SQL (Postgres) DB
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1'
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1'
+
+# import bundled at issue predecessor backup to band slug "at-issue"
+docker exec -it "$APP_CONTAINER" sh -lc 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /app/scripts/import-at-issue.sql'
 
 # user subscription override (affects owner/admin band inheritance)
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true'
