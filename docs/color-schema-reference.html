@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bandstr Color Schema Playground</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #11172a;
+      --panel-2: #18213a;
+      --text: #e6ecff;
+      --muted: #9fb0de;
+      --border: rgba(255, 255, 255, 0.12);
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 0% 0%, #182244 0%, var(--bg) 55%);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 18px;
+      align-items: center;
+    }
+    h1 { margin: 0; font-size: 28px; }
+    p { margin: 8px 0 0; color: var(--muted); }
+    h2 { margin: 24px 0 10px; font-size: 20px; }
+    .btn {
+      border: 1px solid var(--border);
+      background: #1d2847;
+      color: #e8eeff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn:hover { background: #24325a; }
+    .status {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: auto;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: linear-gradient(160deg, var(--panel) 0%, var(--panel-2) 100%);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+    .desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+    .preview {
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px;
+      text-align: center;
+      background: #444;
+    }
+    .controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    .name {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    input[type="text"] {
+      min-width: 160px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(0, 0, 0, 0.18);
+      color: #f5f8ff;
+      padding: 6px 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+    input[type="text"].invalid {
+      border-color: #ef4444;
+      box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.4);
+    }
+    input[type="color"] {
+      width: 34px;
+      height: 34px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+    }
+    .sample {
+      margin-top: 6px;
+      display: inline-block;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+      background: #334155;
+    }
+    .small {
+      font-size: 11px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>bandstr Color Schema Playground</h1>
+    <p>Edit values to instantly test new colors. Changes persist in your browser via local storage.</p>
+
+    <div class="toolbar">
+      <button class="btn" id="reset-btn" type="button">Reset to Defaults</button>
+      <button class="btn" id="copy-json-btn" type="button">Copy Current Colors as JSON</button>
+      <span class="status" id="status">Ready</span>
+    </div>
+
+    <div id="app"></div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'bandstr-color-playground-v1';
+
+    const defaults = [
+      {
+        title: '1) Global Brand Palette',
+        items: [
+          { label: '$primary', desc: 'Primary buttons, active accents', sample: 'Open Band App', swatches: [{ name: 'primary', value: '#6366f1' }] },
+          { label: '$secondary', desc: 'Secondary accents', sample: 'Dashboard', swatches: [{ name: 'secondary', value: '#94a3b8' }] },
+          { label: '$accent', desc: 'Accent highlights', sample: 'Action Emphasis', swatches: [{ name: 'accent', value: '#f43f5e' }] },
+          { label: '$dark', desc: 'Dark base theme color', sample: 'Dark Surface', swatches: [{ name: 'dark', value: '#161b22' }] },
+          { label: '$positive', desc: 'Success states', sample: 'Joined band', swatches: [{ name: 'positive', value: '#10b981' }] },
+          { label: '$negative', desc: 'Errors / destructive actions', sample: 'Delete', swatches: [{ name: 'negative', value: '#ef4444' }] },
+          { label: '$info', desc: 'Informational status', sample: 'Active', swatches: [{ name: 'info', value: '#3b82f6' }] },
+          { label: '$warning', desc: 'Warning states', sample: 'Expired', swatches: [{ name: 'warning', value: '#f59e0b' }] }
+        ]
+      },
+      {
+        title: '2) Surface + Text Tokens (Dark / Bright)',
+        items: [
+          { label: 'App background', swatches: [{ name: 'dark', value: '#161b22' }, { name: 'bright', value: '#ffffff' }] },
+          { label: 'Raised cards', swatches: [{ name: 'dark', value: '#18181b' }, { name: 'bright', value: '#f9fafb' }] },
+          { label: 'Overlay / dialog / menu', swatches: [{ name: 'dark', value: '#27272a' }, { name: 'bright', value: '#ffffff' }] },
+          { label: 'Main text', swatches: [{ name: 'dark-ui-text', value: '#f4f4f5' }, { name: 'bright-ui-text', value: '#111827' }] },
+          { label: 'Muted text', swatches: [{ name: 'dark-muted', value: '#a1a1aa' }, { name: 'bright-muted', value: '#6b7280' }] },
+          { label: 'Borders', swatches: [{ name: 'dark-border', value: 'rgba(255,255,255,0.08)' }, { name: 'bright-border', value: 'rgba(0,0,0,0.08)' }] },
+          { label: 'Strong borders', swatches: [{ name: 'dark-strong', value: 'rgba(255,255,255,0.14)' }, { name: 'bright-strong', value: 'rgba(0,0,0,0.16)' }] }
+        ]
+      },
+      {
+        title: '3) Top Navigation Colors',
+        items: [
+          { label: 'Top nav background', swatches: [{ name: 'bright', value: 'rgba(250,251,253,0.96)' }, { name: 'dark', value: 'rgba(24,24,27,0.96)' }] },
+          { label: 'Top nav border', swatches: [{ name: 'bright', value: 'rgba(148,163,184,0.2)' }, { name: 'dark', value: 'rgba(255,255,255,0.08)' }] },
+          { label: 'Nav button background', swatches: [{ name: 'bright', value: 'rgba(255,255,255,0.45)' }, { name: 'dark', value: 'rgba(39,39,42,0.42)' }] },
+          { label: 'Nav button border', swatches: [{ name: 'bright', value: 'rgba(15,23,42,0.08)' }, { name: 'dark', value: 'rgba(255,255,255,0.12)' }] },
+          { label: 'Nav text', sample: 'Home / Calendar', swatches: [{ name: 'bright', value: '#0f172a' }, { name: 'dark', value: '#e5e7eb' }] },
+          { label: 'Active nav background', swatches: [{ name: 'bright', value: '#111827' }, { name: 'dark', value: '#27272a' }] },
+          { label: 'Active nav border', swatches: [{ name: 'bright', value: '#111827' }, { name: 'dark', value: 'rgba(255,255,255,0.2)' }] },
+          { label: 'Active nav text', sample: 'Voting', swatches: [{ name: 'both', value: '#ffffff' }] }
+        ]
+      },
+      {
+        title: '4) Explicit Component Colors',
+        items: [
+          { label: 'StandPage', swatches: [{ name: 'bg', value: '#f9f9f9' }, { name: 'border', value: '#e0e0e0' }, { name: 'text', value: '#9e9e9e' }] },
+          { label: 'VotingPage states', swatches: [{ name: 'neutral', value: '#9ca3af' }, { name: 'critical', value: '#ef4444' }, { name: 'warn', value: '#f97316' }, { name: 'info', value: '#3b82f6' }, { name: 'good', value: '#22c55e' }] }
+        ]
+      }
+    ];
+
+    function clone(data) {
+      return JSON.parse(JSON.stringify(data));
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return clone(defaults);
+        return JSON.parse(raw);
+      } catch {
+        return clone(defaults);
+      }
+    }
+
+    function saveState(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      setStatus('Saved');
+    }
+
+    function setStatus(msg) {
+      const el = document.getElementById('status');
+      if (el) el.textContent = msg;
+    }
+
+    function isValidCssBackground(value) {
+      const el = document.createElement('div');
+      el.style.background = '';
+      el.style.background = value;
+      return el.style.background !== '';
+    }
+
+    function isHexColor(value) {
+      return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
+    }
+
+    function textColorFor(bgValue) {
+      const hex = bgValue.trim();
+      if (!isHexColor(hex)) return '#ffffff';
+      let v = hex.slice(1);
+      if (v.length === 3) v = v.split('').map((c) => c + c).join('');
+      const r = parseInt(v.slice(0, 2), 16);
+      const g = parseInt(v.slice(2, 4), 16);
+      const b = parseInt(v.slice(4, 6), 16);
+      const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      return luminance > 0.6 ? '#111827' : '#ffffff';
+    }
+
+    function buildApp() {
+      const app = document.getElementById('app');
+      const state = loadState();
+      app.innerHTML = '';
+
+      state.forEach((section, sIdx) => {
+        const h2 = document.createElement('h2');
+        h2.textContent = section.title;
+        app.appendChild(h2);
+
+        const grid = document.createElement('section');
+        grid.className = 'grid';
+        app.appendChild(grid);
+
+        section.items.forEach((item, iIdx) => {
+          const card = document.createElement('article');
+          card.className = 'card';
+
+          const title = document.createElement('div');
+          title.className = 'title';
+          title.textContent = item.label;
+          card.appendChild(title);
+
+          if (item.desc) {
+            const desc = document.createElement('div');
+            desc.className = 'desc';
+            desc.textContent = item.desc;
+            card.appendChild(desc);
+          }
+
+          item.swatches.forEach((sw, wIdx) => {
+            const row = document.createElement('div');
+            row.className = 'row';
+
+            const left = document.createElement('div');
+            const preview = document.createElement('div');
+            preview.className = 'preview';
+            preview.textContent = sw.value;
+            preview.style.background = sw.value;
+            preview.style.color = textColorFor(sw.value);
+            left.appendChild(preview);
+
+            const nm = document.createElement('div');
+            nm.className = 'name';
+            nm.textContent = sw.name;
+            left.appendChild(nm);
+            row.appendChild(left);
+
+            const controls = document.createElement('div');
+            controls.className = 'controls';
+
+            if (isHexColor(sw.value)) {
+              const picker = document.createElement('input');
+              picker.type = 'color';
+              picker.value = sw.value;
+              picker.addEventListener('input', () => {
+                text.value = picker.value;
+                apply(text.value);
+              });
+              controls.appendChild(picker);
+            }
+
+            const text = document.createElement('input');
+            text.type = 'text';
+            text.value = sw.value;
+
+            const apply = (val) => {
+              preview.style.background = '';
+              const valid = isValidCssBackground(val);
+              if (!valid) {
+                preview.style.background = 'repeating-linear-gradient(45deg,#3f1d1d,#3f1d1d 8px,#1f1111 8px,#1f1111 16px)';
+                preview.textContent = 'invalid color';
+                text.classList.add('invalid');
+              } else {
+                preview.style.background = val;
+                preview.textContent = val;
+                preview.style.color = textColorFor(val);
+                text.classList.remove('invalid');
+                state[sIdx].items[iIdx].swatches[wIdx].value = val;
+                saveState(state);
+              }
+            };
+
+            text.addEventListener('input', () => apply(text.value));
+            controls.appendChild(text);
+            row.appendChild(controls);
+            card.appendChild(row);
+          });
+
+          if (item.sample) {
+            const sample = document.createElement('span');
+            sample.className = 'sample';
+            sample.textContent = item.sample;
+            sample.style.background = item.swatches[0].value;
+            sample.style.color = textColorFor(item.swatches[0].value);
+            card.appendChild(sample);
+          }
+
+          grid.appendChild(card);
+        });
+      });
+
+      const resetBtn = document.getElementById('reset-btn');
+      resetBtn.onclick = () => {
+        localStorage.removeItem(STORAGE_KEY);
+        setStatus('Reset');
+        buildApp();
+      };
+
+      const copyBtn = document.getElementById('copy-json-btn');
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(loadState(), null, 2));
+          setStatus('Copied JSON to clipboard');
+        } catch {
+          setStatus('Clipboard blocked');
+        }
+      };
+    }
+
+    buildApp();
+  </script>
+</body>
+</html>
