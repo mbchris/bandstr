@@ -23,12 +23,23 @@
           <q-item v-for="band in authStore.bands" :key="band.id">
             <q-item-section>
               <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
-              <q-item-label caption>Slug: {{ band.slug }} | Role: {{ band.role }} | Pro access: {{ band.hasProPlan ? 'yes' : 'no' }}</q-item-label>
+              <q-item-label caption>
+                Slug: {{ band.slug }} | Role: {{ band.role }} | Pro access: {{ band.hasProPlan ? 'yes' : 'no' }} | Default: {{ band.isDefault ? 'yes' : 'no' }}
+              </q-item-label>
             </q-item-section>
             <q-item-section side>
               <div class="row q-gutter-xs">
                 <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
+                <q-badge v-if="band.isDefault" color="primary" label="Default" />
                 <q-btn flat dense icon="check_circle" label="Select" @click="switchBand(band.id)" />
+                <q-btn
+                  flat
+                  dense
+                  icon="star"
+                  label="Set Default"
+                  :disable="band.isDefault"
+                  @click="setDefaultBand(band.id)"
+                />
                 <q-btn
                   v-if="canManageBand(band.role)"
                   flat
@@ -253,6 +264,21 @@ function switchBand(bandId: number) {
   authStore.setActiveBand(bandId)
   void bandStore.fetchMembers()
   $q.notify({ message: 'Active band switched', color: 'positive' })
+}
+
+async function setDefaultBand(bandId: number) {
+  try {
+    await apiJson('/account/default-band', {
+      method: 'PUT',
+      body: JSON.stringify({ bandId }),
+    })
+    await refreshBands()
+    authStore.setActiveBand(bandId)
+    void bandStore.fetchMembers()
+    $q.notify({ message: 'Default band updated', color: 'positive' })
+  } catch (e: unknown) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to set default band', color: 'negative' })
+  }
 }
 
 function openSettings(bandId: number) {

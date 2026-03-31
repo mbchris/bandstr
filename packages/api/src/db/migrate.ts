@@ -123,6 +123,15 @@ async function ensureBandLogoVariantColumns() {
   `)
 }
 
+async function ensureUserDefaultBandColumn() {
+  if (!(await publicTableExists('user'))) return
+
+  await pool.query(`
+    ALTER TABLE "user"
+      ADD COLUMN IF NOT EXISTS "default_band_id" integer REFERENCES "bands"("id") ON DELETE SET NULL;
+  `)
+}
+
 export async function runMigrations(options: { closePoolOnDone?: boolean } = {}) {
   const { closePoolOnDone = false } = options
   const started = Date.now()
@@ -131,6 +140,7 @@ export async function runMigrations(options: { closePoolOnDone?: boolean } = {})
     await ensureBandsMonetizationColumns()
     await ensureUserProPlanColumns()
     await ensureBandLogoVariantColumns()
+    await ensureUserDefaultBandColumn()
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
     const ms = Date.now() - started
     console.log(`DB migrations applied in ${ms}ms`)

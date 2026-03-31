@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { and, desc, eq, gt, isNull } from 'drizzle-orm'
 import { randomBytes } from 'node:crypto'
 import { db } from '../db/index.js'
-import { bands as bandsTable, bandInviteCodes, bandMembers } from '../db/schema.js'
+import { bands as bandsTable, bandInviteCodes, bandMembers, users as usersTable } from '../db/schema.js'
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
 import { requireTenant } from '../middleware/tenant.js'
 import { requireRole } from '../middleware/rbac.js'
@@ -28,6 +28,12 @@ function inviteExpiry(createdAt: Date | string) {
 // List bands the authenticated user belongs to
 bands.get('/', requireAuth, async (c) => {
   const userId = c.get('user').id
+  const [userRow] = await db
+    .select({ defaultBandId: usersTable.defaultBandId })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1)
+
   const rows = await db
     .select({
       id: bandsTable.id,
@@ -46,12 +52,33 @@ bands.get('/', requireAuth, async (c) => {
     .from(bandMembers)
     .innerJoin(bandsTable, eq(bandsTable.id, bandMembers.bandId))
     .where(eq(bandMembers.userId, userId))
+
+  let defaultBandId = userRow?.defaultBandId ?? null
+  if (rows.length === 1 && defaultBandId !== rows[0].id) {
+    const [updatedUser] = await db
+      .update(usersTable)
+      .set({ defaultBandId: rows[0].id })
+      .where(eq(usersTable.id, userId))
+      .returning({ defaultBandId: usersTable.defaultBandId })
+    defaultBandId = updatedUser?.defaultBandId ?? rows[0].id
+  }
+
+  if (rows.length > 1 && defaultBandId != null && !rows.some((row) => row.id === defaultBandId)) {
+    const [updatedUser] = await db
+      .update(usersTable)
+      .set({ defaultBandId: null })
+      .where(eq(usersTable.id, userId))
+      .returning({ defaultBandId: usersTable.defaultBandId })
+    defaultBandId = updatedUser?.defaultBandId ?? null
+  }
+
   const enriched = await Promise.all(
     rows.map(async (row) => {
       const normalizedPlan = normalizePlan(row.plan)
       return {
         ...row,
         plan: normalizedPlan,
+        isDefault: row.id === defaultBandId,
         hasProPlan: await bandHasProPlan(row.id),
       }
     }),

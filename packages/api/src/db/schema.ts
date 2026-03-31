@@ -81,6 +81,7 @@ export const users = pgTable('user', {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
+  defaultBandId: integer('default_band_id').references(() => bands.id, { onDelete: 'set null' }),
   devProPlan: boolean('dev_pro_plan').notNull().default(false),
   devProPlanAssignedAt: timestamp('dev_pro_plan_assigned_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
