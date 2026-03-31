@@ -55,62 +55,62 @@
               <div class="text-subtitle1 text-weight-bold">{{ t('admin.bandLogo') }}</div>
             </q-card-section>
             <q-card-section class="q-gutter-sm">
+              <div class="text-subtitle2 text-weight-medium">{{ t('admin.darkModeLogo') }}</div>
+              <div class="text-caption text-grey q-mb-xs">{{ t('admin.darkModeLogoHint') }}</div>
               <q-img
-                v-if="logoPreviewSrc"
-                :src="logoPreviewSrc"
+                v-if="logoDarkPreviewSrc"
+                :src="logoDarkPreviewSrc"
                 style="width: 100%; max-width: 420px; aspect-ratio: 830 / 460; border-radius: 10px"
                 fit="contain"
               />
               <div v-else class="text-caption text-grey">{{ t('admin.noLogo') }}</div>
-
-              <div class="row q-col-gutter-sm">
+              <div class="row q-col-gutter-sm q-mb-md">
                 <div class="col-12 col-sm-auto">
-                  <q-btn
-                    color="primary"
-                    round
-                    dense
-                    icon="image"
-                    :loading="logoProcessing"
-                    @click="logoInputRef?.click()"
-                  >
-                    <q-tooltip>{{ pendingLogoDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
+                  <q-btn color="primary" round dense icon="image" :loading="logoDarkProcessing" @click="logoDarkInputRef?.click()">
+                    <q-tooltip>{{ pendingLogoDarkDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
                   </q-btn>
                 </div>
-                <div class="col-12 col-sm-auto" v-if="pendingLogoDataUrl">
-                  <q-btn
-                    color="positive"
-                    round
-                    dense
-                    icon="save"
-                    :loading="logoUploading"
-                    @click="uploadLogo"
-                  >
+                <div class="col-12 col-sm-auto" v-if="pendingLogoDarkDataUrl">
+                  <q-btn color="positive" round dense icon="save" :loading="logoDarkUploading" @click="uploadLogo('dark')">
                     <q-tooltip>{{ t('admin.saveLogo') }}</q-tooltip>
                   </q-btn>
                 </div>
-                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logo">
-                  <q-btn
-                    color="negative"
-                    outline
-                    round
-                    dense
-                    icon="delete"
-                    :loading="logoUploading"
-                    @click="removeLogo"
-                  >
+                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logoDark">
+                  <q-btn color="negative" outline round dense icon="delete" :loading="logoDarkUploading" @click="removeLogo('dark')">
                     <q-tooltip>{{ t('admin.removeLogo') }}</q-tooltip>
                   </q-btn>
                 </div>
               </div>
 
-              <input
-                ref="logoInputRef"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                style="display:none"
-                @change="handleLogoSelected"
+              <div class="text-subtitle2 text-weight-medium">{{ t('admin.brightModeLogo') }}</div>
+              <div class="text-caption text-grey q-mb-xs">{{ t('admin.brightModeLogoHint') }}</div>
+              <q-img
+                v-if="logoBrightPreviewSrc"
+                :src="logoBrightPreviewSrc"
+                style="width: 100%; max-width: 420px; aspect-ratio: 830 / 460; border-radius: 10px"
+                fit="contain"
               />
+              <div v-else class="text-caption text-grey">{{ t('admin.noLogo') }}</div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12 col-sm-auto">
+                  <q-btn color="primary" round dense icon="image" :loading="logoBrightProcessing" @click="logoBrightInputRef?.click()">
+                    <q-tooltip>{{ pendingLogoBrightDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <div class="col-12 col-sm-auto" v-if="pendingLogoBrightDataUrl">
+                  <q-btn color="positive" round dense icon="save" :loading="logoBrightUploading" @click="uploadLogo('bright')">
+                    <q-tooltip>{{ t('admin.saveLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logoBright">
+                  <q-btn color="negative" outline round dense icon="delete" :loading="logoBrightUploading" @click="removeLogo('bright')">
+                    <q-tooltip>{{ t('admin.removeLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+
+              <input ref="logoDarkInputRef" type="file" accept="image/*" class="hidden" style="display:none" @change="(e) => handleLogoSelected(e, 'dark')" />
+              <input ref="logoBrightInputRef" type="file" accept="image/*" class="hidden" style="display:none" @change="(e) => handleLogoSelected(e, 'bright')" />
               <div class="text-caption text-grey">
                 {{ t('admin.logoHint') }}
               </div>
@@ -247,12 +247,19 @@ const isCalendarImporting = ref(false)
 const removingId = ref<string | null>(null)
 const importInputRef = ref<HTMLInputElement | null>(null)
 const calendarImportRef = ref<HTMLInputElement | null>(null)
-const logoInputRef = ref<HTMLInputElement | null>(null)
-const logoProcessing = ref(false)
-const logoUploading = ref(false)
-const pendingLogoDataUrl = ref<string | null>(null)
+const logoDarkInputRef = ref<HTMLInputElement | null>(null)
+const logoBrightInputRef = ref<HTMLInputElement | null>(null)
+const logoDarkProcessing = ref(false)
+const logoBrightProcessing = ref(false)
+const logoDarkUploading = ref(false)
+const logoBrightUploading = ref(false)
+const pendingLogoDarkDataUrl = ref<string | null>(null)
+const pendingLogoBrightDataUrl = ref<string | null>(null)
 
-const logoPreviewSrc = computed(() => pendingLogoDataUrl.value ?? authStore.activeBand?.logo ?? null)
+type LogoVariant = 'dark' | 'bright'
+
+const logoDarkPreviewSrc = computed(() => pendingLogoDarkDataUrl.value ?? authStore.activeBand?.logoDark ?? authStore.activeBand?.logo ?? null)
+const logoBrightPreviewSrc = computed(() => pendingLogoBrightDataUrl.value ?? authStore.activeBand?.logoBright ?? authStore.activeBand?.logo ?? null)
 const MAX_LOGO_BYTES = 150 * 1024
 
 // Add member
@@ -369,7 +376,7 @@ async function createCroppedLogo(file: File): Promise<string> {
   }
 }
 
-async function handleLogoSelected(event: Event) {
+async function handleLogoSelected(event: Event, variant: LogoVariant) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
@@ -379,46 +386,93 @@ async function handleLogoSelected(event: Event) {
     return
   }
 
-  logoProcessing.value = true
+  const isDark = variant === 'dark'
+  if (isDark) {
+    logoDarkProcessing.value = true
+  } else {
+    logoBrightProcessing.value = true
+  }
   try {
-    pendingLogoDataUrl.value = await createCroppedLogo(file)
+    const logoDataUrl = await createCroppedLogo(file)
+    if (isDark) {
+      pendingLogoDarkDataUrl.value = logoDataUrl
+    } else {
+      pendingLogoBrightDataUrl.value = logoDataUrl
+    }
   } catch (e: any) {
     $q.notify({ message: e.message || 'Failed to process logo', color: 'negative' })
   } finally {
-    logoProcessing.value = false
+    if (isDark) {
+      logoDarkProcessing.value = false
+    } else {
+      logoBrightProcessing.value = false
+    }
   }
 }
 
-async function uploadLogo() {
-  if (!pendingLogoDataUrl.value) return
-  logoUploading.value = true
+async function uploadLogo(variant: LogoVariant) {
+  const pendingLogo = variant === 'dark' ? pendingLogoDarkDataUrl.value : pendingLogoBrightDataUrl.value
+  if (!pendingLogo) return
+  if (variant === 'dark') {
+    logoDarkUploading.value = true
+  } else {
+    logoBrightUploading.value = true
+  }
   try {
-    const result = await apiJson<{ logo: string | null }>('/admin/logo', {
+    const result = await apiJson<{ logo: string | null, logoDark: string | null, logoBright: string | null }>('/admin/logo', {
       method: 'PUT',
-      body: JSON.stringify({ logoDataUrl: pendingLogoDataUrl.value }),
+      body: JSON.stringify({ variant, logoDataUrl: pendingLogo }),
     })
-    authStore.setActiveBandLogo(result.logo ?? null)
-    pendingLogoDataUrl.value = null
+    authStore.setActiveBandLogos({
+      logo: result.logo ?? null,
+      logoDark: result.logoDark ?? null,
+      logoBright: result.logoBright ?? null,
+    })
+    if (variant === 'dark') {
+      pendingLogoDarkDataUrl.value = null
+    } else {
+      pendingLogoBrightDataUrl.value = null
+    }
     $q.notify({ message: t('admin.logoUpdated'), color: 'positive' })
   } catch (e: any) {
     $q.notify({ message: e.message || t('admin.failedImport'), color: 'negative' })
   } finally {
-    logoUploading.value = false
+    if (variant === 'dark') {
+      logoDarkUploading.value = false
+    } else {
+      logoBrightUploading.value = false
+    }
   }
 }
 
-async function removeLogo() {
+async function removeLogo(variant: LogoVariant) {
   $q.dialog({ title: t('admin.removeLogo'), message: t('admin.removeLogoConfirm'), cancel: true }).onOk(async () => {
-    logoUploading.value = true
+    if (variant === 'dark') {
+      logoDarkUploading.value = true
+    } else {
+      logoBrightUploading.value = true
+    }
     try {
-      await apiJson('/admin/logo', { method: 'DELETE' })
-      authStore.setActiveBandLogo(null)
-      pendingLogoDataUrl.value = null
+      const result = await apiJson<{ logo: string | null, logoDark: string | null, logoBright: string | null }>(`/admin/logo?variant=${variant}`, { method: 'DELETE' })
+      authStore.setActiveBandLogos({
+        logo: result.logo ?? null,
+        logoDark: result.logoDark ?? null,
+        logoBright: result.logoBright ?? null,
+      })
+      if (variant === 'dark') {
+        pendingLogoDarkDataUrl.value = null
+      } else {
+        pendingLogoBrightDataUrl.value = null
+      }
       $q.notify({ message: t('admin.logoRemoved'), color: 'positive' })
     } catch (e: any) {
       $q.notify({ message: e.message || t('admin.failedRemove'), color: 'negative' })
     } finally {
-      logoUploading.value = false
+      if (variant === 'dark') {
+        logoDarkUploading.value = false
+      } else {
+        logoBrightUploading.value = false
+      }
     }
   })
 }

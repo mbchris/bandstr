@@ -68,6 +68,7 @@ admin.get('/db/export', async (c) => {
 })
 
 const updateLogoSchema = z.object({
+  variant: z.enum(['dark', 'bright']),
   logoDataUrl: z.string().min(1),
 })
 
@@ -84,14 +85,22 @@ function getDataUrlBytes(dataUrl: string) {
 // GET /admin/logo
 admin.get('/logo', async (c) => {
   const bandId = c.get('bandId')
-  const [band] = await db.select({ logo: bands.logo }).from(bands).where(eq(bands.id, bandId)).limit(1)
-  return c.json({ logo: band?.logo ?? null })
+  const [band] = await db
+    .select({ logo: bands.logo, logoDark: bands.logoDark, logoBright: bands.logoBright })
+    .from(bands)
+    .where(eq(bands.id, bandId))
+    .limit(1)
+  return c.json({
+    logo: band?.logo ?? null,
+    logoDark: band?.logoDark ?? null,
+    logoBright: band?.logoBright ?? null,
+  })
 })
 
 // PUT /admin/logo
 admin.put('/logo', zValidator('json', updateLogoSchema), async (c) => {
   const bandId = c.get('bandId')
-  const { logoDataUrl } = c.req.valid('json')
+  const { variant, logoDataUrl } = c.req.valid('json')
 
   if (!logoDataUrl.startsWith('data:image/webp;base64,')) {
     return c.json({ error: 'Logo must be a WEBP data URL' }, 400)
@@ -102,20 +111,49 @@ admin.put('/logo', zValidator('json', updateLogoSchema), async (c) => {
     return c.json({ error: 'Logo exceeds 150KB limit' }, 400)
   }
 
-  const [updated] = await db
-    .update(bands)
-    .set({ logo: logoDataUrl })
-    .where(eq(bands.id, bandId))
-    .returning({ logo: bands.logo })
+  const updateData =
+    variant === 'dark'
+      ? ({ logoDark: logoDataUrl } as const)
+      : ({ logoBright: logoDataUrl } as const)
 
-  return c.json({ logo: updated?.logo ?? null })
+  const [updated] = await db.update(bands).set(updateData).where(eq(bands.id, bandId)).returning({
+    logo: bands.logo,
+    logoDark: bands.logoDark,
+    logoBright: bands.logoBright,
+  })
+
+  return c.json({
+    logo: updated?.logo ?? null,
+    logoDark: updated?.logoDark ?? null,
+    logoBright: updated?.logoBright ?? null,
+  })
 })
 
 // DELETE /admin/logo
 admin.delete('/logo', async (c) => {
   const bandId = c.get('bandId')
-  await db.update(bands).set({ logo: null }).where(eq(bands.id, bandId))
-  return c.json({ ok: true })
+  const variant = c.req.query('variant')
+
+  if (variant === 'dark') {
+    await db.update(bands).set({ logoDark: null }).where(eq(bands.id, bandId))
+  } else if (variant === 'bright') {
+    await db.update(bands).set({ logoBright: null }).where(eq(bands.id, bandId))
+  } else {
+    await db.update(bands).set({ logo: null, logoDark: null, logoBright: null }).where(eq(bands.id, bandId))
+  }
+
+  const [updated] = await db
+    .select({ logo: bands.logo, logoDark: bands.logoDark, logoBright: bands.logoBright })
+    .from(bands)
+    .where(eq(bands.id, bandId))
+    .limit(1)
+
+  return c.json({
+    ok: true,
+    logo: updated?.logo ?? null,
+    logoDark: updated?.logoDark ?? null,
+    logoBright: updated?.logoBright ?? null,
+  })
 })
 
 // GET /admin/calendar/export — export only calendar events as JSON

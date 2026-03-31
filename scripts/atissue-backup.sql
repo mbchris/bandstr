@@ -1,15 +1,20 @@
 -- atissue Database Backup
 -- Created: 2026-03-31T10:45:15.715Z
 
-PRAGMA foreign_keys=OFF;
+SET session_replication_role = 'replica';
 
+DROP TABLE IF EXISTS rehearsal_songs;
+DROP TABLE IF EXISTS votes;
+DROP TABLE IF EXISTS songs;
+DROP TABLE IF EXISTS calendar_events;
 DROP TABLE IF EXISTS users;
+
 CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         role TEXT NOT NULL DEFAULT 'user',
-        created_at INTEGER NOT NULL
+        created_at BIGINT NOT NULL
     , sort_order INTEGER NOT NULL DEFAULT 0, is_hidden INTEGER NOT NULL DEFAULT 0, beer_count INTEGER NOT NULL DEFAULT 0);
 INSERT INTO users (id, name, email, role, created_at, sort_order, is_hidden, beer_count) VALUES (1, 'Chris Admin', 'schneider.chris@gmx.de', 'admin', 1774085091233, 1, 1, 0);
 INSERT INTO users (id, name, email, role, created_at, sort_order, is_hidden, beer_count) VALUES (2, 'Andre', 'andrehoyer.ah@googlemail.com', 'user', 1774085091233, 2, 0, 0);
@@ -17,17 +22,17 @@ INSERT INTO users (id, name, email, role, created_at, sort_order, is_hidden, bee
 INSERT INTO users (id, name, email, role, created_at, sort_order, is_hidden, beer_count) VALUES (4, 'Andreas', 'aschulzebw@googlemail.com', 'user', 1774085091233, 4, 0, 0);
 INSERT INTO users (id, name, email, role, created_at, sort_order, is_hidden, beer_count) VALUES (5, 'Daniel', 'd.vollkommer@gmail.com', 'user', 1774085091233, 0, 0, 0);
 INSERT INTO users (id, name, email, role, created_at, sort_order, is_hidden, beer_count) VALUES (6, 'Chris', 'christian.familie.schneider@gmail.com', 'user', 1774087137000, 5, 0, 0);
+SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 
-DROP TABLE IF EXISTS calendar_events;
 CREATE TABLE calendar_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
         description TEXT,
-        start_time INTEGER NOT NULL,
-        end_time INTEGER NOT NULL,
+        start_time BIGINT NOT NULL,
+        end_time BIGINT NOT NULL,
         type TEXT NOT NULL DEFAULT 'rehearsal',
         user_id INTEGER REFERENCES users(id),
-        created_at INTEGER NOT NULL
+        created_at BIGINT NOT NULL
     , bierwart_override_id INTEGER REFERENCES users(id), is_tentative INTEGER NOT NULL DEFAULT 0);
 INSERT INTO calendar_events (id, title, description, start_time, end_time, type, user_id, created_at, bierwart_override_id, is_tentative) VALUES (1, 'Bandprobe #1', '**André und Daniel nicht da**.
 
@@ -49,8 +54,8 @@ INSERT INTO calendar_events (id, title, description, start_time, end_time, type,
 INSERT INTO calendar_events (id, title, description, start_time, end_time, type, user_id, created_at, bierwart_override_id, is_tentative) VALUES (14, 'Andre nicht da', NULL, 1774548000000, 1774555200000, 'unavailability', 2, 1774090053000, NULL, 0);
 INSERT INTO calendar_events (id, title, description, start_time, end_time, type, user_id, created_at, bierwart_override_id, is_tentative) VALUES (15, 'Probenwochenende', '# Probenwochenende
 
-## 2 neue Songs Auftrittsreif 
-XX 
+## 2 neue Songs Auftrittsreif
+XX
 YY
 
 ## Bisheriges Set stabilisieren.
@@ -58,10 +63,10 @@ YY
 ## Video Material erstellen', 1777021200000, 1777233600000, 'event', NULL, 1774110920000, NULL, 0);
 INSERT INTO calendar_events (id, title, description, start_time, end_time, type, user_id, created_at, bierwart_override_id, is_tentative) VALUES (16, 'Bandprobe ', NULL, 1776967200000, 1776978000000, 'rehearsal', NULL, 1774209568000, NULL, 0);
 INSERT INTO calendar_events (id, title, description, start_time, end_time, type, user_id, created_at, bierwart_override_id, is_tentative) VALUES (18, 'Daniel nicht da', NULL, 1775145600000, 1775152800000, 'unavailability', 5, 1774212781000, NULL, 0);
+SELECT setval('calendar_events_id_seq', (SELECT MAX(id) FROM calendar_events));
 
-DROP TABLE IF EXISTS songs;
 CREATE TABLE songs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
         artist TEXT NOT NULL,
         spotify_url TEXT,
@@ -74,7 +79,7 @@ CREATE TABLE songs (
         position INTEGER NOT NULL DEFAULT 0,
         is_pinned INTEGER NOT NULL DEFAULT 0,
         added_by INTEGER REFERENCES users(id),
-        created_at INTEGER NOT NULL
+        created_at BIGINT NOT NULL
     );
 INSERT INTO songs (id, title, artist, spotify_url, youtube_url, thumbnail_url, notes, type, pitch, is_setlist, position, is_pinned, added_by, created_at) VALUES (1, 'Holiday', 'Green Day', 'https://open.spotify.com/intl-de/track/5vfjUAhefN7IjHbTvVCT4Z?si=4ab5dfb87a1d44cd', '', 'https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e021bb1db39abc18755d7ab2114', 'Schneller als original ...', 'song', 1, 1, 0, 0, NULL, 1774085091233);
 INSERT INTO songs (id, title, artist, spotify_url, youtube_url, thumbnail_url, notes, type, pitch, is_setlist, position, is_pinned, added_by, created_at) VALUES (2, 'Schrei nach Liebe', 'Die Ärzte', 'https://open.spotify.com/intl-de/track/4P4PHxZQ1FcwQKKnfEPsAZ?si=68958f13905f4bca', NULL, 'https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e029510c262f77afc125df888b8', NULL, 'song', 0, 1, 5, 0, NULL, 1774085091233);
@@ -103,15 +108,15 @@ INSERT INTO songs (id, title, artist, spotify_url, youtube_url, thumbnail_url, n
 INSERT INTO songs (id, title, artist, spotify_url, youtube_url, thumbnail_url, notes, type, pitch, is_setlist, position, is_pinned, added_by, created_at) VALUES (27, 'Creep', 'Radiohead', 'https://open.spotify.com/track/70LcF31zb1H0PyJoS1Sx1r?si=W0MraeDTRCOkoeZrIpaF4Q', '', 'https://image-cdn-ak.spotifycdn.com/image/ab67616d00001e02ec548c00d3ac2f10be73366d', '', 'song', 0, 1, 3, 0, 6, 1774556098);
 INSERT INTO songs (id, title, artist, spotify_url, youtube_url, thumbnail_url, notes, type, pitch, is_setlist, position, is_pinned, added_by, created_at) VALUES (28, 'Bro Hymn - 2005 Remaster', 'Pennywise', 'https://open.spotify.com/track/2DgZjpyv2kEB8nIl6Xp0VJ?si=ynJLqtIERj6MqtdwyUPoeA', '', 'https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02a726951b88d883c7d8165cf4', '', 'song', 0, 1, 18, 0, 6, 1774556179);
 INSERT INTO songs (id, title, artist, spotify_url, youtube_url, thumbnail_url, notes, type, pitch, is_setlist, position, is_pinned, added_by, created_at) VALUES (29, 'Sugar (Metal Version)', 'Umc', 'https://open.spotify.com/track/6PjEsKzAno74iCUu9wfGtO?si=VzWhcw-1SCaIcrwU7QrD8Q', '', 'https://image-cdn-ak.spotifycdn.com/image/ab67616d00001e024947b1fa837f6b2f2756a006', '', 'song', 0, 0, 0, 0, 6, 1774602923);
+SELECT setval('songs_id_seq', (SELECT MAX(id) FROM songs));
 
-DROP TABLE IF EXISTS votes;
 CREATE TABLE votes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         song_id INTEGER NOT NULL REFERENCES songs(id),
         user_id INTEGER NOT NULL REFERENCES users(id),
         score INTEGER NOT NULL DEFAULT 0,
         comment TEXT,
-        created_at INTEGER NOT NULL
+        created_at BIGINT NOT NULL
     );
 INSERT INTO votes (id, song_id, user_id, score, comment, created_at) VALUES (1, 1, 6, 3, NULL, 1774091304000);
 INSERT INTO votes (id, song_id, user_id, score, comment, created_at) VALUES (8, 25, 6, 3, NULL, 1774125670000);
@@ -127,11 +132,11 @@ INSERT INTO votes (id, song_id, user_id, score, comment, created_at) VALUES (20,
 INSERT INTO votes (id, song_id, user_id, score, comment, created_at) VALUES (21, 13, 3, 3, NULL, 1774459464);
 INSERT INTO votes (id, song_id, user_id, score, comment, created_at) VALUES (22, 10, 3, 2, NULL, 1774459478);
 INSERT INTO votes (id, song_id, user_id, score, comment, created_at) VALUES (23, 29, 6, 3, NULL, 1774602937);
+SELECT setval('votes_id_seq', (SELECT MAX(id) FROM votes));
 
-DROP TABLE IF EXISTS rehearsal_songs;
 CREATE TABLE rehearsal_songs (
         rehearsal_id INTEGER NOT NULL REFERENCES calendar_events(id),
         song_id INTEGER NOT NULL REFERENCES songs(id)
     );
 
-PRAGMA foreign_keys=ON;
+SET session_replication_role = 'origin';

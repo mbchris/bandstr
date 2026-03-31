@@ -21,6 +21,8 @@ export type BandMembership = {
   subscriptionCancelAtPeriodEnd?: boolean
   role: string
   logo?: string | null
+  logoDark?: string | null
+  logoBright?: string | null
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -139,10 +141,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function setActiveBandLogo(logo: string | null) {
+  function setActiveBandLogos(payload: {
+    logo?: string | null
+    logoDark?: string | null
+    logoBright?: string | null
+  }) {
     const currentBand = bands.value.find((b) => b.id === activeBandId.value)
     if (currentBand) {
-      currentBand.logo = logo
+      if (payload.logo !== undefined) currentBand.logo = payload.logo
+      if (payload.logoDark !== undefined) currentBand.logoDark = payload.logoDark
+      if (payload.logoBright !== undefined) currentBand.logoBright = payload.logoBright
     }
   }
 
@@ -167,7 +175,7 @@ export const useAuthStore = defineStore('auth', () => {
     setToken,
     setActiveBand,
     setBands,
-    setActiveBandLogo,
+    setActiveBandLogos,
     clearSession,
   }
 })

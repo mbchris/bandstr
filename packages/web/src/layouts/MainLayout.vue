@@ -96,11 +96,14 @@
             :aria-label="link.label"
             :title="link.label"
           >
-            <img
-              :src="isActiveRoute(link.to) ? link.iconActive : link.iconInactive"
-              :alt="link.label"
-              class="bottom-nav-icon"
-            />
+            <span class="bottom-nav-content">
+              <img
+                :src="isActiveRoute(link.to) ? link.iconActive : link.iconInactive"
+                :alt="link.label"
+                class="bottom-nav-icon"
+              />
+              <span class="bottom-nav-label">{{ link.label }}</span>
+            </span>
           </q-btn>
         </div>
       </div>
@@ -147,9 +150,11 @@ const activeBandRole = computed(() => authStore.activeBand?.role ?? 'none')
 const activeUserName = computed(() => authStore.user?.name ?? authStore.user?.email ?? 'Unknown user')
 
 const activeLogoSrc = computed(() => {
-  const customLogo = authStore.activeBand?.logo
-  if (customLogo) return customLogo
-  return $q.dark.isActive ? defaultLogoDark : defaultLogoLight
+  const band = authStore.activeBand
+  if ($q.dark.isActive) {
+    return band?.logoDark ?? band?.logo ?? band?.logoBright ?? defaultLogoDark
+  }
+  return band?.logoBright ?? band?.logo ?? band?.logoDark ?? defaultLogoLight
 })
 
 const isAdmin = computed(() => {
@@ -163,7 +168,9 @@ const navLinks = computed(() => {
     { label: t('nav.voting'), to: '/voting', iconInactive: votingBl, iconActive: votingWh },
     { label: t('nav.setlist'), to: '/setlist', iconInactive: setlistBl, iconActive: setlistWh },
     { label: t('nav.calendar'), to: '/calendar', iconInactive: calendarBl, iconActive: calendarWh },
+   <!--
     { label: t('nav.bendAStand'), to: '/stand', iconInactive: bendastandWh, iconActive: bendastandWh },
+    -->
   ]
 
   if (isAdmin.value) {
@@ -280,7 +287,7 @@ onMounted(async () => {
 }
 
 .bottom-nav {
-  background: rgba(243, 244, 246, 0.92);
+  background: rgba(250, 251, 253, 0.96);
 }
 
 .bottom-nav-scroll {
@@ -294,11 +301,11 @@ onMounted(async () => {
 }
 
 .bottom-nav-btn {
-  width: 62px;
-  height: 62px;
-  min-width: 62px;
-  min-height: 62px;
-  padding: 10px;
+  width: 76px;
+  height: 78px;
+  min-width: 76px;
+  min-height: 78px;
+  padding: 8px 6px;
   border-radius: 10px;
   border: 1px solid transparent;
 }
@@ -310,9 +317,30 @@ onMounted(async () => {
 
 .bottom-nav-icon {
   display: block;
-  width: 31px;
-  height: 31px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
+}
+
+.bottom-nav-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1;
+}
+
+.bottom-nav-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #1f2937;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.bottom-nav-btn--active .bottom-nav-label {
+  color: #ffffff;
 }
 
 .brand-link {
