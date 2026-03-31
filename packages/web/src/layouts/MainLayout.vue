@@ -314,12 +314,14 @@ onMounted(async () => {
   min-height: 78px;
   padding: 8px 6px;
   border-radius: 10px;
-  border: 1px solid transparent;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .bottom-nav-btn--active {
   background: #111827;
   border-color: #111827;
+  box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.16) inset;
 }
 
 .bottom-nav-icon {
@@ -349,7 +351,7 @@ onMounted(async () => {
 .bottom-nav-label {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #111827;
+  color: #0f172a;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -363,18 +365,19 @@ onMounted(async () => {
 }
 
 :global(body.body--dark) .bottom-nav-btn {
-  border-color: rgba(148, 163, 184, 0.28);
+  border-color: rgba(191, 219, 254, 0.42);
+  background: rgba(30, 41, 59, 0.35);
   color: #f8fafc !important;
 }
 
 :global(body.body--dark) .bottom-nav-label {
-  color: #f8fafc !important;
+  color: #f1f5ff !important;
   opacity: 1;
   text-shadow: none;
 }
 
 :global(body.body--dark) .bottom-nav-btn:not(.bottom-nav-btn--active) .bottom-nav-label {
-  color: #edf4ff !important;
+  color: #eef4ff !important;
   opacity: 1 !important;
   filter: none;
 }
@@ -385,9 +388,9 @@ onMounted(async () => {
 }
 
 :global(body.body--dark) .bottom-nav-btn--active {
-  background: #334155;
-  border-color: #dbeafe;
-  box-shadow: 0 0 0 1px rgba(191, 219, 254, 0.95) inset, 0 0 10px rgba(191, 219, 254, 0.55);
+  background: #1e293b;
+  border-color: #f8fbff;
+  box-shadow: 0 0 0 1px rgba(248, 251, 255, 0.95) inset, 0 0 12px rgba(191, 219, 254, 0.65);
 }
 
 :global(body.body--dark) .bottom-nav-btn--active .bottom-nav-label {
