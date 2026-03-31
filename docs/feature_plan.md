@@ -180,6 +180,7 @@
   - No limitation in band member count
   - Shared notes on songs
   - Personal song notes
+  - Bierwart counter!
   - Import/export features for band data
 
 - `bandstr pro-zero` (0 EUR, internal)
