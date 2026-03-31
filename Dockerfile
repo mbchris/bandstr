@@ -65,8 +65,8 @@ FROM nginx:1.27-alpine AS production
 ARG GIT_REV=unknown
 ARG SOURCE_COMMIT=unknown
 
-# Install Node.js for the API server
-RUN apk add --no-cache nodejs
+# Install Node.js for the API server and psql client for DB admin/import scripts
+RUN apk add --no-cache nodejs postgresql-client
 
 WORKDIR /app
 
@@ -86,6 +86,7 @@ COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migr
 # Seed data used by dist/db/seed.js inside container shells
 COPY --from=build /app/scripts/seed_example.sql /app/scripts/seed_example.sql
 COPY --from=build /app/scripts/bandstr-cli.sh /app/bandstr-cli
+COPY --from=build /app/do /app/do
 
 # For the unified container, nginx proxies to localhost instead of "api" hostname
 RUN sed -i 's|http://api:3001|http://127.0.0.1:3001|g' /etc/nginx/conf.d/bandstr.conf
@@ -104,7 +105,7 @@ LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 
 # Interactive shell notes (shown on docker exec -it <container> sh)
 COPY scripts/container-shell-notes.sh /etc/bandstr_shell_rc
-RUN chmod +x /app/bandstr-cli
+RUN chmod +x /app/bandstr-cli /app/do
 
 EXPOSE 80
 
