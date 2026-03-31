@@ -168,9 +168,6 @@ const navLinks = computed(() => {
     { label: t('nav.voting'), to: '/voting', iconInactive: votingBl, iconActive: votingWh },
     { label: t('nav.setlist'), to: '/setlist', iconInactive: setlistBl, iconActive: setlistWh },
     { label: t('nav.calendar'), to: '/calendar', iconInactive: calendarBl, iconActive: calendarWh },
-   <!--
-    { label: t('nav.bendAStand'), to: '/stand', iconInactive: bendastandWh, iconActive: bendastandWh },
-    -->
   ]
 
   if (isAdmin.value) {
