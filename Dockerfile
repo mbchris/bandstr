@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Enable Corepack (pnpm version comes from packageManager in package.json)
 RUN corepack enable
-RUN apk add --no-cache git bash
+RUN apk add --no-cache git bash postgresql-client
 
 ENV GIT_REV=${GIT_REV}
 ENV SOURCE_COMMIT=${SOURCE_COMMIT}
