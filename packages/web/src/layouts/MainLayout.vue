@@ -371,16 +371,20 @@ onMounted(async () => {
 }
 
 :global(body.body--dark) .bottom-nav {
-  background: rgba(30, 41, 59, 0.96);
-  --nav-btn-bg: rgba(30, 41, 59, 0.35);
-  --nav-btn-border: rgba(191, 219, 254, 0.42);
-  --nav-label: #eef4ff;
+  background: rgba(24, 24, 27, 0.96);
+  --nav-btn-bg: rgba(39, 39, 42, 0.42);
+  --nav-btn-border: rgba(255, 255, 255, 0.12);
+  --nav-label: #e5e7eb;
   --nav-label-active: #ffffff;
-  --nav-active-bg: #1e293b;
-  --nav-active-border: #f8fbff;
-  --nav-active-glow: 0 0 0 1px rgba(248, 251, 255, 0.95) inset, 0 0 12px rgba(191, 219, 254, 0.65);
-  --nav-icon-inactive-opacity: 0.98;
-  --nav-icon-inactive-filter: brightness(1.22);
+  --nav-active-bg: #27272a;
+  --nav-active-border: rgba(255, 255, 255, 0.2);
+  --nav-active-glow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  --nav-icon-inactive-opacity: 0.9;
+  --nav-icon-inactive-filter: none;
+}
+
+:global(body.body--dark) .bottom-nav-footer {
+  border-top-color: var(--border);
 }
 
 .brand-link {

@@ -116,6 +116,7 @@ The `./do` script wraps common Docker/dev tasks:
 ./do install-bundletool
 ./do --help
 ./do sync-assets
+./do security-scan
 ./do cleanup-resources
 ```
 
@@ -129,6 +130,7 @@ Notes:
 - `build-apk` and `create-apk-bundle` auto-increment Android `versionCode` on each run.
 - Both commands also create named artifacts: `<appName>-vc<versionCode>-b<buildId>.apk|.aab`.
 - `./do` reads `.env.local` first, then falls back to `.env` (or `.env.production` in production mode).
+- `./do security-scan` runs dependency vulnerability audits for web and backend packages.
 - For production signing, set:
   - `ANDROID_SIGNING_KEYSTORE_BASE64`
   - `ANDROID_SIGNING_KEY_ALIAS`
