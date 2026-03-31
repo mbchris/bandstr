@@ -364,20 +364,29 @@ onMounted(async () => {
 
 :global(body.body--dark) .bottom-nav-btn {
   border-color: rgba(148, 163, 184, 0.28);
+  color: #f8fafc !important;
 }
 
 :global(body.body--dark) .bottom-nav-label {
-  color: #f8fafc;
+  color: #f8fafc !important;
+  opacity: 0.9;
+  text-shadow: 0 0 8px rgba(148, 163, 184, 0.35);
+}
+
+:global(body.body--dark) .bottom-nav-btn .bottom-nav-icon--inactive {
+  opacity: 0.98;
+  filter: brightness(1.22);
 }
 
 :global(body.body--dark) .bottom-nav-btn--active {
   background: #334155;
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 1px rgba(147, 197, 253, 0.45) inset;
+  border-color: #dbeafe;
+  box-shadow: 0 0 0 1px rgba(191, 219, 254, 0.95) inset, 0 0 10px rgba(191, 219, 254, 0.55);
 }
 
 :global(body.body--dark) .bottom-nav-btn--active .bottom-nav-label {
-  color: #ffffff;
+  color: #ffffff !important;
+  opacity: 1;
 }
 
 .brand-link {

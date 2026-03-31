@@ -156,6 +156,8 @@
             emit-value
             map-options
             multiple
+            use-input
+            input-debounce="0"
             use-chips
             outlined
             dense
