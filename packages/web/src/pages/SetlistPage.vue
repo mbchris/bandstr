@@ -28,7 +28,7 @@
           <q-list v-if="filteredSongs.length" separator>
             <q-item
               v-for="(item, index) in filteredSongs"
-              :key="item.id"
+              :key="getItemKey(item)"
               class="q-pa-sm"
               :class="{
                 'bg-blue-1': item.isPinned,
@@ -368,6 +368,14 @@ const filteredSongs = computed(() => {
   return list
 })
 
+function getItemKey(item: Song) {
+  if (selectedGigId.value) {
+    const gigSongId = (item as Song & { gigSongId?: number }).gigSongId
+    return `gig-${gigSongId ?? item.id}`
+  }
+  return `song-${item.id}`
+}
+
 const songCount = computed(() => activeSongs.value.filter((s) => s.type === 'song').length)
 const totalDurationMs = computed(() =>
   activeSongs.value
@@ -430,8 +438,17 @@ watch(selectedGigId, (newVal) => {
 
 // Reorder
 async function reorderItems(items: Song[]) {
+  if (selectedGigId.value) {
+    const hasMissingGigSongId = items.some((itm) => typeof (itm as Song & { gigSongId?: number }).gigSongId !== 'number')
+    if (hasMissingGigSongId) {
+      $q.notify({ message: t('setlist.failedReorder'), color: 'negative' })
+      await refreshAll()
+      return
+    }
+  }
+
   const updates = items.map((itm, idx) => ({
-    id: selectedGigId.value ? (itm as any).gigSongId : itm.id,
+    id: selectedGigId.value ? (itm as Song & { gigSongId: number }).gigSongId : itm.id,
     position: idx,
   }))
 

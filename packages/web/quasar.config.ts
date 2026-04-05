@@ -121,7 +121,11 @@ export default configure(function (/* ctx */) {
     framework: {
       config: {
         dark: 'auto',
-        notify: {},
+        notify: {
+          position: 'top',
+          timeout: 3200,
+          classes: 'bandstr-notify',
+        },
       },
       plugins: ['Notify', 'Dialog', 'Loading', 'LocalStorage'],
     },

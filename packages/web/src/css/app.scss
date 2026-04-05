@@ -306,3 +306,19 @@ body.body--dark ::-webkit-scrollbar-thumb {
     box-sizing: border-box;
   }
 }
+
+// ─── Notifications: top-third translucent infobox ───────────────
+.q-notifications__list--top {
+  top: clamp(20px, 18vh, 180px);
+}
+
+.q-notification.bandstr-notify {
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.q-notification.bandstr-notify.bg-negative {
+  background: rgba(198, 40, 40, 0.84) !important;
+}
