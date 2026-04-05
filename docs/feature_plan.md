@@ -230,3 +230,7 @@
 - User can delete the account
 
 
+## Iteration 13 - Spotify integration optimization
+
+**Goal:** Spotify integration also fetches artist name and song length.
+

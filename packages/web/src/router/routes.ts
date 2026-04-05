@@ -31,6 +31,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../layouts/PublicLayout.vue'),
     children: [
       { path: '', component: () => import('../pages/ImpressPage.vue') },
+      { path: 'spotify-test', component: () => import('../pages/SpotifyLookupPage.vue') },
     ],
   },
   {
