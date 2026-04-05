@@ -51,9 +51,6 @@
 
               <!-- Thumbnail (songs only) -->
               <q-item-section v-if="item.type === 'song'" side>
-                <div v-if="item.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
-                  Pitch {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
-                </div>
                 <a v-if="item.spotifyUrl && item.thumbnailUrl" :href="item.spotifyUrl" target="_blank">
                   <q-avatar rounded size="48px"><img :src="item.thumbnailUrl" /></q-avatar>
                 </a>
@@ -61,6 +58,9 @@
                   <q-avatar rounded size="48px"><img :src="`https://img.youtube.com/vi/${getYouTubeId(item.youtubeUrl)}/mqdefault.jpg`" /></q-avatar>
                 </a>
                 <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
+                <div v-if="item.pitch !== 0" class="pitch-box q-mt-xs text-center text-caption text-weight-bold">
+                  Pitch {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
+                </div>
               </q-item-section>
 
               <!-- Content -->
@@ -80,9 +80,6 @@
                   <div class="row q-gutter-xs q-mt-xs">
                     <a v-if="item.spotifyUrl" :href="item.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
                     <a v-if="item.youtubeUrl" :href="item.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
-                    <q-badge v-if="item.pitch !== 0" color="orange" outline class="text-caption">
-                      Pitch: {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
-                    </q-badge>
                   </div>
                   <q-item-label caption v-if="item.lengthMs">
                     Length: {{ formatDuration(item.lengthMs) }}
@@ -759,5 +756,13 @@ onMounted(() => {
 
 .cursor-grab {
   cursor: grab;
+}
+
+.pitch-box {
+  border: 1px solid var(--q-warning);
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+  border-radius: 6px;
+  padding: 2px 6px;
 }
 </style>
