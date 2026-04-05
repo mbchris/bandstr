@@ -123,6 +123,45 @@ async function ensureBandLogoVariantColumns() {
   `)
 }
 
+async function ensureSubscriptionProviderColumns() {
+  if (!(await publicTableExists('bands'))) return
+
+  await pool.query(`
+    ALTER TABLE "bands"
+      ADD COLUMN IF NOT EXISTS "subscription_provider" text NOT NULL DEFAULT 'none',
+      ADD COLUMN IF NOT EXISTS "subscription_provider_ref" text;
+  `)
+
+  // Backfill provider from existing stripe_subscription_id values (handle the gplay:/apple: prefix hack)
+  await pool.query(`
+    UPDATE "bands"
+    SET
+      "subscription_provider" = CASE
+        WHEN "stripe_subscription_id" LIKE 'gplay:%'  THEN 'google_play'
+        WHEN "stripe_subscription_id" LIKE 'apple:%'  THEN 'app_store'
+        WHEN "stripe_subscription_id" IS NOT NULL      THEN 'stripe'
+        WHEN "plan" = 'pro-zero'                       THEN 'manual'
+        ELSE 'none'
+      END,
+      "subscription_provider_ref" = CASE
+        WHEN "stripe_subscription_id" LIKE 'gplay:%' THEN SUBSTRING("stripe_subscription_id" FROM 7)
+        WHEN "stripe_subscription_id" LIKE 'apple:%' THEN SUBSTRING("stripe_subscription_id" FROM 7)
+        WHEN "stripe_subscription_id" IS NOT NULL     THEN "stripe_subscription_id"
+        ELSE NULL
+      END
+    WHERE "subscription_provider" = 'none'
+      AND ("stripe_subscription_id" IS NOT NULL OR "plan" = 'pro-zero');
+  `)
+
+  // Clean up the prefixed values left in stripe_subscription_id
+  await pool.query(`
+    UPDATE "bands"
+    SET "stripe_subscription_id" = NULL
+    WHERE "stripe_subscription_id" LIKE 'gplay:%'
+       OR "stripe_subscription_id" LIKE 'apple:%';
+  `)
+}
+
 async function ensureUserDefaultBandColumn() {
   if (!(await publicTableExists('user'))) return
 
@@ -141,6 +180,7 @@ export async function runMigrations(options: { closePoolOnDone?: boolean } = {})
     await ensureUserProPlanColumns()
     await ensureBandLogoVariantColumns()
     await ensureUserDefaultBandColumn()
+    await ensureSubscriptionProviderColumns()
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
     const ms = Date.now() - started
     console.log(`DB migrations applied in ${ms}ms`)
