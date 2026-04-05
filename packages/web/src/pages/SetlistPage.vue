@@ -32,10 +32,11 @@
               class="q-pa-sm"
               :class="{
                 'bg-blue-1': item.isPinned,
-                'border-dashed': item.type !== 'song'
+                'border-dashed': item.type !== 'song',
+                'dragging-item': draggingIndex === index,
               }"
               :draggable="!searchQuery"
-              @dragstart="onDragStart(index)"
+              @dragstart="onDragStart(index, $event)"
               @dragover.prevent
               @drop="onDrop(index)"
               @dragend="onDragEnd"
@@ -44,6 +45,8 @@
               <q-item-section side>
                 <div class="column items-center q-gutter-xs">
                   <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                  <q-btn flat round dense icon="keyboard_arrow_up" size="sm" @click="moveItem(index, -1)" />
+                  <q-btn flat round dense icon="keyboard_arrow_down" size="sm" @click="moveItem(index, 1)" />
                   <span class="text-caption text-grey">{{ index + 1 }}</span>
                   <q-btn flat round dense :icon="item.isPinned ? 'lock' : 'lock_open'" :color="item.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(item)" />
                 </div>
@@ -121,8 +124,29 @@
                   >
                     <q-tooltip>{{ t('common.delete') }}</q-tooltip>
                   </q-btn>
-                  <q-btn v-if="item.type === 'song' && canModifySong(item)" flat round dense icon="arrow_back" color="grey" size="sm" @click="removeFromSetlist(item)">
+                  <q-btn
+                    v-if="item.type === 'song' && canModifySong(item) && !selectedGigId"
+                    flat
+                    round
+                    dense
+                    icon="arrow_back"
+                    color="grey"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  >
                     <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-else-if="item.type === 'song' && canModifySong(item) && selectedGigId"
+                    flat
+                    round
+                    dense
+                    icon="playlist_remove"
+                    color="red"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  >
+                    <q-tooltip>Remove from Gig Setlist</q-tooltip>
                   </q-btn>
                   <q-btn v-else-if="canModifySong(item)" flat round dense icon="close" color="red" size="sm" @click="removeFromSetlist(item)" />
                 </div>
@@ -406,11 +430,17 @@ watch(selectedGigId, (newVal) => {
 
 // Reorder
 async function reorderItems(items: Song[]) {
-  const updates = items.map((itm, idx) => ({ id: itm.id, position: idx }))
+  const updates = items.map((itm, idx) => ({
+    id: selectedGigId.value ? (itm as any).gigSongId : itm.id,
+    position: idx,
+  }))
 
   try {
     if (selectedGigId.value) {
-      await apiJson(`/gigs/${selectedGigId.value}/songs/reorder`, { method: 'POST', body: JSON.stringify(updates) })
+      await apiJson(`/gigs/${selectedGigId.value}/songs/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({ order: updates }),
+      })
       await fetchGigSongs(selectedGigId.value)
     } else {
       await songsStore.reorderSongs(updates)
@@ -421,9 +451,13 @@ async function reorderItems(items: Song[]) {
   }
 }
 
-function onDragStart(index: number) {
+function onDragStart(index: number, event: DragEvent) {
   if (searchQuery.value) return
   draggingIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.dropEffect = 'move'
+  }
 }
 
 async function onDrop(index: number) {
@@ -438,6 +472,16 @@ async function onDrop(index: number) {
 
 function onDragEnd() {
   draggingIndex.value = null
+}
+
+async function moveItem(index: number, direction: -1 | 1) {
+  if (searchQuery.value) return
+  const nextIndex = index + direction
+  if (nextIndex < 0 || nextIndex >= filteredSongs.value.length) return
+  const items = [...filteredSongs.value]
+  const [moved] = items.splice(index, 1)
+  items.splice(nextIndex, 0, moved)
+  await reorderItems(items)
 }
 
 async function togglePin(item: Song) {
@@ -768,5 +812,11 @@ onMounted(() => {
   padding: 1px 2px;
   font-size: 10px;
   line-height: 1.15;
+}
+
+.dragging-item {
+  opacity: 0.72;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35) inset;
+  background: rgba(59, 130, 246, 0.08);
 }
 </style>
