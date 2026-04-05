@@ -116,6 +116,68 @@ async function fetchSpotifyTrack(trackId: string, accessToken: string): Promise<
   return (await trackRes.json()) as SpotifyTrackApiResponse
 }
 
+type SpotifyPageMetadata = {
+  title: string | null
+  artist: string | null
+  thumbnail: string | null
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim()
+}
+
+function extractMetaContent(html: string, attribute: string, name: string): string | null {
+  const regex = new RegExp(
+    `<meta[^>]+${attribute}=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+    'i',
+  )
+  const match = html.match(regex)
+  return match?.[1] ? decodeHtmlEntities(match[1]) : null
+}
+
+async function fetchSpotifyMetadataFromPage(url: string): Promise<SpotifyPageMetadata> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'text/html',
+      'User-Agent': 'Mozilla/5.0 (compatible; bandstr-bot/1.0)',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Spotify page metadata (HTTP ${response.status})`)
+  }
+
+  const html = await response.text()
+  const ogTitle = extractMetaContent(html, 'property', 'og:title')
+  const ogImage = extractMetaContent(html, 'property', 'og:image')
+  const ogDescription = extractMetaContent(html, 'property', 'og:description')
+
+  let artist: string | null = null
+  if (ogDescription) {
+    const parts = ogDescription.split('·').map((s) => s.trim()).filter(Boolean)
+    if (parts.length >= 2) {
+      artist = parts[1] || null
+    }
+  }
+
+  if (!artist && ogTitle) {
+    const parsed = parseArtistFromSpotifyTitle(ogTitle)
+    artist = parsed.artist
+  }
+
+  return {
+    title: ogTitle ?? null,
+    artist,
+    thumbnail: ogImage ?? null,
+  }
+}
+
 function normalizeText(input: string): string {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
@@ -248,10 +310,9 @@ export async function fetchSpotifyEnrichedMetadata(url: string): Promise<Spotify
     console.warn(`[SPOTIFY] Token-based track lookup failed for ${url}:`, error)
   }
 
-  // Fallback path: open.spotify.com oEmbed works in more environments and still
-  // gives title/artist/thumbnail for iteration requirements.
+  // Fallback path without oEmbed: scrape open.spotify.com track page metadata.
   if (!title || !artist || !thumbnail) {
-    const fallback = await fetchSpotifyMetadata(url)
+    const fallback = await fetchSpotifyMetadataFromPage(url)
     title = title ?? fallback.title ?? null
     artist = artist ?? fallback.artist ?? null
     thumbnail = thumbnail ?? fallback.thumbnail ?? null
