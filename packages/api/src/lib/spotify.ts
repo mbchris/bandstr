@@ -39,6 +39,12 @@ type ITunesSearchResponse = {
   }>
 }
 
+type ITunesTrackMatch = {
+  trackName: string
+  artistName: string
+  trackTimeMillis: number | null
+}
+
 export type SpotifyEnrichedMetadata = {
   spotifyUrl: string
   spotifyTrackId: string
@@ -156,6 +162,70 @@ async function fetchITunesTrackDuration(artist: string, title: string): Promise<
   return bestDuration
 }
 
+function parseArtistFromSpotifyTitle(rawTitle: string): { title: string; artist: string | null } {
+  const trimmed = rawTitle.trim()
+  if (!trimmed) return { title: rawTitle, artist: null }
+
+  const byIdx = trimmed.toLowerCase().lastIndexOf(' by ')
+  if (byIdx > 0 && byIdx < trimmed.length - 4) {
+    return {
+      title: trimmed.slice(0, byIdx).trim(),
+      artist: trimmed.slice(byIdx + 4).trim() || null,
+    }
+  }
+
+  return { title: trimmed, artist: null }
+}
+
+async function fetchITunesBestMatch(title: string, artist?: string | null): Promise<ITunesTrackMatch | null> {
+  const term = encodeURIComponent([title, artist ?? ''].filter(Boolean).join(' '))
+  const response = await fetch(`https://itunes.apple.com/search?term=${term}&entity=song&limit=8`, {
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to query iTunes API (HTTP ${response.status})`)
+  }
+
+  const payload = (await response.json()) as ITunesSearchResponse
+  const results = payload.results ?? []
+  if (!results.length) return null
+
+  const wantedTitle = normalizeText(title)
+  const wantedArtist = normalizeText(artist ?? '')
+  let best: ITunesTrackMatch | null = null
+  let bestScore = -1
+
+  for (const result of results) {
+    const trackName = (result.trackName ?? '').trim()
+    const artistName = (result.artistName ?? '').trim()
+    if (!trackName || !artistName) continue
+
+    const candidateTitle = normalizeText(trackName)
+    const candidateArtist = normalizeText(artistName)
+    let score = 0
+
+    if (candidateTitle === wantedTitle) score += 3
+    else if (candidateTitle.includes(wantedTitle) || wantedTitle.includes(candidateTitle)) score += 2
+
+    if (wantedArtist) {
+      if (candidateArtist === wantedArtist) score += 3
+      else if (candidateArtist.includes(wantedArtist) || wantedArtist.includes(candidateArtist)) score += 2
+    }
+
+    if (score > bestScore) {
+      bestScore = score
+      best = {
+        trackName,
+        artistName,
+        trackTimeMillis: typeof result.trackTimeMillis === 'number' ? result.trackTimeMillis : null,
+      }
+    }
+  }
+
+  return best
+}
+
 export async function fetchSpotifyEnrichedMetadata(url: string): Promise<SpotifyEnrichedMetadata> {
   const trackId = extractSpotifyTrackId(url)
   if (!trackId) {
@@ -187,12 +257,35 @@ export async function fetchSpotifyEnrichedMetadata(url: string): Promise<Spotify
     thumbnail = thumbnail ?? fallback.thumbnail ?? null
   }
 
+  if (title && !artist) {
+    const parsed = parseArtistFromSpotifyTitle(title)
+    title = parsed.title
+    artist = parsed.artist
+  }
+
+  let iTunesMatch: ITunesTrackMatch | null = null
+  if (title && (!artist || artist.trim().length === 0)) {
+    try {
+      iTunesMatch = await fetchITunesBestMatch(title, null)
+      if (iTunesMatch?.artistName) {
+        artist = iTunesMatch.artistName
+      }
+      if (iTunesMatch?.trackName) {
+        title = iTunesMatch.trackName
+      }
+    } catch (error) {
+      console.warn(`[ITUNES] Artist recovery failed for ${title}:`, error)
+    }
+  }
+
   if (!title && !artist && !thumbnail) {
     throw new Error('Could not retrieve Spotify metadata for the provided URL')
   }
 
   let trackTimeMillis: number | null = null
-  if (title && artist) {
+  if (iTunesMatch?.trackTimeMillis !== null && iTunesMatch?.trackTimeMillis !== undefined) {
+    trackTimeMillis = iTunesMatch.trackTimeMillis
+  } else if (title && artist) {
     try {
       trackTimeMillis = await fetchITunesTrackDuration(artist, title)
     } catch (error) {
