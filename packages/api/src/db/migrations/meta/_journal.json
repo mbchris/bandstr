@@ -43,6 +43,13 @@
       "when": 1774926000000,
       "tag": "0006_user_default_band",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775400000000,
+      "tag": "0007_spotify_song_length",
+      "breakpoints": true
     }
   ]
 }

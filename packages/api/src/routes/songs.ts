@@ -6,7 +6,7 @@ import { db } from '../db/index.js'
 import { songs as songsTable, votes as votesTable, personalNotes } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
-import { fetchSpotifyMetadata } from '../lib/spotify.js'
+import { fetchSpotifyEnrichedMetadata } from '../lib/spotify.js'
 import { bandHasProPlan } from '../lib/entitlements.js'
 
 export const songs = new Hono<TenantEnv>()
@@ -80,6 +80,7 @@ const createSongSchema = z.object({
   artist: z.string().optional(),
   spotifyUrl: z.string().url().optional(),
   youtubeUrl: z.string().url().optional(),
+  lengthMs: z.number().int().min(0).optional(),
   notes: z.string().optional(),
   type: z.enum(['song', 'pause', 'tuning']).default('song'),
   pitch: z.number().int().min(-5).max(5).default(0),
@@ -110,8 +111,13 @@ songs.post('/', zValidator('json', createSongSchema), async (c) => {
 
   const meta =
     body.type === 'song' && body.spotifyUrl
-      ? await fetchSpotifyMetadata(body.spotifyUrl)
-      : { title: body.title, artist: body.artist, thumbnail: null }
+      ? await fetchSpotifyEnrichedMetadata(body.spotifyUrl)
+      : {
+          title: body.title ?? null,
+          artist: body.artist ?? null,
+          thumbnail: null,
+          durationMs: body.lengthMs ?? null,
+        }
 
   const [song] = await db
     .insert(songsTable)
@@ -122,6 +128,7 @@ songs.post('/', zValidator('json', createSongSchema), async (c) => {
       spotifyUrl: body.spotifyUrl,
       youtubeUrl: body.youtubeUrl,
       thumbnailUrl: meta.thumbnail,
+      lengthMs: body.lengthMs ?? meta.durationMs,
       notes: body.notes,
       type: body.type,
       pitch: body.pitch,
@@ -169,14 +176,16 @@ songs.put('/:id', async (c) => {
   }
 
   let thumbnailUrl = existing.thumbnailUrl
+  let lengthMs = existing.lengthMs
   const spotifyUrl = body.spotifyUrl !== undefined ? body.spotifyUrl : existing.spotifyUrl
   const needsMeta =
     (body.spotifyUrl !== undefined && body.spotifyUrl !== existing.spotifyUrl) ||
-    (spotifyUrl && !thumbnailUrl)
+    (spotifyUrl && (!thumbnailUrl || !lengthMs))
 
   if (needsMeta && spotifyUrl) {
-    const meta = await fetchSpotifyMetadata(spotifyUrl)
+    const meta = await fetchSpotifyEnrichedMetadata(spotifyUrl)
     thumbnailUrl = meta.thumbnail ?? thumbnailUrl
+    lengthMs = meta.durationMs ?? lengthMs
   }
 
   const [updated] = await db
@@ -187,6 +196,7 @@ songs.put('/:id', async (c) => {
       spotifyUrl: body.spotifyUrl ?? existing.spotifyUrl,
       youtubeUrl: body.youtubeUrl ?? existing.youtubeUrl,
       thumbnailUrl,
+      lengthMs: body.lengthMs ?? lengthMs,
       notes: body.notes ?? existing.notes,
       type: body.type ?? existing.type,
       pitch: body.pitch ?? existing.pitch,
@@ -244,8 +254,20 @@ songs.post(
 songs.get('/lookup', async (c) => {
   const url = c.req.query('url')
   if (!url) return c.json({ error: 'url is required' }, 400)
-  const meta = await fetchSpotifyMetadata(url)
-  return c.json(meta)
+  try {
+    const meta = await fetchSpotifyEnrichedMetadata(url)
+    return c.json({
+      title: meta.title,
+      artist: meta.artist,
+      thumbnail: meta.thumbnail,
+      lengthMs: meta.durationMs,
+      trackTimeMillis: meta.trackTimeMillis,
+      durationSource: meta.durationSource,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Lookup failed'
+    return c.json({ error: message }, 400)
+  }
 })
 
 // GET /songs/notes?songId=...

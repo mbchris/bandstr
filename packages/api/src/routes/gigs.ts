@@ -37,6 +37,7 @@ gigs.get('/:id/songs', async (c) => {
       spotifyUrl: songsTable.spotifyUrl,
       youtubeUrl: songsTable.youtubeUrl,
       thumbnailUrl: songsTable.thumbnailUrl,
+      lengthMs: songsTable.lengthMs,
       notes: songsTable.notes,
       position: gigSongs.position,
       gigSongId: gigSongs.id,

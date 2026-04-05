@@ -206,6 +206,7 @@ export const songs = pgTable(
     spotifyUrl: text('spotify_url'),
     youtubeUrl: text('youtube_url'),
     thumbnailUrl: text('thumbnail_url'),
+    lengthMs: integer('length_ms'),
     notes: text('notes'),
     type: text('type').notNull().default('song'), // 'song' | 'pause' | 'tuning'
     pitch: integer('pitch').notNull().default(0), // -5 to +5
