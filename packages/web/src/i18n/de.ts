@@ -128,7 +128,7 @@ export default {
     tentative: 'Vorläufig',
     tentativeLabel: 'Vorläufig (noch nicht bestätigt)',
     more: '+ {n} weitere',
-    days: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+    days: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
     noEventsDay: 'Keine Termine an diesem Tag.',
   },
 

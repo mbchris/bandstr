@@ -127,7 +127,7 @@ export default {
     tentative: 'Tentative',
     tentativeLabel: 'Tentative (not yet confirmed)',
     more: '+ {n} more',
-    days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     noEventsDay: 'No events for this day.',
   },
 

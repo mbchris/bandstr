@@ -168,7 +168,7 @@ const calendarStore = useCalendarStore()
 const bandStore = useBandStore()
 const { t, tv } = useI18n()
 
-const dayHeaders = computed(() => (tv('calendar.days') as string[]) || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'])
+const dayHeaders = computed(() => (tv('calendar.days') as string[]) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 const typeOptions = computed(() => [
   { label: t('calendar.typeRehearsal'), value: 'rehearsal' },
   { label: t('calendar.typeGig'), value: 'gig' },
@@ -192,13 +192,14 @@ const allDays = computed(() => {
   const year = currentYear.value
   const month = currentMonth.value
   const startDay = new Date(year, month, 1).getDay()
+  const mondayFirstStartDay = (startDay + 6) % 7
   const daysInMonth = new Date(year, month + 1, 0).getDate()
 
   // Previous month padding
   const prevMonthDate = new Date(year, month, 0)
   const daysInPrevMonth = prevMonthDate.getDate()
-  for (let i = 0; i < startDay; i++) {
-    days.push({ day: daysInPrevMonth - startDay + i + 1, month: prevMonthDate.getMonth(), year: prevMonthDate.getFullYear(), isCurrentMonth: false })
+  for (let i = 0; i < mondayFirstStartDay; i++) {
+    days.push({ day: daysInPrevMonth - mondayFirstStartDay + i + 1, month: prevMonthDate.getMonth(), year: prevMonthDate.getFullYear(), isCurrentMonth: false })
   }
 
   // Current month
