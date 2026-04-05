@@ -213,6 +213,8 @@ songs.put('/:id', async (c) => {
 // DELETE /songs/:id
 songs.delete('/:id', async (c) => {
   const bandId = c.get('bandId')
+  const bandRole = c.get('bandRole')
+  const userId = c.get('user').id
   const id = Number(c.req.param('id'))
 
   const [existing] = await db
@@ -222,6 +224,11 @@ songs.delete('/:id', async (c) => {
     .limit(1)
 
   if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  const canDelete = ['owner', 'admin'].includes(bandRole) || existing.addedBy === userId
+  if (!canDelete) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
 
   await db.delete(votesTable).where(and(eq(votesTable.songId, id), eq(votesTable.bandId, bandId)))
   await db.delete(songsTable).where(and(eq(songsTable.id, id), eq(songsTable.bandId, bandId)))

@@ -51,6 +51,9 @@
 
               <!-- Thumbnail (songs only) -->
               <q-item-section v-if="item.type === 'song'" side>
+                <div v-if="item.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
+                  Pitch {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
+                </div>
                 <a v-if="item.spotifyUrl && item.thumbnailUrl" :href="item.spotifyUrl" target="_blank">
                   <q-avatar rounded size="48px"><img :src="item.thumbnailUrl" /></q-avatar>
                 </a>
@@ -108,11 +111,23 @@
               <!-- Actions -->
               <q-item-section side>
                 <div class="row q-gutter-xs">
-                  <q-btn flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
-                  <q-btn v-if="item.type === 'song'" flat round dense icon="arrow_back" color="grey" size="sm" @click="removeFromSetlist(item)">
+                  <q-btn v-if="canModifySong(item)" flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
+                  <q-btn
+                    v-if="!selectedGigId && canModifySong(item)"
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="red"
+                    size="sm"
+                    @click="deleteSong(item)"
+                  >
+                    <q-tooltip>{{ t('common.delete') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn v-if="item.type === 'song' && canModifySong(item)" flat round dense icon="arrow_back" color="grey" size="sm" @click="removeFromSetlist(item)">
                     <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
                   </q-btn>
-                  <q-btn v-else flat round dense icon="close" color="red" size="sm" @click="removeFromSetlist(item)" />
+                  <q-btn v-else-if="canModifySong(item)" flat round dense icon="close" color="red" size="sm" @click="removeFromSetlist(item)" />
                 </div>
               </q-item-section>
             </q-item>
@@ -279,12 +294,14 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useSongsStore, type Song } from '../stores/songs'
+import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
 import { useI18n } from '../composables/useI18n'
 
 const $q = useQuasar()
 const songsStore = useSongsStore()
+const authStore = useAuthStore()
 const { t } = useI18n()
 
 const searchQuery = ref('')
@@ -336,6 +353,15 @@ const totalDurationMs = computed(() =>
     .filter((s) => s.type === 'song' && typeof s.lengthMs === 'number')
     .reduce((sum, s) => sum + (s.lengthMs ?? 0), 0),
 )
+
+const isAdmin = computed(() => {
+  const band = authStore.activeBand
+  return Boolean(band && ['owner', 'admin'].includes(band.role))
+})
+
+function canModifySong(item: Song) {
+  return isAdmin.value || authStore.user?.id === item.addedBy
+}
 
 // Master songs for gig song picker
 const masterSongOptions = computed(() =>
@@ -425,6 +451,7 @@ async function togglePin(item: Song) {
 }
 
 async function removeFromSetlist(item: Song) {
+  if (!canModifySong(item)) return
   $q.dialog({
     title: t('common.delete'),
     message: t('setlist.removeConfirm', { title: item.title }),
@@ -482,6 +509,24 @@ function openAddSongModal() {
     addSongLookupError.value = ''
     showAddSongModal.value = true
   }
+}
+
+async function deleteSong(item: Song) {
+  if (!canModifySong(item)) return
+  $q
+    .dialog({
+      title: t('common.delete'),
+      message: t('voting.failedDelete', { title: item.title }),
+      cancel: true,
+    })
+    .onOk(async () => {
+      try {
+        await songsStore.deleteSong(item.id)
+        await refreshAll()
+      } catch {
+        $q.notify({ message: t('setlist.failedRemove'), color: 'negative' })
+      }
+    })
 }
 
 async function submitAddSong() {

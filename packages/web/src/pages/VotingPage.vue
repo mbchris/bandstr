@@ -39,6 +39,9 @@
 
               <!-- Thumbnail -->
               <q-item-section side class="song-order-thumb">
+                <div v-if="song.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
+                  Pitch {{ song.pitch > 0 ? '+' : '' }}{{ song.pitch }}
+                </div>
                 <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank">
                   <q-avatar rounded size="48px"><img :src="song.thumbnailUrl" /></q-avatar>
                 </a>
