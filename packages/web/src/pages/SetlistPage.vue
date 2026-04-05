@@ -138,8 +138,23 @@
           <div v-if="addSongLookupError" class="text-red text-caption">{{ addSongLookupError }}</div>
           <q-input v-model="addSongForm.title" :label="t('voting.songTitle')" outlined dense autofocus />
           <q-input v-model="addSongForm.artist" :label="t('voting.artist')" outlined dense />
+          <q-input
+            v-model="addSongLengthInput"
+            label="Length (mm:ss)"
+            hint="Example: 3:45"
+            outlined
+            dense
+            @blur="normalizeAddSongLengthInput"
+          />
           <q-input v-model="addSongForm.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
-          <q-input v-model="addSongForm.notes" :label="t('voting.notes')" type="textarea" outlined dense autogrow />
+          <div class="row items-center q-gutter-md">
+            <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
+            <q-slider v-model="addSongForm.pitch" :min="-5" :max="5" :step="1" snap label class="col" />
+            <q-badge color="grey-8" class="text-body2">
+              {{ addSongForm.pitch > 0 ? '+' : '' }}{{ addSongForm.pitch }}
+            </q-badge>
+          </div>
+          <q-input v-model="addSongForm.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -216,6 +231,14 @@
             <div v-if="lookupError" class="text-red text-caption">{{ lookupError }}</div>
             <q-input v-model="editingItem.title" :label="t('voting.songTitle')" outlined dense />
             <q-input v-model="editingItem.artist" :label="t('voting.artist')" outlined dense />
+            <q-input
+              v-model="editingSongLengthInput"
+              label="Length (mm:ss)"
+              hint="Example: 3:45"
+              outlined
+              dense
+              @blur="normalizeEditingSongLengthInput"
+            />
             <q-input v-model="editingItem.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
             <div class="row items-center q-gutter-md">
               <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
@@ -436,6 +459,7 @@ function showNote(title: string, content: string | null | undefined) {
 
 // Add song to master setlist
 const showAddSongModal = ref(false)
+const addSongLengthInput = ref('')
 const addSongForm = ref({
   title: '',
   artist: '',
@@ -443,6 +467,7 @@ const addSongForm = ref({
   youtubeUrl: '',
   notes: '',
   lengthMs: null as number | null,
+  pitch: 0,
 })
 const addSongLookingUp = ref(false)
 const addSongLookupError = ref('')
@@ -452,7 +477,8 @@ function openAddSongModal() {
   if (selectedGigId.value) {
     showAddGigSongModal.value = true
   } else {
-    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null }
+    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null, pitch: 0 }
+    addSongLengthInput.value = ''
     addSongLookupError.value = ''
     showAddSongModal.value = true
   }
@@ -461,12 +487,14 @@ function openAddSongModal() {
 async function submitAddSong() {
   isSaving.value = true
   try {
+    const parsedLengthMs = parseLengthToMs(addSongLengthInput.value)
     await songsStore.createSong({
       title: addSongForm.value.title,
       artist: addSongForm.value.artist,
       spotifyUrl: addSongForm.value.spotifyUrl || undefined,
       youtubeUrl: addSongForm.value.youtubeUrl || undefined,
-      lengthMs: addSongForm.value.lengthMs || undefined,
+      lengthMs: parsedLengthMs ?? addSongForm.value.lengthMs ?? undefined,
+      pitch: addSongForm.value.pitch ?? 0,
       notes: addSongForm.value.notes || undefined,
       position: filteredSongs.value.length,
       isSetlist: true,
@@ -487,7 +515,10 @@ async function lookupSpotifyForAdd(force = true) {
     const data = await apiJson<any>(`/songs/lookup?url=${encodeURIComponent(url)}`)
     if (data?.title && (force || !addSongForm.value.title)) addSongForm.value.title = data.title
     if (data?.artist && (force || !addSongForm.value.artist)) addSongForm.value.artist = data.artist
-    if (typeof data?.lengthMs === 'number') addSongForm.value.lengthMs = data.lengthMs
+    if (typeof data?.lengthMs === 'number') {
+      addSongForm.value.lengthMs = data.lengthMs
+      addSongLengthInput.value = formatLength(data.lengthMs)
+    }
   } catch {
     addSongLookupError.value = t('voting.lookupFailed')
   } finally {
@@ -549,12 +580,14 @@ async function submitSpecialElement() {
 // Edit modal
 const showEditModal = ref(false)
 const editingItem = ref<any>(null)
+const editingSongLengthInput = ref('')
 const editingItemPersonalNote = ref('')
 const isLookingUp = ref(false)
 const lookupError = ref('')
 
 function openEditModal(item: Song) {
   editingItem.value = { ...item }
+  editingSongLengthInput.value = formatLength(item.lengthMs ?? null)
   editingItemPersonalNote.value = getPersonalNote(item.id)
   showEditModal.value = true
 }
@@ -570,7 +603,10 @@ async function lookupSpotify(force = true) {
     const data = await apiJson<any>(`/songs/lookup?url=${encodeURIComponent(url)}`)
     if (data?.title && (force || !editingItem.value.title)) editingItem.value.title = data.title
     if (data?.artist && (force || !editingItem.value.artist)) editingItem.value.artist = data.artist
-    if (typeof data?.lengthMs === 'number') editingItem.value.lengthMs = data.lengthMs
+    if (typeof data?.lengthMs === 'number') {
+      editingItem.value.lengthMs = data.lengthMs
+      editingSongLengthInput.value = formatLength(data.lengthMs)
+    }
   } catch { lookupError.value = t('voting.lookupFailed') }
   finally { isLookingUp.value = false }
 }
@@ -580,12 +616,13 @@ function onSpotifyPaste() { setTimeout(() => lookupSpotify(false), 100) }
 async function saveItemEdit() {
   isSaving.value = true
   try {
+    const parsedLengthMs = parseLengthToMs(editingSongLengthInput.value)
     await songsStore.updateSong(editingItem.value.id, {
       title: editingItem.value.title,
       artist: editingItem.value.artist,
       spotifyUrl: editingItem.value.spotifyUrl,
       youtubeUrl: editingItem.value.youtubeUrl,
-      lengthMs: editingItem.value.lengthMs,
+      lengthMs: parsedLengthMs ?? editingItem.value.lengthMs,
       pitch: editingItem.value.pitch,
       notes: editingItem.value.notes,
     } as any)
@@ -630,6 +667,33 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000)
   const seconds = Math.floor((ms % 60000) / 1000)
   return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function parseLengthToMs(input: string): number | null {
+  const value = input.trim()
+  if (!value) return null
+  const match = value.match(/^(\d{1,3}):([0-5]\d)$/)
+  if (!match) return null
+  const minutes = Number(match[1])
+  const seconds = Number(match[2])
+  return (minutes * 60 + seconds) * 1000
+}
+
+function formatLength(ms: number | null): string {
+  if (typeof ms !== 'number' || ms < 0) return ''
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function normalizeAddSongLengthInput() {
+  const ms = parseLengthToMs(addSongLengthInput.value)
+  if (ms !== null) addSongLengthInput.value = formatLength(ms)
+}
+
+function normalizeEditingSongLengthInput() {
+  const ms = parseLengthToMs(editingSongLengthInput.value)
+  if (ms !== null) editingSongLengthInput.value = formatLength(ms)
 }
 
 onMounted(() => {
