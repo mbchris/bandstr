@@ -21,9 +21,22 @@
               <q-separator />
               <q-list separator>
                 <q-item v-for="song in songs" :key="`a-${song.id}`" class="compact-row">
+                  <q-item-section side class="cover-cell">
+                    <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank" rel="noopener noreferrer">
+                      <q-avatar rounded size="56px">
+                        <img :src="song.thumbnailUrl" />
+                      </q-avatar>
+                    </a>
+                    <q-avatar v-else rounded size="56px" color="grey-3">
+                      <q-icon name="music_note" color="grey" />
+                    </q-avatar>
+                  </q-item-section>
                   <q-item-section class="song-cell">
                     <q-item-label class="text-weight-medium ellipsis">{{ song.title }}</q-item-label>
                     <q-item-label caption class="ellipsis">{{ song.artist }}</q-item-label>
+                    <q-item-label caption class="text-grey-7">
+                      {{ formatDuration(song.lengthMs) }}
+                    </q-item-label>
                   </q-item-section>
                   <q-item-section>
                     <div class="row items-center no-wrap q-gutter-sm">
@@ -41,14 +54,13 @@
                           <span v-else>{{ getInitial(member.name) }}</span>
                         </q-avatar>
                         <span v-if="!votedMembers(song).length" class="text-caption text-grey-6">no votes</span>
+                        <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
                       </div>
                     </div>
                   </q-item-section>
                   <q-item-section side>
-                    <q-badge outline color="primary">Avg {{ avgLabel(song) }}</q-badge>
-                  </q-item-section>
-                  <q-item-section side>
                     <div class="row items-center q-gutter-xs">
+                      <q-badge outline color="primary">Avg {{ avgLabel(song) }}</q-badge>
                       <q-btn dense flat icon="how_to_vote" label="My vote" @click="openVoteDialog(song)" />
                       <q-btn dense flat icon="visibility" label="Details" @click="openDetailsDialog(song)" />
                     </div>
@@ -263,6 +275,25 @@ function avgLabel(song: Song): string {
   return Number(song.voteAverage || 0).toFixed(1)
 }
 
+function votedNamesLabel(song: Song): string {
+  const names = votedMembers(song)
+    .map((member) => member.name?.trim())
+    .filter((name): name is string => Boolean(name))
+
+  if (!names.length) return 'No one has voted yet.'
+  if (names.length === 1) return `${names[0]} has voted.`
+  if (names.length === 2) return `${names[0]} and ${names[1]} have voted.`
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have voted.`
+}
+
+function formatDuration(lengthMs?: number | null): string {
+  if (!lengthMs || lengthMs <= 0) return '-'
+  const totalSeconds = Math.floor(lengthMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
 function openVoteDialog(song: Song) {
   activeSong.value = song
   showVoteDialog.value = true
@@ -318,6 +349,10 @@ onMounted(() => {
 .song-cell {
   max-width: 280px;
   min-width: 180px;
+}
+
+.cover-cell {
+  min-width: 56px;
 }
 
 .avatar-stack {
