@@ -16,6 +16,41 @@ sign_apk_input_path=""
 upload_ios_input_path=""
 apk_api_url=""
 
+is_profile_scoped_command() {
+  case "$1" in
+    build-apk|create-apk-bundle|deploy-apk|sign-apk|build-ios|deploy-ios)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+profile_summary_enabled=0
+if is_profile_scoped_command "$command"; then
+  profile_summary_enabled=1
+fi
+
+print_profile_summary() {
+  local status=$?
+  if [[ "$profile_summary_enabled" == "1" ]]; then
+    echo
+    echo "########################################"
+    echo "PROFILE USED: ${env_profile^^}"
+    if [[ "$status" == "0" ]]; then
+      echo "RESULT: SUCCESS"
+    else
+      echo "RESULT: FAILED (exit $status)"
+    fi
+    echo "########################################"
+    echo
+  fi
+  return "$status"
+}
+
+trap 'print_profile_summary' EXIT
+
 print_usage() {
   cat <<'EOF'
 Usage:
@@ -48,6 +83,7 @@ Commands:
 
   build-apk [local|production] [--no-sign] [--no-install]
     Build Android APK.
+    Default profile: production (if omitted)
     - local uses .env.local (fallback .env)
     - production uses .env.production (fallback .env)
     - --no-sign skips signing
@@ -62,6 +98,7 @@ Commands:
 
   create-apk-bundle [local|production] [--no-sign]
     Build Android App Bundle (.aab) for Play Store upload.
+    Default profile: production (if omitted)
     - local uses .env.local (fallback .env)
     - production uses .env.production (fallback .env)
     - --no-sign skips signing/validation and leaves raw app-release.aab
@@ -124,8 +161,18 @@ EOF
 }
 
 if [[ "$command" == "build-apk" ]]; then
-  env_profile="${2:-local}"
-  for arg in "${@:3}"; do
+  second_arg="${2:-}"
+  if [[ -z "$second_arg" ]]; then
+    env_profile="production"
+    start_idx=2
+  elif [[ "$second_arg" == "local" || "$second_arg" == "production" ]]; then
+    env_profile="$second_arg"
+    start_idx=3
+  else
+    env_profile="production"
+    start_idx=2
+  fi
+  for arg in "${@:start_idx}"; do
     case "$arg" in
       --no-sign)
         build_apk_sign=0
@@ -141,8 +188,18 @@ if [[ "$command" == "build-apk" ]]; then
     esac
   done
 elif [[ "$command" == "create-apk-bundle" ]]; then
-  env_profile="${2:-local}"
-  for arg in "${@:3}"; do
+  second_arg="${2:-}"
+  if [[ -z "$second_arg" ]]; then
+    env_profile="production"
+    start_idx=2
+  elif [[ "$second_arg" == "local" || "$second_arg" == "production" ]]; then
+    env_profile="$second_arg"
+    start_idx=3
+  else
+    env_profile="production"
+    start_idx=2
+  fi
+  for arg in "${@:start_idx}"; do
     case "$arg" in
       --no-sign)
         build_bundle_sign=0
