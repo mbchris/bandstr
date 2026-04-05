@@ -162,22 +162,47 @@ export async function fetchSpotifyEnrichedMetadata(url: string): Promise<Spotify
     throw new Error('Could not extract a valid Spotify track ID from the URL')
   }
 
-  const token = await fetchAnonymousSpotifyToken()
-  const track = await fetchSpotifyTrack(trackId, token)
+  let title: string | null = null
+  let artist: string | null = null
+  let thumbnail: string | null = null
+  let spotifyDurationMs: number | null = null
 
-  const title = track.name?.trim() || null
-  const artist = track.artists?.map((a) => a.name?.trim()).filter(Boolean).join(', ') || null
-  const thumbnail = track.album?.images?.[0]?.url ?? null
-  const spotifyDurationMs = typeof track.duration_ms === 'number' ? track.duration_ms : null
+  try {
+    const token = await fetchAnonymousSpotifyToken()
+    const track = await fetchSpotifyTrack(trackId, token)
+    title = track.name?.trim() || null
+    artist = track.artists?.map((a) => a.name?.trim()).filter(Boolean).join(', ') || null
+    thumbnail = track.album?.images?.[0]?.url ?? null
+    spotifyDurationMs = typeof track.duration_ms === 'number' ? track.duration_ms : null
+  } catch (error) {
+    console.warn(`[SPOTIFY] Token-based track lookup failed for ${url}:`, error)
+  }
+
+  // Fallback path: open.spotify.com oEmbed works in more environments and still
+  // gives title/artist/thumbnail for iteration requirements.
+  if (!title || !artist || !thumbnail) {
+    const fallback = await fetchSpotifyMetadata(url)
+    title = title ?? fallback.title ?? null
+    artist = artist ?? fallback.artist ?? null
+    thumbnail = thumbnail ?? fallback.thumbnail ?? null
+  }
+
+  if (!title && !artist && !thumbnail) {
+    throw new Error('Could not retrieve Spotify metadata for the provided URL')
+  }
 
   let trackTimeMillis: number | null = null
   if (title && artist) {
-    trackTimeMillis = await fetchITunesTrackDuration(artist, title)
+    try {
+      trackTimeMillis = await fetchITunesTrackDuration(artist, title)
+    } catch (error) {
+      console.warn(`[ITUNES] Duration lookup failed for ${artist} - ${title}:`, error)
+    }
   }
 
   return {
-    spotifyUrl: `https://open.spotify.com/track/${track.id ?? trackId}`,
-    spotifyTrackId: track.id ?? trackId,
+    spotifyUrl: `https://open.spotify.com/track/${trackId}`,
+    spotifyTrackId: trackId,
     title,
     artist,
     thumbnail,
