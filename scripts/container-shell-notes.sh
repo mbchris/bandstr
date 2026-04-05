@@ -23,6 +23,9 @@ Useful commands:
 - Session check
   curl -fsS http://localhost:3001/api/auth/get-session
 
+- Spotify test page URL (web)
+  /impress/spotify-test
+
 - Run DB migrations (runtime-safe)
   node /app/packages/api/dist/db/migrate.js
 
