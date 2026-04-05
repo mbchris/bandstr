@@ -2,20 +2,27 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import Stripe from 'stripe'
-import { eq } from 'drizzle-orm'
+import { eq, or } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { bands, users } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
 import { requireRole } from '../middleware/rbac.js'
 import { bandHasProPlan, normalizePlan } from '../lib/entitlements.js'
+import { stripeProvider, googlePlayProvider, getProvider } from '../lib/subscription/registry.js'
+import { getStripe, envPriceIdForPro } from '../lib/subscription/providers/stripe.js'
+import {
+  isActiveEntitlement,
+  type NormalizedSubscription,
+  type SubscriptionProviderId,
+  type SubscriptionStatus,
+  type BillingInterval,
+  type WebhookBandUpdate,
+} from '../lib/subscription/types.js'
 
 export const billing = new Hono<TenantEnv>()
 
 type PlanId = 'free' | 'pro' | 'pro-zero'
-type BillingInterval = 'monthly' | 'yearly'
-type SubscriptionStatus = 'none' | 'active' | 'canceled' | 'past_due' | 'trialing'
 
 const PLANS: Array<{
   id: PlanId
@@ -60,141 +67,121 @@ const PLANS: Array<{
     bookable: false,
     prices: { monthly: 0, yearly: 0, currency: 'EUR' },
     limits: { setlistSongs: null, members: null },
-    features: [
-      'All pro features',
-      'Internal-only plan',
-    ],
+    features: ['All pro features', 'Internal-only plan'],
   },
 ]
-
-let stripeClient: Stripe | null = null
-
-function getStripe(): Stripe {
-  if (stripeClient) return stripeClient
-
-  const secretKey = process.env.STRIPE_SECRET_KEY
-  if (!secretKey) {
-    throw new Error('STRIPE_SECRET_KEY is not configured')
-  }
-
-  stripeClient = new Stripe(secretKey)
-  return stripeClient
-}
 
 function appUrlFromRequest(c: Context) {
   const explicit = process.env.APP_URL?.trim()
   if (explicit) return explicit
-
   const origins = (process.env.CORS_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)
   if (origins.length > 0) return origins[0]
-
   const originHeader = c.req.header('Origin')
   if (originHeader) return originHeader
-
   return 'http://localhost:9000'
 }
 
-function envPriceIdForPro(interval: BillingInterval) {
-  if (interval === 'yearly') return process.env.STRIPE_PRICE_PRO_YEARLY
-  return process.env.STRIPE_PRICE_PRO_MONTHLY ?? process.env.STRIPE_PRICE_PRO
-}
+// ─── DB write helper ──────────────────────────────────────────────────────────
 
-function googlePlayProductIdForPro(interval: BillingInterval) {
-  if (interval === 'yearly') return process.env.GPLAY_PRODUCT_PRO_YEARLY
-  return process.env.GPLAY_PRODUCT_PRO_MONTHLY
-}
-
-function appleProductIdForPro(interval: BillingInterval) {
-  if (interval === 'yearly') return process.env.APPLE_PRODUCT_PRO_YEARLY
-  return process.env.APPLE_PRODUCT_PRO_MONTHLY
-}
-
-function billingIntervalFromPrice(price?: Stripe.Price): BillingInterval | null {
-  const recurring = price?.recurring?.interval
-  if (recurring === 'year') return 'yearly'
-  if (recurring === 'month') return 'monthly'
-  return null
-}
-
-function planFromPriceId(priceId?: string | null): { plan: PlanId; interval: BillingInterval | null } {
-  if (!priceId) return { plan: 'free', interval: null }
-  if (process.env.STRIPE_PRICE_PRO_YEARLY && priceId === process.env.STRIPE_PRICE_PRO_YEARLY) {
-    return { plan: 'pro', interval: 'yearly' }
-  }
-  if (
-    (process.env.STRIPE_PRICE_PRO_MONTHLY && priceId === process.env.STRIPE_PRICE_PRO_MONTHLY) ||
-    (process.env.STRIPE_PRICE_PRO && priceId === process.env.STRIPE_PRICE_PRO)
-  ) {
-    return { plan: 'pro', interval: 'monthly' }
-  }
-  return { plan: 'free', interval: null }
-}
-
-function normalizeSubscriptionStatus(status?: string | null): SubscriptionStatus {
-  if (status === 'active') return 'active'
-  if (status === 'trialing') return 'trialing'
-  if (status === 'past_due') return 'past_due'
-  if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') return 'canceled'
-  return 'none'
-}
-
-async function updateBandSubscriptionByCustomer(
-  customerId: string,
-  payload: {
-    plan: PlanId
-    status: SubscriptionStatus
-    interval: BillingInterval | null
-    currentPeriodEnd: Date | null
-    stripeSubscriptionId: string | null
-    cancelAtPeriodEnd: boolean
-  },
+async function writeBandSubscription(
+  bandId: number,
+  provider: SubscriptionProviderId,
+  sub: NormalizedSubscription,
 ) {
-  const [band] = await db.select({ id: bands.id }).from(bands).where(eq(bands.stripeCustomerId, customerId)).limit(1)
-  if (!band) return
   await db
     .update(bands)
     .set({
-      plan: payload.plan,
-      subscriptionStatus: payload.status,
-      subscriptionInterval: payload.interval,
-      subscriptionCurrentPeriodEnd: payload.currentPeriodEnd,
-      stripeSubscriptionId: payload.stripeSubscriptionId,
-      subscriptionCancelAtPeriodEnd: payload.cancelAtPeriodEnd,
+      plan: sub.plan,
+      subscriptionStatus: sub.status,
+      subscriptionInterval: sub.interval,
+      subscriptionCurrentPeriodEnd: sub.currentPeriodEnd,
+      subscriptionCancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      subscriptionProvider: provider,
+      subscriptionProviderRef: sub.providerRef,
+      // Keep stripeSubscriptionId in sync for Stripe; clear it for other providers
+      stripeSubscriptionId: provider === 'stripe' ? sub.providerRef : null,
     })
-    .where(eq(bands.id, band.id))
+    .where(eq(bands.id, bandId))
 }
+
+async function applyWebhookUpdate(update: WebhookBandUpdate) {
+  let bandId: number | undefined
+
+  if (update.stripeCustomerId) {
+    const [row] = await db
+      .select({ id: bands.id })
+      .from(bands)
+      .where(eq(bands.stripeCustomerId, update.stripeCustomerId))
+      .limit(1)
+    bandId = row?.id
+  } else if (update.providerRef) {
+    const conditions = [eq(bands.subscriptionProviderRef, update.providerRef)]
+    if (update.prevProviderRef) {
+      conditions.push(eq(bands.subscriptionProviderRef, update.prevProviderRef))
+    }
+    const [row] = await db
+      .select({ id: bands.id })
+      .from(bands)
+      .where(or(...conditions))
+      .limit(1)
+    bandId = row?.id
+  }
+
+  if (!bandId) {
+    console.warn('[billing] applyWebhookUpdate: band not found', {
+      stripeCustomerId: update.stripeCustomerId,
+      providerRef: update.providerRef,
+    })
+    return
+  }
+
+  await writeBandSubscription(bandId, update.provider, update.subscription)
+}
+
+// ─── GET /plans ───────────────────────────────────────────────────────────────
 
 billing.get('/plans', requireAuth, requireTenant, async (c) => {
   const bandId = c.get('bandId')
   const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
   if (!band) return c.json({ error: 'Band not found' }, 404)
 
+  const provider = (band.subscriptionProvider ?? 'none') as SubscriptionProviderId
+  const interval = (band.subscriptionInterval as BillingInterval | null) ?? null
+  const managementUrl =
+    provider !== 'stripe' && provider !== 'none' && provider !== 'manual'
+      ? getProvider(provider).getManagementUrl(band.subscriptionProviderRef ?? null, interval)
+      : null // Stripe portal generated dynamically via /billing/portal
+
   return c.json({
     currentPlan: normalizePlan(band.plan),
     hasProPlan: await bandHasProPlan(bandId),
+    subscriptionProvider: provider,
     currentSubscription: {
-      status: normalizeSubscriptionStatus(band.subscriptionStatus),
-      interval: (band.subscriptionInterval as BillingInterval | null) ?? null,
+      status: (band.subscriptionStatus ?? 'none') as SubscriptionStatus,
+      interval,
       currentPeriodEnd: band.subscriptionCurrentPeriodEnd,
       cancelAtPeriodEnd: band.subscriptionCancelAtPeriodEnd,
+      managementUrl,
     },
     android: {
       packageName: process.env.GPLAY_PACKAGE_NAME ?? null,
       proProducts: {
-        monthly: googlePlayProductIdForPro('monthly') ?? null,
-        yearly: googlePlayProductIdForPro('yearly') ?? null,
+        monthly: process.env.GPLAY_PRODUCT_PRO_MONTHLY ?? null,
+        yearly: process.env.GPLAY_PRODUCT_PRO_YEARLY ?? null,
       },
     },
     ios: {
       bundleId: process.env.APPLE_BUNDLE_ID ?? null,
       proProducts: {
-        monthly: appleProductIdForPro('monthly') ?? null,
-        yearly: appleProductIdForPro('yearly') ?? null,
+        monthly: process.env.APPLE_PRODUCT_PRO_MONTHLY ?? null,
+        yearly: process.env.APPLE_PRODUCT_PRO_YEARLY ?? null,
       },
     },
     plans: PLANS,
   })
 })
+
+// ─── POST /google-play/activate ───────────────────────────────────────────────
 
 billing.post(
   '/google-play/activate',
@@ -206,38 +193,76 @@ billing.post(
     z.object({
       productId: z.string().min(1),
       purchaseToken: z.string().min(1),
-      orderId: z.string().optional(),
       interval: z.enum(['monthly', 'yearly']).optional(),
     }),
   ),
   async (c) => {
     const bandId = c.get('bandId')
-    const { productId, purchaseToken, interval } = c.req.valid('json')
+    const body = c.req.valid('json')
+
     const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
     if (!band) return c.json({ error: 'Band not found' }, 404)
 
-    const resolvedInterval: BillingInterval =
-      interval ??
-      (productId === googlePlayProductIdForPro('yearly') ? 'yearly' : 'monthly')
+    // Cross-provider guard: refuse if the band has an active subscription from a different store
+    const currentProvider = (band.subscriptionProvider ?? 'none') as SubscriptionProviderId
+    if (
+      (currentProvider === 'stripe' || currentProvider === 'app_store') &&
+      isActiveEntitlement((band.subscriptionStatus ?? 'none') as SubscriptionStatus)
+    ) {
+      return c.json(
+        {
+          error: `This band already has an active ${currentProvider} subscription. Cancel it there first.`,
+          provider: currentProvider,
+        },
+        409,
+      )
+    }
 
-    const periodEnd = new Date()
-    periodEnd.setMonth(periodEnd.getMonth() + (resolvedInterval === 'yearly' ? 12 : 1))
-
-    await db
-      .update(bands)
-      .set({
-        plan: 'pro',
-        subscriptionStatus: 'active',
-        subscriptionInterval: resolvedInterval,
-        subscriptionCurrentPeriodEnd: periodEnd,
-        stripeSubscriptionId: `gplay:${productId}:${purchaseToken.slice(0, 32)}`,
-        subscriptionCancelAtPeriodEnd: false,
-      })
-      .where(eq(bands.id, band.id))
-
-    return c.json({ ok: true })
+    try {
+      const sub = await googlePlayProvider.verifyPurchase(body)
+      await writeBandSubscription(bandId, 'google_play', sub)
+      return c.json({ ok: true })
+    } catch (error) {
+      console.error('[billing.google-play.activate] failed', error)
+      return c.json({ error: 'Purchase verification failed' }, 400)
+    }
   },
 )
+
+// ─── POST /google-play/restore ────────────────────────────────────────────────
+
+billing.post(
+  '/google-play/restore',
+  requireAuth,
+  requireTenant,
+  requireRole('admin'),
+  zValidator(
+    'json',
+    z.object({
+      productId: z.string().min(1),
+      purchaseToken: z.string().min(1),
+    }),
+  ),
+  async (c) => {
+    const bandId = c.get('bandId')
+    const body = c.req.valid('json')
+
+    const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
+    if (!band) return c.json({ error: 'Band not found' }, 404)
+
+    try {
+      const sub = await googlePlayProvider.restore(body)
+      if (!sub) return c.json({ error: 'No active subscription found for this purchase token' }, 404)
+      await writeBandSubscription(bandId, 'google_play', sub)
+      return c.json({ ok: true })
+    } catch (error) {
+      console.error('[billing.google-play.restore] failed', error)
+      return c.json({ error: 'Restore failed' }, 400)
+    }
+  },
+)
+
+// ─── POST /apple/activate (stub — full impl in iter-11) ───────────────────────
 
 billing.post(
   '/apple/activate',
@@ -254,33 +279,48 @@ billing.post(
     }),
   ),
   async (c) => {
+    // TODO iter-11: replace with real App Store Server API verification
     const bandId = c.get('bandId')
     const { productId, originalTransactionId, interval } = c.req.valid('json')
+
     const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
     if (!band) return c.json({ error: 'Band not found' }, 404)
 
+    const currentProvider = (band.subscriptionProvider ?? 'none') as SubscriptionProviderId
+    if (
+      (currentProvider === 'stripe' || currentProvider === 'google_play') &&
+      isActiveEntitlement((band.subscriptionStatus ?? 'none') as SubscriptionStatus)
+    ) {
+      return c.json(
+        {
+          error: `This band already has an active ${currentProvider} subscription. Cancel it there first.`,
+          provider: currentProvider,
+        },
+        409,
+      )
+    }
+
+    const yearlyProductId = process.env.APPLE_PRODUCT_PRO_YEARLY
     const resolvedInterval: BillingInterval =
-      interval ??
-      (productId === appleProductIdForPro('yearly') ? 'yearly' : 'monthly')
+      interval ?? (yearlyProductId && productId === yearlyProductId ? 'yearly' : 'monthly')
 
     const periodEnd = new Date()
     periodEnd.setMonth(periodEnd.getMonth() + (resolvedInterval === 'yearly' ? 12 : 1))
 
-    await db
-      .update(bands)
-      .set({
-        plan: 'pro',
-        subscriptionStatus: 'active',
-        subscriptionInterval: resolvedInterval,
-        subscriptionCurrentPeriodEnd: periodEnd,
-        stripeSubscriptionId: `apple:${productId}:${originalTransactionId.slice(0, 32)}`,
-        subscriptionCancelAtPeriodEnd: false,
-      })
-      .where(eq(bands.id, band.id))
+    await writeBandSubscription(bandId, 'app_store', {
+      plan: 'pro',
+      status: 'active',
+      interval: resolvedInterval,
+      currentPeriodEnd: periodEnd,
+      cancelAtPeriodEnd: false,
+      providerRef: originalTransactionId,
+    })
 
     return c.json({ ok: true })
   },
 )
+
+// ─── POST /checkout (Stripe, web only) ───────────────────────────────────────
 
 billing.post(
   '/checkout',
@@ -293,8 +333,24 @@ billing.post(
       const stripe = getStripe()
       const bandId = c.get('bandId')
       const { plan, interval } = c.req.valid('json')
+
       const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
       if (!band) return c.json({ error: 'Band not found' }, 404)
+
+      // Cross-provider guard: refuse if already active via a store
+      const currentProvider = (band.subscriptionProvider ?? 'none') as SubscriptionProviderId
+      if (
+        (currentProvider === 'google_play' || currentProvider === 'app_store') &&
+        isActiveEntitlement((band.subscriptionStatus ?? 'none') as SubscriptionStatus)
+      ) {
+        return c.json(
+          {
+            error: `This band is subscribed through ${currentProvider}. Cancel there first to switch to web billing.`,
+            provider: currentProvider,
+          },
+          409,
+        )
+      }
 
       const priceId = envPriceIdForPro(interval)
       if (!priceId) {
@@ -318,11 +374,7 @@ billing.post(
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${appUrl}/billing?checkout=success`,
         cancel_url: `${appUrl}/billing?checkout=cancel`,
-        metadata: {
-          bandId: String(band.id),
-          plan,
-          interval,
-        },
+        metadata: { bandId: String(band.id), plan, interval },
       })
 
       return c.json({ url: session.url })
@@ -332,6 +384,8 @@ billing.post(
     }
   },
 )
+
+// ─── GET /portal (Stripe, web only) ──────────────────────────────────────────
 
 billing.get('/portal', requireAuth, requireTenant, requireRole('admin'), async (c) => {
   try {
@@ -354,6 +408,8 @@ billing.get('/portal', requireAuth, requireTenant, requireRole('admin'), async (
   }
 })
 
+// ─── POST /internal/assign-pro-zero ──────────────────────────────────────────
+
 billing.post(
   '/internal/assign-pro-zero',
   zValidator('json', z.object({ bandId: z.number().int().positive() })),
@@ -367,21 +423,20 @@ billing.post(
     const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
     if (!band) return c.json({ error: 'Band not found' }, 404)
 
-    await db
-      .update(bands)
-      .set({
-        plan: 'pro-zero',
-        subscriptionStatus: 'active',
-        subscriptionInterval: null,
-        subscriptionCurrentPeriodEnd: null,
-        stripeSubscriptionId: null,
-        subscriptionCancelAtPeriodEnd: false,
-      })
-      .where(eq(bands.id, bandId))
+    await writeBandSubscription(bandId, 'manual', {
+      plan: 'pro-zero',
+      status: 'active',
+      interval: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      providerRef: null,
+    })
 
     return c.json({ ok: true })
   },
 )
+
+// ─── POST /internal/assign-user-pro ──────────────────────────────────────────
 
 billing.post(
   '/internal/assign-user-pro',
@@ -417,85 +472,59 @@ billing.post(
   },
 )
 
+// ─── POST /webhook (Stripe) ───────────────────────────────────────────────────
+
 billing.post('/webhook', async (c) => {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-  if (!webhookSecret) {
-    return c.json({ error: 'STRIPE_WEBHOOK_SECRET is not configured' }, 500)
-  }
+  const rawBody = await c.req.text()
+  const headers = { 'stripe-signature': c.req.header('stripe-signature') ?? '' }
 
-  const signature = c.req.header('stripe-signature')
-  if (!signature) {
-    return c.json({ error: 'Missing stripe-signature header' }, 400)
-  }
-
-  let event: Stripe.Event
+  let update: WebhookBandUpdate | null
   try {
-    const stripe = getStripe()
-    const payload = await c.req.text()
-    event = stripe.webhooks.constructEvent(payload, signature, webhookSecret)
+    update = await stripeProvider.handleWebhook(rawBody, headers, {})
   } catch (error) {
-    console.error('[billing.webhook] signature verification failed', error)
-    return c.json({ error: 'Invalid webhook signature' }, 400)
+    console.error('[billing.webhook.stripe] failed', error)
+    const msg = error instanceof Error ? error.message : 'Webhook error'
+    const status = msg.includes('signature') || msg.includes('configured') ? 400 : 500
+    return c.json({ error: msg }, status)
   }
 
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session
-        if (typeof session.customer === 'string' && session.mode === 'subscription') {
-          const plan = normalizePlan((session.metadata?.plan as string | undefined) ?? 'free')
-          const interval = (session.metadata?.interval as BillingInterval | undefined) ?? null
-          await updateBandSubscriptionByCustomer(session.customer, {
-            plan,
-            status: 'active',
-            interval,
-            currentPeriodEnd: null,
-            stripeSubscriptionId: typeof session.subscription === 'string' ? session.subscription : null,
-            cancelAtPeriodEnd: false,
-          })
-        }
-        break
-      }
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription
-        if (typeof sub.customer === 'string') {
-          const priceId = sub.items.data[0]?.price?.id
-          const currentPeriodEndUnix = (sub as { current_period_end?: number }).current_period_end
-          const mapped = planFromPriceId(priceId)
-          await updateBandSubscriptionByCustomer(sub.customer, {
-            plan: mapped.plan,
-            status: normalizeSubscriptionStatus(sub.status),
-            interval: mapped.interval ?? billingIntervalFromPrice(sub.items.data[0]?.price),
-            currentPeriodEnd: currentPeriodEndUnix ? new Date(currentPeriodEndUnix * 1000) : null,
-            stripeSubscriptionId: sub.id,
-            cancelAtPeriodEnd: !!sub.cancel_at_period_end,
-          })
-        }
-        break
-      }
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object as Stripe.Subscription
-        if (typeof sub.customer === 'string') {
-          const currentPeriodEndUnix = (sub as { current_period_end?: number }).current_period_end
-          await updateBandSubscriptionByCustomer(sub.customer, {
-            plan: 'free',
-            status: 'canceled',
-            interval: null,
-            currentPeriodEnd: currentPeriodEndUnix ? new Date(currentPeriodEndUnix * 1000) : null,
-            stripeSubscriptionId: null,
-            cancelAtPeriodEnd: false,
-          })
-        }
-        break
-      }
-      default:
-        break
+  if (update) {
+    try {
+      await applyWebhookUpdate(update)
+    } catch (error) {
+      console.error('[billing.webhook.stripe] DB update failed', error)
+      return c.json({ error: 'Webhook handler error' }, 500)
     }
-  } catch (error) {
-    console.error('[billing.webhook] handler failed', error)
-    return c.json({ error: 'Webhook handler error' }, 500)
   }
 
+  return c.json({ received: true })
+})
+
+// ─── POST /webhook/google_play (RTDN via Pub/Sub push) ───────────────────────
+
+billing.post('/webhook/google_play', async (c) => {
+  const rawBody = await c.req.text()
+  const query = c.req.query()
+
+  let update: WebhookBandUpdate | null
+  try {
+    update = await googlePlayProvider.handleWebhook(rawBody, {}, query)
+  } catch (error) {
+    console.error('[billing.webhook.google_play] failed', error)
+    const msg = error instanceof Error ? error.message : 'Webhook error'
+    if (msg.includes('Invalid RTDN push token')) return c.json({ error: msg }, 401)
+    return c.json({ error: msg }, 500)
+  }
+
+  if (update) {
+    try {
+      await applyWebhookUpdate(update)
+    } catch (error) {
+      console.error('[billing.webhook.google_play] DB update failed', error)
+      return c.json({ error: 'Webhook handler error' }, 500)
+    }
+  }
+
+  // Pub/Sub requires 2xx to acknowledge delivery; any non-2xx causes a retry
   return c.json({ received: true })
 })

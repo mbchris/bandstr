@@ -22,7 +22,9 @@ export const bands = pgTable('bands', {
   logoBright: text('logo_bright'),
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
-  subscriptionStatus: text('subscription_status').notNull().default('none'), // 'none' | 'active' | 'canceled' | 'past_due' | 'trialing'
+  subscriptionProvider: text('subscription_provider').notNull().default('none'), // 'none' | 'stripe' | 'google_play' | 'app_store' | 'manual'
+  subscriptionProviderRef: text('subscription_provider_ref'), // purchaseToken / stripeSubscriptionId / originalTransactionId
+  subscriptionStatus: text('subscription_status').notNull().default('none'), // 'none' | 'active' | 'canceled' | 'past_due' | 'trialing' | 'grace_period' | 'on_hold' | 'paused'
   subscriptionInterval: text('subscription_interval'), // 'monthly' | 'yearly'
   subscriptionCurrentPeriodEnd: timestamp('subscription_current_period_end'),
   subscriptionCancelAtPeriodEnd: boolean('subscription_cancel_at_period_end').notNull().default(false),

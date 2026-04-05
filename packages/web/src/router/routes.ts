@@ -9,6 +9,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'dashboard', component: () => import('../pages/DashboardPage.vue') },
       { path: '', component: () => import('../pages/IndexPage.vue') },
       { path: 'voting', component: () => import('../pages/VotingPage.vue') },
+      { path: 'testing/voting', component: () => import('../pages/TestingVotingPage.vue') },
       { path: 'setlist', component: () => import('../pages/SetlistPage.vue') },
       { path: 'calendar', component: () => import('../pages/CalendarPage.vue') },
       { path: 'stand', component: () => import('../pages/StandPage.vue') },
