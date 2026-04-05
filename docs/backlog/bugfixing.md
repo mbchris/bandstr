@@ -45,3 +45,22 @@
     - [x] OIDC login (GitHub/Google) uses an invalid redirect URL missing the `/bandstr` subpath.
     - [x] Add detailed access logs to debug auth process.
   **File hints:** `nuxt.config.ts`, `server/api/auth/[...].ts`
+
+## Task-xxxx: Gig setlist cannot be sorted
+- **Labels:** bug
+- **Acceptance Criteria:**
+    - [ ] Sorting Songs in the Gig Setlist is not possible. An error message is shown instead
+    
+
+## Task-xxxx: Position of error and information messages
+- **Labels:** bug
+- **Acceptance Criteria:**
+    - [ ] Error and information overlays are shown at the bottom of the app. This conflicts with the button bar position. They shall be shown in the upper 1/3 of the screen instead.
+    - [ ] Error and information overlays shall be shown in a slightly transparent box with rounded corners 
+
+
+## Feature-xxxx: Position of error and information messages
+- **Labels:** feature
+- **Acceptance Criteria:**
+    - [ ] Error and information overlays are shown at the bottom of the app. This conflicts with the button bar position. They shall be shown in the upper 1/3 of the screen instead.
+    - [ ] Error and information overlays shall be shown in a slightly transparent box with rounded corners 
