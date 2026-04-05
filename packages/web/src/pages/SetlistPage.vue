@@ -815,7 +815,7 @@ onMounted(() => {
 }
 
 .dragging-item {
-  opacity: 0.72;
+  opacity: 0.92;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35) inset;
   background: rgba(59, 130, 246, 0.08);
 }
