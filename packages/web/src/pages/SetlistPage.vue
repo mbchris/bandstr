@@ -763,6 +763,10 @@ onMounted(() => {
   background: rgba(245, 158, 11, 0.14);
   color: #f59e0b;
   border-radius: 6px;
-  padding: 2px 6px;
+  width: 44px;
+  margin: 0 auto;
+  padding: 1px 2px;
+  font-size: 10px;
+  line-height: 1.15;
 }
 </style>
