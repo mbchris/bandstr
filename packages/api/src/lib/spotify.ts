@@ -138,13 +138,72 @@ function decodeHtmlEntities(value: string): string {
     .trim()
 }
 
-function extractMetaContent(html: string, attribute: string, name: string): string | null {
-  const regex = new RegExp(
-    `<meta[^>]+${attribute}=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`,
-    'i',
-  )
-  const match = html.match(regex)
-  return match?.[1] ? decodeHtmlEntities(match[1]) : null
+function parseMetaTags(html: string): Array<Record<string, string>> {
+  const tags = html.match(/<meta\b[^>]*>/gi) ?? []
+  const parsed: Array<Record<string, string>> = []
+
+  for (const tag of tags) {
+    const attrs: Record<string, string> = {}
+    const attrRegex = /([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)')/g
+    let match: RegExpExecArray | null = attrRegex.exec(tag)
+    while (match) {
+      const key = match[1].toLowerCase()
+      const value = decodeHtmlEntities((match[3] ?? match[4] ?? '').trim())
+      attrs[key] = value
+      match = attrRegex.exec(tag)
+    }
+    if (Object.keys(attrs).length > 0) parsed.push(attrs)
+  }
+
+  return parsed
+}
+
+function extractMetaContent(metaTags: Array<Record<string, string>>, attribute: string, name: string): string | null {
+  const attrName = attribute.toLowerCase()
+  const wanted = name.toLowerCase()
+  const tag = metaTags.find((m) => (m[attrName] ?? '').toLowerCase() === wanted)
+  return tag?.content ?? null
+}
+
+function extractJsonLdMetadata(html: string): { title: string | null; artist: string | null } {
+  const scriptRegex = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let match: RegExpExecArray | null = scriptRegex.exec(html)
+  while (match) {
+    const raw = (match[1] ?? '').trim()
+    if (!raw) {
+      match = scriptRegex.exec(html)
+      continue
+    }
+    try {
+      const parsed = JSON.parse(raw)
+      const items = Array.isArray(parsed) ? parsed : [parsed]
+
+      for (const item of items) {
+        if (!item || typeof item !== 'object') continue
+        const record = item as Record<string, unknown>
+
+        const name = typeof record.name === 'string' ? decodeHtmlEntities(record.name) : null
+        const byArtist = record.byArtist
+        let artist: string | null = null
+        if (byArtist && typeof byArtist === 'object') {
+          const artistName = (byArtist as Record<string, unknown>).name
+          if (typeof artistName === 'string') {
+            artist = decodeHtmlEntities(artistName)
+          }
+        }
+
+        if (name || artist) {
+          return { title: name, artist }
+        }
+      }
+    } catch {
+      // Ignore malformed JSON-LD blocks and continue.
+    }
+
+    match = scriptRegex.exec(html)
+  }
+
+  return { title: null, artist: null }
 }
 
 async function fetchSpotifyMetadataFromPage(url: string): Promise<SpotifyPageMetadata> {
@@ -160,25 +219,32 @@ async function fetchSpotifyMetadataFromPage(url: string): Promise<SpotifyPageMet
   }
 
   const html = await response.text()
-  const ogTitle = extractMetaContent(html, 'property', 'og:title')
-  const ogImage = extractMetaContent(html, 'property', 'og:image')
-  const ogDescription = extractMetaContent(html, 'property', 'og:description')
+  const metaTags = parseMetaTags(html)
+  const ogTitle = extractMetaContent(metaTags, 'property', 'og:title')
+  const ogImage = extractMetaContent(metaTags, 'property', 'og:image')
+  const ogDescription = extractMetaContent(metaTags, 'property', 'og:description')
+  const jsonLd = extractJsonLdMetadata(html)
 
-  let artist: string | null = null
+  let title: string | null = jsonLd.title ?? ogTitle ?? null
+  let artist: string | null = jsonLd.artist ?? null
   if (ogDescription) {
     const parts = ogDescription.split('·').map((s) => s.trim()).filter(Boolean)
-    if (parts.length >= 2) {
-      artist = parts[1] || null
+    const cleaned = parts.filter((part) => !part.toLowerCase().startsWith('listen to '))
+    const normalizedTitle = normalizeText(title ?? '')
+    const withoutTitle = cleaned.filter((part) => normalizeText(part) !== normalizedTitle)
+    if (!artist && withoutTitle.length > 0) {
+      artist = withoutTitle[0] ?? null
     }
   }
 
-  if (!artist && ogTitle) {
-    const parsed = parseArtistFromSpotifyTitle(ogTitle)
+  if (!artist && title) {
+    const parsed = parseArtistFromSpotifyTitle(title)
+    title = parsed.title
     artist = parsed.artist
   }
 
   return {
-    title: ogTitle ?? null,
+    title,
     artist,
     thumbnail: ogImage ?? null,
   }

@@ -386,10 +386,19 @@ function formatDuration(ms: number): string {
 async function submitSong() {
   submitting.value = true
   try {
+    const payload = {
+      title: modalSong.value.title,
+      artist: modalSong.value.artist,
+      spotifyUrl: modalSong.value.spotifyUrl || undefined,
+      youtubeUrl: modalSong.value.youtubeUrl || undefined,
+      notes: modalSong.value.notes || undefined,
+      lengthMs: modalSong.value.lengthMs || undefined,
+    }
+
     if (modalSong.value.id) {
-      await songsStore.updateSong(modalSong.value.id, modalSong.value as any)
+      await songsStore.updateSong(modalSong.value.id, payload as any)
     } else {
-      await songsStore.createSong(modalSong.value as any)
+      await songsStore.createSong(payload as any)
     }
     showSongModal.value = false
     await songsStore.fetchSongs()
