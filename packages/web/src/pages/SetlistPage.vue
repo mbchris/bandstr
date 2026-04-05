@@ -21,6 +21,9 @@
             </q-input>
             <q-select v-model="selectedGigId" :options="gigOptions" emit-value map-options dense outlined style="width: 200px" />
           </div>
+          <div class="text-caption text-grey-7 q-mb-md">
+            Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
+          </div>
 
           <q-list v-if="filteredSongs.length" separator>
             <q-item
@@ -78,6 +81,9 @@
                       Pitch: {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
                     </q-badge>
                   </div>
+                  <q-item-label caption v-if="item.lengthMs">
+                    Length: {{ formatDuration(item.lengthMs) }}
+                  </q-item-label>
                 </template>
 
                 <!-- Pause content -->
@@ -301,6 +307,13 @@ const filteredSongs = computed(() => {
   return list
 })
 
+const songCount = computed(() => activeSongs.value.filter((s) => s.type === 'song').length)
+const totalDurationMs = computed(() =>
+  activeSongs.value
+    .filter((s) => s.type === 'song' && typeof s.lengthMs === 'number')
+    .reduce((sum, s) => sum + (s.lengthMs ?? 0), 0),
+)
+
 // Master songs for gig song picker
 const masterSongOptions = computed(() =>
   songsStore.songs
@@ -423,7 +436,14 @@ function showNote(title: string, content: string | null | undefined) {
 
 // Add song to master setlist
 const showAddSongModal = ref(false)
-const addSongForm = ref({ title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '' })
+const addSongForm = ref({
+  title: '',
+  artist: '',
+  spotifyUrl: '',
+  youtubeUrl: '',
+  notes: '',
+  lengthMs: null as number | null,
+})
 const addSongLookingUp = ref(false)
 const addSongLookupError = ref('')
 const isSaving = ref(false)
@@ -432,7 +452,7 @@ function openAddSongModal() {
   if (selectedGigId.value) {
     showAddGigSongModal.value = true
   } else {
-    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '' }
+    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null }
     addSongLookupError.value = ''
     showAddSongModal.value = true
   }
@@ -446,6 +466,7 @@ async function submitAddSong() {
       artist: addSongForm.value.artist,
       spotifyUrl: addSongForm.value.spotifyUrl || undefined,
       youtubeUrl: addSongForm.value.youtubeUrl || undefined,
+      lengthMs: addSongForm.value.lengthMs || undefined,
       notes: addSongForm.value.notes || undefined,
       position: filteredSongs.value.length,
       isSetlist: true,
@@ -466,6 +487,7 @@ async function lookupSpotifyForAdd(force = true) {
     const data = await apiJson<any>(`/songs/lookup?url=${encodeURIComponent(url)}`)
     if (data?.title && (force || !addSongForm.value.title)) addSongForm.value.title = data.title
     if (data?.artist && (force || !addSongForm.value.artist)) addSongForm.value.artist = data.artist
+    if (typeof data?.lengthMs === 'number') addSongForm.value.lengthMs = data.lengthMs
   } catch {
     addSongLookupError.value = t('voting.lookupFailed')
   } finally {
@@ -548,6 +570,7 @@ async function lookupSpotify(force = true) {
     const data = await apiJson<any>(`/songs/lookup?url=${encodeURIComponent(url)}`)
     if (data?.title && (force || !editingItem.value.title)) editingItem.value.title = data.title
     if (data?.artist && (force || !editingItem.value.artist)) editingItem.value.artist = data.artist
+    if (typeof data?.lengthMs === 'number') editingItem.value.lengthMs = data.lengthMs
   } catch { lookupError.value = t('voting.lookupFailed') }
   finally { isLookingUp.value = false }
 }
@@ -562,6 +585,7 @@ async function saveItemEdit() {
       artist: editingItem.value.artist,
       spotifyUrl: editingItem.value.spotifyUrl,
       youtubeUrl: editingItem.value.youtubeUrl,
+      lengthMs: editingItem.value.lengthMs,
       pitch: editingItem.value.pitch,
       notes: editingItem.value.notes,
     } as any)
@@ -583,7 +607,15 @@ function handleExport() {
   import('xlsx').then(({ utils, writeFile }) => {
     const data = filteredSongs.value.map((item, idx) => {
       if (item.type === 'song') {
-        return { '#': idx + 1, Title: item.title, Artist: item.artist, Pitch: item.pitch !== 0 ? (item.pitch > 0 ? '+' : '') + item.pitch : '', Notes: item.notes || '', 'Personal Note': getPersonalNote(item.id) }
+        return {
+          '#': idx + 1,
+          Title: item.title,
+          Artist: item.artist,
+          Length: item.lengthMs ? formatDuration(item.lengthMs) : '',
+          Pitch: item.pitch !== 0 ? (item.pitch > 0 ? '+' : '') + item.pitch : '',
+          Notes: item.notes || '',
+          'Personal Note': getPersonalNote(item.id),
+        }
       }
       return { '#': idx + 1, Title: item.title, Artist: `[${item.type.toUpperCase()}]`, Pitch: '', Notes: item.notes || '', 'Personal Note': '' }
     })
@@ -592,6 +624,12 @@ function handleExport() {
     utils.book_append_sheet(wb, ws, 'Setlist')
     writeFile(wb, `bandstr_setlist_${new Date().toISOString().split('T')[0]}.xlsx`)
   })
+}
+
+function formatDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
 onMounted(() => {

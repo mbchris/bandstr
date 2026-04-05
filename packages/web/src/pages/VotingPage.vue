@@ -58,6 +58,9 @@
                   <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
                   <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
                 </div>
+                <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
+                  Length: {{ formatDuration(song.lengthMs) }}
+                </div>
                 <div class="votes-grid q-mt-sm">
                   <div class="votes-self">
                     <button
@@ -325,18 +328,34 @@ async function deleteSong(song: Song) {
 // Song modal
 const showSongModal = ref(false)
 const submitting = ref(false)
-const modalSong = ref({ id: null as number | null, title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '' })
+const modalSong = ref({
+  id: null as number | null,
+  title: '',
+  artist: '',
+  spotifyUrl: '',
+  youtubeUrl: '',
+  notes: '',
+  lengthMs: null as number | null,
+})
 const lookingUp = ref(false)
 const lookupError = ref('')
 
 function openAddModal() {
-  modalSong.value = { id: null, title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '' }
+  modalSong.value = { id: null, title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null }
   lookupError.value = ''
   showSongModal.value = true
 }
 
 function openEditModal(song: Song) {
-  modalSong.value = { id: song.id, title: song.title, artist: song.artist, spotifyUrl: song.spotifyUrl || '', youtubeUrl: song.youtubeUrl || '', notes: song.notes || '' }
+  modalSong.value = {
+    id: song.id,
+    title: song.title,
+    artist: song.artist,
+    spotifyUrl: song.spotifyUrl || '',
+    youtubeUrl: song.youtubeUrl || '',
+    notes: song.notes || '',
+    lengthMs: song.lengthMs ?? null,
+  }
   lookupError.value = ''
   showSongModal.value = true
 }
@@ -351,11 +370,18 @@ async function lookupSpotify(force = true) {
     const data = await apiJson<any>(`/songs/lookup?url=${encodeURIComponent(url)}`)
     if (data?.title && (force || !modalSong.value.title)) modalSong.value.title = data.title
     if (data?.artist && (force || !modalSong.value.artist)) modalSong.value.artist = data.artist
+    if (typeof data?.lengthMs === 'number') modalSong.value.lengthMs = data.lengthMs
   } catch { lookupError.value = t('voting.lookupFailed') }
   finally { lookingUp.value = false }
 }
 
 function onSpotifyPaste() { setTimeout(() => lookupSpotify(false), 100) }
+
+function formatDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
 
 async function submitSong() {
   submitting.value = true
