@@ -142,8 +142,23 @@
           <div v-if="lookupError" class="text-red text-caption">{{ lookupError }}</div>
           <q-input v-model="modalSong.title" :label="t('voting.songTitle')" outlined dense />
           <q-input v-model="modalSong.artist" :label="t('voting.artist')" outlined dense />
+          <q-input
+            v-model="modalSongLengthInput"
+            label="Length (mm:ss)"
+            hint="Example: 3:45"
+            outlined
+            dense
+            @blur="normalizeVotingLengthInput"
+          />
           <q-input v-model="modalSong.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
-          <q-input v-model="modalSong.notes" :label="t('voting.notes')" type="textarea" outlined dense autogrow />
+          <div class="row items-center q-gutter-md">
+            <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
+            <q-slider v-model="modalSong.pitch" :min="-5" :max="5" :step="1" snap label class="col" />
+            <q-badge color="grey-8" class="text-body2">
+              {{ modalSong.pitch > 0 ? '+' : '' }}{{ modalSong.pitch }}
+            </q-badge>
+          </div>
+          <q-input v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -328,6 +343,7 @@ async function deleteSong(song: Song) {
 // Song modal
 const showSongModal = ref(false)
 const submitting = ref(false)
+const modalSongLengthInput = ref('')
 const modalSong = ref({
   id: null as number | null,
   title: '',
@@ -336,12 +352,14 @@ const modalSong = ref({
   youtubeUrl: '',
   notes: '',
   lengthMs: null as number | null,
+  pitch: 0,
 })
 const lookingUp = ref(false)
 const lookupError = ref('')
 
 function openAddModal() {
-  modalSong.value = { id: null, title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null }
+  modalSong.value = { id: null, title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null, pitch: 0 }
+  modalSongLengthInput.value = ''
   lookupError.value = ''
   showSongModal.value = true
 }
@@ -355,7 +373,9 @@ function openEditModal(song: Song) {
     youtubeUrl: song.youtubeUrl || '',
     notes: song.notes || '',
     lengthMs: song.lengthMs ?? null,
+    pitch: song.pitch ?? 0,
   }
+  modalSongLengthInput.value = formatLengthInput(song.lengthMs ?? null)
   lookupError.value = ''
   showSongModal.value = true
 }
@@ -370,7 +390,10 @@ async function lookupSpotify(force = true) {
     const data = await apiJson<any>(`/songs/lookup?url=${encodeURIComponent(url)}`)
     if (data?.title && (force || !modalSong.value.title)) modalSong.value.title = data.title
     if (data?.artist && (force || !modalSong.value.artist)) modalSong.value.artist = data.artist
-    if (typeof data?.lengthMs === 'number') modalSong.value.lengthMs = data.lengthMs
+    if (typeof data?.lengthMs === 'number') {
+      modalSong.value.lengthMs = data.lengthMs
+      modalSongLengthInput.value = formatLengthInput(data.lengthMs)
+    }
   } catch { lookupError.value = t('voting.lookupFailed') }
   finally { lookingUp.value = false }
 }
@@ -386,13 +409,15 @@ function formatDuration(ms: number): string {
 async function submitSong() {
   submitting.value = true
   try {
+    const parsedLengthMs = parseLengthToMs(modalSongLengthInput.value)
     const payload = {
       title: modalSong.value.title,
       artist: modalSong.value.artist,
       spotifyUrl: modalSong.value.spotifyUrl || undefined,
       youtubeUrl: modalSong.value.youtubeUrl || undefined,
       notes: modalSong.value.notes || undefined,
-      lengthMs: modalSong.value.lengthMs || undefined,
+      lengthMs: parsedLengthMs ?? modalSong.value.lengthMs ?? undefined,
+      pitch: modalSong.value.pitch ?? 0,
     }
 
     if (modalSong.value.id) {
@@ -404,6 +429,30 @@ async function submitSong() {
     await songsStore.fetchSongs()
   } catch (e: any) { $q.notify({ message: e.message || t('voting.failedAdd'), color: 'negative' }) }
   finally { submitting.value = false }
+}
+
+function parseLengthToMs(input: string): number | null {
+  const value = input.trim()
+  if (!value) return null
+  const match = value.match(/^(\d{1,3}):([0-5]\d)$/)
+  if (!match) return null
+  const minutes = Number(match[1])
+  const seconds = Number(match[2])
+  return (minutes * 60 + seconds) * 1000
+}
+
+function formatLengthInput(ms: number | null): string {
+  if (typeof ms !== 'number' || ms < 0) return ''
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function normalizeVotingLengthInput() {
+  const ms = parseLengthToMs(modalSongLengthInput.value)
+  if (ms !== null) {
+    modalSongLengthInput.value = formatLengthInput(ms)
+  }
 }
 
 // Transfer
