@@ -227,6 +227,11 @@ scripts/           Setup and automation scripts
 - Iteration roadmap: [docs/feature_plan.md](docs/feature_plan.md)
 - Deployment guide: [docs/coolify-deployment.md](docs/coolify-deployment.md)
 
+## Spotify Test Page
+
+- Direct URL (not linked from Impress UI): `/impress/spotify-test`
+- Example production URL: `https://bandstr.apps.4ki.app/impress/spotify-test`
+
 ## License
 
 All rights reserved.

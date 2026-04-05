@@ -16,15 +16,6 @@
           @click="goToPrivacy"
         />
       </div>
-      <div class="q-mt-sm">
-        <q-btn
-          outline
-          color="secondary"
-          icon="music_note"
-          label="Spotify Test Page"
-          @click="goToSpotifyTest"
-        />
-      </div>
       <div class="impress-rev q-mt-md text-caption text-grey-5">Build: {{ gitRev }}</div>
     </div>
   </q-page>
@@ -48,10 +39,6 @@ function goBack() {
 
 function goToPrivacy() {
   void router.push('/gdpr')
-}
-
-function goToSpotifyTest() {
-  void router.push('/impress/spotify-test')
 }
 
 onMounted(async () => {
