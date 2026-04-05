@@ -14,6 +14,20 @@
         </q-card-section>
 
         <q-card-section>
+          <div class="text-subtitle2 q-mb-sm">Default test entries</div>
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div v-for="entry in defaultEntries" :key="entry.label" class="col-12">
+              <q-btn
+                outline
+                color="secondary"
+                class="full-width justify-start"
+                icon="link"
+                :label="`${entry.label}: ${entry.url}`"
+                @click="setDefaultEntry(entry.url)"
+              />
+            </div>
+          </div>
+
           <q-input
             v-model="spotifyUrl"
             outlined
@@ -108,6 +122,16 @@ const spotifyUrl = ref('')
 const trackData = ref<TrackMetadata | null>(null)
 const errorMsg = ref('')
 const isLoading = ref(false)
+const defaultEntries = [
+  {
+    label: '1',
+    url: 'https://open.spotify.com/track/1De425SCFJULIHbcmeebUw?si=2dc6f63d666a4d7e',
+  },
+  {
+    label: '2',
+    url: 'https://open.spotify.com/track/2fKDO6U8g5pi0HZqXZ4EF0?si=97e28fab049b4bfc',
+  },
+]
 
 const rawJson = computed(() => (trackData.value ? JSON.stringify(trackData.value, null, 2) : ''))
 
@@ -120,6 +144,10 @@ function formatDuration(ms: number | null): string {
   const minutes = Math.floor(ms / 60000)
   const seconds = Math.floor((ms % 60000) / 1000)
   return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function setDefaultEntry(url: string) {
+  spotifyUrl.value = url
 }
 
 async function fetchTrackData() {
