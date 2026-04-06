@@ -1,11 +1,13 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
+import { randomUUID } from 'node:crypto'
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
 
 export const support = new Hono<AuthEnv>()
 
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 2_000_000
+const DEFAULT_SUPPORT_ASSIGNEE = 'mbchris'
 
 const createTicketSchema = z.object({
   type: z.enum(['bug', 'feature', 'comment']),
@@ -32,6 +34,14 @@ function getRuntimeEnv(): string {
 
 function getConfiguredIssuesUrl(): string {
   return (process.env.SUPPORT_GITHUB_ISSUES_URL ?? 'https://github.com/prj120/bandstr/issues').trim()
+}
+
+function getSupportAssignees(): string[] {
+  const configured = (process.env.SUPPORT_GITHUB_ASSIGNEES ?? DEFAULT_SUPPORT_ASSIGNEE)
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  return configured.length ? configured : [DEFAULT_SUPPORT_ASSIGNEE]
 }
 
 function parseRepoConfigFromIssuesUrl(url: string): RepoConfig {
@@ -73,6 +83,78 @@ function sanitizeForTitle(input: string): string {
   return input.replace(/\s+/g, ' ').trim()
 }
 
+function sanitizeForPath(input: string): string {
+  return input.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'user'
+}
+
+function screenshotExtensionForMimeType(mimeType: string): string {
+  if (mimeType === 'image/png') return 'png'
+  if (mimeType === 'image/jpeg') return 'jpg'
+  if (mimeType === 'image/gif') return 'gif'
+  if (mimeType === 'image/webp') return 'webp'
+  throw new Error('Unsupported screenshot format. Please use PNG, JPG, GIF, or WEBP.')
+}
+
+function parseScreenshotDataUrl(input: string): { bytes: Buffer; mimeType: string; extension: string } {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(input)
+  if (!match) {
+    throw new Error('Invalid screenshot payload')
+  }
+  const mimeType = match[1].toLowerCase()
+  const extension = screenshotExtensionForMimeType(mimeType)
+  const base64 = match[2].replace(/\s+/g, '')
+  const bytes = Buffer.from(base64, 'base64')
+  if (!bytes.length) {
+    throw new Error('Screenshot is empty')
+  }
+  return { bytes, mimeType, extension }
+}
+
+async function uploadScreenshotToRepo(args: {
+  owner: string
+  repo: string
+  token: string
+  screenshotDataUrl: string
+  userId: string
+}): Promise<string> {
+  const parsed = parseScreenshotDataUrl(args.screenshotDataUrl)
+  const datePart = new Date().toISOString().slice(0, 10)
+  const screenshotPath = `support-screenshots/${datePart}/${sanitizeForPath(args.userId)}/${Date.now()}-${randomUUID()}.${parsed.extension}`
+
+  const response = await fetch(`https://api.github.com/repos/${args.owner}/${args.repo}/contents/${screenshotPath}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${args.token}`,
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'bandstr-support-api',
+    },
+    body: JSON.stringify({
+      message: `chore(support): upload screenshot ${datePart}`,
+      content: parsed.bytes.toString('base64'),
+    }),
+  })
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    content?: {
+      download_url?: string | null
+      html_url?: string | null
+    }
+    message?: string
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? `GitHub screenshot upload failed (${response.status})`)
+  }
+
+  const downloadUrl = payload.content?.download_url?.trim() ?? ''
+  if (downloadUrl) return downloadUrl
+  const htmlUrl = payload.content?.html_url?.trim() ?? ''
+  if (htmlUrl) return `${htmlUrl}?raw=1`
+  throw new Error('GitHub screenshot upload succeeded but did not return a usable URL')
+}
+
 function makeIssueBody(args: {
   kind: SupportKind
   message: string
@@ -83,7 +165,7 @@ function makeIssueBody(args: {
   bandId?: string
   buildId: string
   environment: string
-  screenshotDataUrl?: string
+  screenshotUrl?: string
 }): string {
   const lines: string[] = []
   lines.push(`## Support ${args.kind}`)
@@ -99,16 +181,39 @@ function makeIssueBody(args: {
   lines.push(`- build id: ${args.buildId}`)
   lines.push(`- environment: ${args.environment}`)
 
-  if (args.screenshotDataUrl) {
+  if (args.screenshotUrl) {
     lines.push('')
     lines.push('### Screenshot')
     lines.push('')
-    lines.push('```text')
-    lines.push(args.screenshotDataUrl)
-    lines.push('```')
+    lines.push(`![Support screenshot](${args.screenshotUrl})`)
+    lines.push('')
+    lines.push(`[Open screenshot](${args.screenshotUrl})`)
   }
 
   return lines.join('\n')
+}
+
+type GitHubApiError = {
+  resource?: string
+  field?: string
+  code?: string
+  message?: string
+}
+
+function parseGitHubErrorMessage(payload: { message?: string; errors?: GitHubApiError[] }, status: number): string {
+  const base = payload.message?.trim() || `GitHub request failed (${status})`
+  const details = (payload.errors ?? [])
+    .map((entry) => [entry.resource, entry.field, entry.code, entry.message].filter(Boolean).join(': '))
+    .filter(Boolean)
+  if (!details.length) return base
+  return `${base} (${details.join('; ')})`
+}
+
+function hasAssigneeValidationError(payload: { errors?: GitHubApiError[] }): boolean {
+  return (payload.errors ?? []).some((entry) => {
+    const field = (entry.field ?? '').toLowerCase()
+    return field === 'assignees' || field === 'assignee'
+  })
 }
 
 support.use('*', requireAuth)
@@ -161,6 +266,26 @@ support.post('/tickets', zValidator('json', createTicketSchema), async (c) => {
   const clientBuildId = c.req.header('X-Client-Build-Id')?.trim() ?? ''
   const clientEnvironment = c.req.header('X-Client-Environment')?.trim() ?? ''
 
+  let screenshotUrl: string | undefined
+  if (screenshotDataUrl) {
+    try {
+      screenshotUrl = await uploadScreenshotToRepo({
+        owner: repoConfig.owner,
+        repo: repoConfig.repo,
+        token,
+        screenshotDataUrl,
+        userId: user.id,
+      })
+    } catch (error) {
+      return c.json(
+        {
+          error: error instanceof Error ? error.message : 'Failed to upload screenshot',
+        },
+        502,
+      )
+    }
+  }
+
   const issueBody = makeIssueBody({
     kind: body.type,
     message: body.message,
@@ -171,33 +296,47 @@ support.post('/tickets', zValidator('json', createTicketSchema), async (c) => {
     bandId: bandIdHeader || undefined,
     buildId: clientBuildId || getBuildId(),
     environment: clientEnvironment || getRuntimeEnv(),
-    screenshotDataUrl: screenshotDataUrl || undefined,
+    screenshotUrl,
   })
 
-  const response = await fetch(`https://api.github.com/repos/${repoConfig.owner}/${repoConfig.repo}/issues`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'bandstr-support-api',
-    },
-    body: JSON.stringify({
-      title,
-      body: issueBody,
-      labels: labelSetForKind(body.type),
-    }),
-  })
+  const requestHeaders = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'bandstr-support-api',
+  }
 
-  const payload = (await response.json().catch(() => ({}))) as {
-    html_url?: string
-    number?: number
-    message?: string
+  const createIssue = async (assignees?: string[]) => {
+    const response = await fetch(`https://api.github.com/repos/${repoConfig.owner}/${repoConfig.repo}/issues`, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify({
+        title,
+        body: issueBody,
+        labels: labelSetForKind(body.type),
+        assignees,
+      }),
+    })
+    const payload = (await response.json().catch(() => ({}))) as {
+      html_url?: string
+      number?: number
+      message?: string
+      errors?: GitHubApiError[]
+    }
+    return { response, payload }
+  }
+
+  let { response, payload } = await createIssue(getSupportAssignees())
+
+  if (!response.ok && response.status === 422 && hasAssigneeValidationError(payload)) {
+    const retried = await createIssue(undefined)
+    response = retried.response
+    payload = retried.payload
   }
 
   if (!response.ok) {
-    return c.json({ error: payload.message ?? `GitHub issue creation failed (${response.status})` }, 502)
+    return c.json({ error: parseGitHubErrorMessage(payload, response.status) }, 502)
   }
 
   return c.json({
@@ -206,4 +345,3 @@ support.post('/tickets', zValidator('json', createTicketSchema), async (c) => {
     issueNumber: payload.number ?? null,
   })
 })
-
