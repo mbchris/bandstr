@@ -21,6 +21,9 @@ const configuredApiUrl = process.env.API_URL ?? 'http://localhost:3001'
 export const authBaseUrl = normalizeAuthBaseUrl(configuredApiUrl)
 export const AUTH_BASE_PATH = '/api/auth'
 const isProduction = (process.env.NODE_ENV ?? '').toLowerCase() === 'production'
+const debugAutoActivateUsers = /^(1|true|yes|on)$/i.test(
+  (process.env.DEBUG_AUTO_ACTIVATE_USERS ?? '').trim(),
+)
 const DEFAULT_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 365 * 1 // 1 year
 
 function getSessionExpiresInSeconds(): number {
@@ -86,7 +89,7 @@ export const auth = betterAuth({
   },
 
   emailVerification: {
-    sendOnSignUp: true,
+    sendOnSignUp: !debugAutoActivateUsers,
     sendOnSignIn: true,
     autoSignInAfterVerification: true,
     async sendVerificationEmail({ user, url }) {
@@ -107,7 +110,7 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    requireEmailVerification: !debugAutoActivateUsers,
     autoSignIn: false,
     revokeSessionsOnPasswordReset: true,
     async sendResetPassword({ user, url }) {
