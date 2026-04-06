@@ -55,9 +55,21 @@
           </div>
 
           <div class="row justify-end">
-            <q-btn color="primary" label="Send to GitHub" type="submit" :loading="submitting" />
+            <q-btn color="primary" label="Send" type="submit" :loading="submitting" />
           </div>
         </q-form>
+      </q-card>
+
+      <q-card v-if="lastSubmission" flat bordered class="q-pa-md q-mt-md bg-positive text-white">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Your inquiry was sent</div>
+        <div class="text-body2 q-mb-sm">
+          Thanks for your message. The development team will review it and contact you.
+        </div>
+        <div class="text-body2">
+          <div><strong>Type:</strong> {{ prettyType(lastSubmission.type) }}</div>
+          <div><strong>Reply email:</strong> {{ lastSubmission.email || 'not provided' }}</div>
+          <div><strong>Summary:</strong> {{ summarize(lastSubmission.message) }}</div>
+        </div>
       </q-card>
     </div>
   </q-page>
@@ -77,6 +89,11 @@ const screenshotFile = ref<File | null>(null)
 const submitting = ref(false)
 const buildId = ref((process.env.GIT_REV ?? 'dev').trim() || 'dev')
 const environment = ref((process.env.NODE_ENV ?? 'development').trim() || 'development')
+const lastSubmission = ref<{
+  type: SupportType
+  email: string
+  message: string
+} | null>(null)
 
 const typeOptions = [
   { label: 'Report a bug', value: 'bug' },
@@ -147,9 +164,11 @@ async function submit() {
       throw new Error(payload.error ?? `Support request failed (${response.status})`)
     }
 
-    Notify.create({ type: 'positive', message: 'Support ticket created on GitHub.' })
-    if (payload.issueUrl) {
-      window.open(payload.issueUrl, '_blank', 'noopener,noreferrer')
+    Notify.create({ type: 'positive', message: 'Your inquiry was submitted successfully.' })
+    lastSubmission.value = {
+      type: kind.value,
+      email: email.value.trim(),
+      message: trimmedMessage,
     }
     message.value = ''
     email.value = ''
@@ -167,6 +186,18 @@ async function submit() {
 onMounted(async () => {
   await loadConfig()
 })
+
+function prettyType(value: SupportType): string {
+  if (value === 'bug') return 'Report a bug'
+  if (value === 'feature') return 'Suggest a feature'
+  return 'Leave a comment'
+}
+
+function summarize(value: string): string {
+  const singleLine = value.replace(/\s+/g, ' ').trim()
+  if (singleLine.length <= 180) return singleLine
+  return `${singleLine.slice(0, 180)}...`
+}
 </script>
 
 <style scoped>
@@ -179,4 +210,3 @@ onMounted(async () => {
   width: min(760px, 100%);
 }
 </style>
-
