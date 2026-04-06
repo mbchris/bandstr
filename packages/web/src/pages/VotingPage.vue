@@ -64,52 +64,34 @@
                 <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
                   Length: {{ formatDuration(song.lengthMs) }}
                 </div>
-                <div class="votes-grid q-mt-sm">
-                  <div class="votes-self">
-                    <button
-                      type="button"
-                      class="own-vote-trigger bg-widget-surface rounded-borders"
-                      @click="openVotePicker(song)"
-                      :disabled="!currentUserId"
+                <div class="option1-vote-row q-mt-sm">
+                  <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
+                    <q-avatar
+                      v-for="(member, i) in votedMembers(song)"
+                      :key="`${song.id}-voted-${member.id}`"
+                      size="24px"
+                      class="stack-avatar"
+                      :style="{ left: `${i * 16}px`, zIndex: 30 - i }"
+                      color="primary"
+                      text-color="white"
                     >
-                      <q-avatar
-                        size="26px"
-                        :class="getMemberVoteRingClass(song, currentUserId)"
-                        :color="currentUser?.image ? undefined : getMemberFallbackColor(song, currentUserId)"
-                        :text-color="currentUser?.image ? undefined : 'white'"
-                      >
-                        <img v-if="currentUser?.image" :src="currentUser.image" />
-                        <span v-else style="font-size: 11px">{{ getNameInitial(currentUser?.name || authStore.user?.name) }}</span>
-                      </q-avatar>
-                      <span class="text-caption text-weight-bold q-ml-xs">{{ getMemberVoteLabel(song, currentUserId) }}</span>
-                      <q-icon name="touch_app" size="16px" color="primary" class="q-ml-xs" />
-                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
-                    </button>
+                      <img v-if="member.image" :src="member.image" />
+                      <span v-else>{{ getNameInitial(member.name) }}</span>
+                    </q-avatar>
+                    <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
+                    <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
                   </div>
-
-                  <div class="votes-others">
-                    <div
-                      v-for="member in otherMembers"
-                      :key="member.id"
-                      class="row items-center no-wrap bg-widget-surface rounded-borders q-px-xs q-py-xxs"
-                    >
-                      <q-avatar
-                        size="22px"
-                        :class="getMemberVoteRingClass(song, member.id)"
-                        :color="member.image ? undefined : getMemberFallbackColor(song, member.id)"
-                        :text-color="member.image ? undefined : 'white'"
-                      >
-                        <img v-if="member.image" :src="member.image" />
-                        <span v-else style="font-size: 10px">{{ member.name?.charAt(0) }}</span>
-                      </q-avatar>
-                      <span class="text-caption text-weight-bold q-ml-xs">{{ getMemberVoteLabel(song, member.id) }}</span>
-                      <q-tooltip>{{ member.name }}</q-tooltip>
-                    </div>
+                  <div class="row items-center q-gutter-xs option1-actions">
+                    <q-badge outline color="primary">{{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}</q-badge>
+                    <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
+                    <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
+                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn dense flat icon="visibility" @click="openDetailsDialog(song)">
+                      <q-tooltip>{{ t('voting.details') }}</q-tooltip>
+                    </q-btn>
                   </div>
                 </div>
-                  <div class="text-caption text-grey-8 q-mt-xs text-right">
-                    {{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }} • {{ song.voteCount }} {{ t('voting.votes') }}
-                  </div>
               </q-item-section>
 
               <!-- Actions -->
@@ -212,6 +194,38 @@
         </q-list>
       </q-card>
     </q-dialog>
+
+    <!-- Vote Details -->
+    <q-dialog v-model="showDetailsDialog">
+      <q-card style="min-width: 360px; max-width: 96vw">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('voting.details') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-separator />
+        <q-card-section v-if="detailsSong">
+          <div class="text-subtitle2">{{ detailsSong.title }} - {{ detailsSong.artist }}</div>
+          <div class="text-caption text-grey-7 q-mt-xs">{{ t('voting.avg') }}: {{ Number(detailsSong.voteAverage || 0).toFixed(1) }} | {{ t('voting.votes') }}: {{ detailsSong.voteCount }}</div>
+          <q-list class="q-mt-sm" dense bordered separator>
+            <q-item v-for="member in visibleMembers" :key="`d-${detailsSong.id}-${member.id}`">
+              <q-item-section avatar>
+                <q-avatar size="24px" color="grey-7" text-color="white">
+                  <img v-if="member.image" :src="member.image" />
+                  <span v-else>{{ getNameInitial(member.name) }}</span>
+                </q-avatar>
+              </q-item-section>
+              <q-item-section>{{ member.name }}</q-item-section>
+              <q-item-section side>
+                <q-badge :color="voteScore(detailsSong, member.id) === null ? 'grey-6' : 'primary'">
+                  {{ voteScore(detailsSong, member.id) === null ? '-' : voteScore(detailsSong, member.id) }}
+                </q-badge>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -220,7 +234,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '../stores/auth'
 import { useSongsStore, type Song } from '../stores/songs'
-import { useBandStore } from '../stores/band'
+import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
 
@@ -240,8 +254,6 @@ const isAdmin = computed(() => {
 
 const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
 const currentUserId = computed(() => authStore.user?.id || '')
-const currentUser = computed(() => visibleMembers.value.find((m) => m.id === currentUserId.value) || null)
-const otherMembers = computed(() => visibleMembers.value.filter((m) => m.id !== currentUserId.value))
 
 const filteredSongs = computed(() => {
   let list = songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist)
@@ -260,27 +272,29 @@ const filteredSongs = computed(() => {
 function canEdit(song: Song) { return isAdmin.value || authStore.user?.id === song.addedBy }
 function canDelete(song: Song) { return isAdmin.value || authStore.user?.id === song.addedBy }
 
-function getMemberVoteRingClass(song: Song, userId: string) {
+function voteScore(song: Song, userId: string): number | null {
   const vote = song.allVotes?.find((v) => v.userId === userId)
-  if (!vote) return 'member-vote-empty'
-  return ['member-vote-veto', 'member-vote-ok', 'member-vote-good', 'member-vote-great'][vote.score] || 'member-vote-empty'
-}
-
-function getMemberFallbackColor(song: Song, userId: string) {
-  const vote = song.allVotes?.find((v) => v.userId === userId)
-  if (!vote) return 'blue-grey-8'
-  return ['red-10', 'deep-orange-10', 'blue-10', 'green-10'][vote.score] || 'blue-grey-8'
-}
-
-function getMemberVoteLabel(song: Song, userId: string) {
-  if (!userId) return '-'
-  const vote = song.allVotes?.find((v) => v.userId === userId)
-  if (!vote) return '-'
-  return String(vote.score)
+  return vote?.score ?? null
 }
 
 function getNameInitial(name?: string | null) {
   return (name?.trim()?.charAt(0) || '?').toUpperCase()
+}
+
+function votedMembers(song: Song): BandMember[] {
+  const votedIds = new Set(song.allVotes.map((entry) => entry.userId))
+  return visibleMembers.value.filter((member) => votedIds.has(member.id))
+}
+
+function votedNamesLabel(song: Song): string {
+  const names = votedMembers(song)
+    .map((member) => member.name?.trim())
+    .filter((name): name is string => Boolean(name))
+
+  if (!names.length) return 'No one has voted yet.'
+  if (names.length === 1) return `${names[0]} has voted.`
+  if (names.length === 2) return `${names[0]} and ${names[1]} have voted.`
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have voted.`
 }
 
 // Voting
@@ -294,6 +308,8 @@ async function toggleVote(song: Song, score: number) {
 
 const showVotePicker = ref(false)
 const voteSong = ref<Song | null>(null)
+const showDetailsDialog = ref(false)
+const detailsSong = ref<Song | null>(null)
 
 function openVotePicker(song: Song) {
   if (!currentUserId.value) return
@@ -305,6 +321,11 @@ async function selectOwnVote(score: number) {
   if (!voteSong.value) return
   await toggleVote(voteSong.value, score)
   showVotePicker.value = false
+}
+
+function openDetailsDialog(song: Song) {
+  detailsSong.value = song
+  showDetailsDialog.value = true
 }
 
 async function togglePin(song: Song) {
@@ -479,7 +500,7 @@ function handleExport() {
   import('xlsx').then(({ utils, writeFile }) => {
     const data = filteredSongs.value.map((s) => {
       const row: any = { Title: s.title, Artist: s.artist, Average: Number(s.voteAverage || 0).toFixed(1), Votes: s.voteCount }
-      visibleMembers.value.forEach((m) => { row[m.name] = getMemberVoteLabel(s, m.id) })
+      visibleMembers.value.forEach((m) => { row[m.name] = voteScore(s, m.id) ?? '-' })
       return row
     })
     const ws = utils.json_to_sheet(data)
@@ -496,24 +517,26 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.member-vote-empty {
-  border: 1px solid #9ca3af;
+.option1-vote-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 
-.member-vote-veto {
-  border: 2px solid #ef4444;
+.avatar-stack {
+  position: relative;
+  min-height: 24px;
+  min-width: 116px;
 }
 
-.member-vote-ok {
-  border: 2px solid #f97316;
+.stack-avatar {
+  position: absolute;
+  border: 2px solid var(--q-dark-page);
 }
 
-.member-vote-good {
-  border: 2px solid #3b82f6;
-}
-
-.member-vote-great {
-  border: 2px solid #22c55e;
+.option1-actions {
+  margin-left: auto;
 }
 
 @media (max-width: 768px) {
@@ -536,40 +559,10 @@ onMounted(() => {
   .song-actions {
     flex-direction: row;
   }
-}
 
-.votes-grid {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 10px 18px;
-  width: 100%;
-}
-
-.votes-self {
-  flex: 0 0 auto;
-}
-
-.own-vote-trigger {
-  border: 1px dashed var(--q-primary);
-  color: inherit;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  cursor: pointer;
-}
-
-.own-vote-trigger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.votes-others {
-  flex: 1 1 280px;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  .option1-actions {
+    margin-left: 0;
+  }
 }
 
 .vote-picker-card {

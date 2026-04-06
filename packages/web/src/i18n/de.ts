@@ -174,6 +174,8 @@ export default {
     avg: 'Ø',
     selfVoteHint: 'Tippe auf dein Avatar zum Abstimmen',
     chooseYourVote: 'Wähle deine Stimme',
+    details: 'Voting-Details',
+    noVotesYet: 'keine Stimmen',
   },
 
   // Setlist page

@@ -173,6 +173,8 @@ export default {
     avg: 'Avg',
     selfVoteHint: 'Tap your avatar to vote',
     chooseYourVote: 'Choose your vote',
+    details: 'Voting Details',
+    noVotesYet: 'no votes',
   },
 
   // Setlist page
