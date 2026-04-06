@@ -61,9 +61,6 @@
                 <q-item clickable v-close-popup @click="router.push('/bands/manage')">
                   <q-item-section>{{ t('nav.manageBands') }}</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup @click="router.push('/account/security')">
-                  <q-item-section>{{ t('nav.accountSecurity') }}</q-item-section>
-                </q-item>
                 <q-separator />
                 <q-item clickable v-close-popup @click="goSupport">
                   <q-item-section>{{ t('nav.support') }}</q-item-section>

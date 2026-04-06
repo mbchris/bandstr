@@ -1,26 +1,44 @@
 <template>
   <q-page class="q-pa-md account-security-page">
     <div class="account-security-wrap">
-      <div class="text-h5 q-mb-sm">Account security</div>
+      <div class="text-h5 q-mb-sm">{{ t('accountSecurity.title') }}</div>
       <div class="text-body2 text-grey-5 q-mb-md">
-        Manage email verification, email address and password.
+        {{ t('accountSecurity.subtitle') }}
       </div>
 
       <q-card flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Email verification</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.changeName') }}</div>
+        <q-form class="column q-gutter-md" @submit.prevent="changeName">
+          <q-input
+            v-model="newName"
+            :label="t('accountSecurity.displayName')"
+            type="text"
+            outlined
+            dense
+            autocomplete="name"
+            :rules="[requiredRule]"
+          />
+          <div class="row justify-end">
+            <q-btn color="primary" :label="t('accountSecurity.changeName')" type="submit" :loading="loadingChangeName" />
+          </div>
+        </q-form>
+      </q-card>
+
+      <q-card flat bordered class="q-pa-md q-mb-md">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.emailVerification') }}</div>
         <div class="text-body2 q-mb-sm">
-          Current email: <strong>{{ currentEmail || '-' }}</strong>
+          {{ t('accountSecurity.currentEmail') }} <strong>{{ currentEmail || '-' }}</strong>
         </div>
         <div class="text-body2 q-mb-md">
-          Status:
+          {{ t('accountSecurity.status') }}
           <strong :class="isEmailVerified ? 'text-positive' : 'text-warning'">
-            {{ isEmailVerified ? 'Verified' : 'Not verified' }}
+            {{ isEmailVerified ? t('accountSecurity.verified') : t('accountSecurity.notVerified') }}
           </strong>
         </div>
         <q-btn
           color="primary"
           outline
-          label="Resend verification email"
+          :label="t('accountSecurity.resendVerification')"
           :loading="loadingResendVerification"
           :disable="!currentEmail"
           @click="resendVerificationEmail"
@@ -28,11 +46,11 @@
       </q-card>
 
       <q-card flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Change email</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.changeEmail') }}</div>
         <q-form class="column q-gutter-md" @submit.prevent="changeEmail">
           <q-input
             v-model="newEmail"
-            label="New email"
+            :label="t('accountSecurity.newEmail')"
             type="email"
             outlined
             dense
@@ -40,20 +58,20 @@
             :rules="[requiredRule, emailRule]"
           />
           <div class="row justify-end">
-            <q-btn color="primary" label="Change email" type="submit" :loading="loadingChangeEmail" />
+            <q-btn color="primary" :label="t('accountSecurity.changeEmail')" type="submit" :loading="loadingChangeEmail" />
           </div>
         </q-form>
       </q-card>
 
       <q-card flat bordered class="q-pa-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Password</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.password') }}</div>
         <div class="text-body2 text-grey-6 q-mb-md">
-          Provide your current password if you already set one. Leave it empty to set a password for social login.
+          {{ t('accountSecurity.passwordHint') }}
         </div>
         <q-form class="column q-gutter-md" @submit.prevent="savePassword">
           <q-input
             v-model="currentPassword"
-            label="Current password (optional)"
+            :label="t('accountSecurity.currentPasswordOptional')"
             type="password"
             outlined
             dense
@@ -61,7 +79,7 @@
           />
           <q-input
             v-model="newPassword"
-            label="New password"
+            :label="t('accountSecurity.newPassword')"
             type="password"
             outlined
             dense
@@ -69,7 +87,7 @@
             :rules="[requiredRule, minPasswordRule]"
           />
           <div class="row justify-end">
-            <q-btn color="primary" label="Save password" type="submit" :loading="loadingPassword" />
+            <q-btn color="primary" :label="t('accountSecurity.savePassword')" type="submit" :loading="loadingPassword" />
           </div>
         </q-form>
       </q-card>
@@ -82,15 +100,19 @@ import { computed, onMounted, ref } from 'vue'
 import { Notify } from 'quasar'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useI18n } from '../composables/useI18n'
 
 const authStore = useAuthStore()
 const route = useRoute()
+const { t } = useI18n()
 const apiBase = (process.env.API_URL ?? '').replace(/\/+$/, '').replace(/\/api$/, '')
 
 const newEmail = ref('')
+const newName = ref('')
 const currentPassword = ref('')
 const newPassword = ref('')
 
+const loadingChangeName = ref(false)
 const loadingResendVerification = ref(false)
 const loadingChangeEmail = ref(false)
 const loadingPassword = ref(false)
@@ -98,9 +120,9 @@ const loadingPassword = ref(false)
 const currentEmail = computed(() => authStore.user?.email ?? '')
 const isEmailVerified = computed(() => !!authStore.user?.emailVerified)
 
-const requiredRule = (value: string) => (!!value && value.trim().length > 0) || 'Required'
-const emailRule = (value: string) => /.+@.+\..+/.test(value) || 'Please provide a valid email'
-const minPasswordRule = (value: string) => value.length >= 8 || 'Password must be at least 8 characters'
+const requiredRule = (value: string) => (!!value && value.trim().length > 0) || t('accountSecurity.required')
+const emailRule = (value: string) => /.+@.+\..+/.test(value) || t('accountSecurity.invalidEmail')
+const minPasswordRule = (value: string) => value.length >= 8 || t('accountSecurity.minPassword')
 
 function authEndpoint(path: string): string {
   return `${apiBase}/api/auth${path}`
@@ -123,6 +145,23 @@ async function refreshSession() {
   await authStore.loadSession()
 }
 
+async function changeName() {
+  const name = newName.value.trim()
+  if (!name) return
+
+  loadingChangeName.value = true
+  try {
+    await postAuth('/update-user', { name })
+    await refreshSession()
+    Notify.create({ type: 'positive', message: t('accountSecurity.displayNameUpdated') })
+    newName.value = authStore.user?.name ?? ''
+  } catch (error: unknown) {
+    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : t('accountSecurity.nameUpdateFailed') })
+  } finally {
+    loadingChangeName.value = false
+  }
+}
+
 async function resendVerificationEmail() {
   if (!currentEmail.value) return
   loadingResendVerification.value = true
@@ -131,9 +170,9 @@ async function resendVerificationEmail() {
       email: currentEmail.value,
       callbackURL: `${window.location.origin}/account/security?verified=1`,
     })
-    Notify.create({ type: 'positive', message: 'Verification email sent.' })
+    Notify.create({ type: 'positive', message: t('accountSecurity.verificationSent') })
   } catch (error: unknown) {
-    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : 'Failed to send email.' })
+    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : t('accountSecurity.failedSendEmail') })
   } finally {
     loadingResendVerification.value = false
   }
@@ -150,12 +189,12 @@ async function changeEmail() {
     })
     Notify.create({
       type: 'positive',
-      message: 'Confirmation mail sent to your current address. Verify both steps to complete the change.',
+      message: t('accountSecurity.emailChangeConfirmationSent'),
     })
     newEmail.value = ''
     await refreshSession()
   } catch (error: unknown) {
-    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : 'Email change failed.' })
+    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : t('accountSecurity.emailChangeFailed') })
   } finally {
     loadingChangeEmail.value = false
   }
@@ -176,11 +215,11 @@ async function savePassword() {
       })
     }
 
-    Notify.create({ type: 'positive', message: 'Password saved.' })
+    Notify.create({ type: 'positive', message: t('accountSecurity.passwordSaved') })
     currentPassword.value = ''
     newPassword.value = ''
   } catch (error: unknown) {
-    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : 'Password update failed.' })
+    Notify.create({ type: 'negative', message: error instanceof Error ? error.message : t('accountSecurity.passwordUpdateFailed') })
   } finally {
     loadingPassword.value = false
   }
@@ -188,12 +227,13 @@ async function savePassword() {
 
 onMounted(async () => {
   await refreshSession()
+  newName.value = authStore.user?.name ?? ''
 
   if (route.query.verified === '1') {
-    Notify.create({ type: 'positive', message: 'Email verification completed.' })
+    Notify.create({ type: 'positive', message: t('accountSecurity.emailVerificationCompleted') })
   }
   if (typeof route.query.error === 'string' && route.query.error) {
-    Notify.create({ type: 'negative', message: `Verification failed: ${route.query.error}` })
+    Notify.create({ type: 'negative', message: t('accountSecurity.verificationFailed', { error: route.query.error }) })
   }
 })
 </script>
@@ -208,4 +248,3 @@ onMounted(async () => {
   width: min(680px, 100%);
 }
 </style>
-

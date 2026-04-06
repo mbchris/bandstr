@@ -1,20 +1,19 @@
 <template>
   <q-page class="q-pa-md delete-account-page">
     <div class="delete-account-wrap">
-      <div class="text-h5 q-mb-sm">Delete account</div>
+      <div class="text-h5 q-mb-sm">{{ t('deleteAccount.title') }}</div>
       <div class="text-body2 text-grey-6 q-mb-lg">
-        This action permanently deletes your account and cannot be undone.
+        {{ t('deleteAccount.subtitle') }}
       </div>
 
       <q-banner class="bg-red-10 text-white rounded-borders q-mb-md">
-        You will lose access to all your band data. If you are the last owner of a band with other members,
-        deletion is blocked until ownership is transferred.
+        {{ t('deleteAccount.warning') }}
       </q-banner>
 
       <q-input
         v-model="confirmText"
         outlined
-        label='Type "DELETE" to confirm'
+        :label="t('deleteAccount.confirmInput')"
         :disable="loading"
       />
 
@@ -22,14 +21,14 @@
         <q-btn
           color="negative"
           icon="delete_forever"
-          label="Delete my account"
+          :label="t('deleteAccount.deleteMyAccount')"
           :disable="!isPhraseValid || loading"
           :loading="loading"
           @click="showDialog = true"
         />
         <q-btn
           flat
-          label="Cancel"
+          :label="t('common.cancel')"
           :disable="loading"
           @click="goBack"
         />
@@ -39,16 +38,16 @@
     <q-dialog v-model="showDialog">
       <q-card style="min-width: 320px; max-width: 460px">
         <q-card-section class="text-h6">
-          Final confirmation
+          {{ t('deleteAccount.finalConfirmation') }}
         </q-card-section>
         <q-card-section>
-          Do you really want to permanently delete your account?
+          {{ t('deleteAccount.finalPrompt') }}
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat label="No" :disable="loading" v-close-popup />
+          <q-btn flat :label="t('deleteAccount.no')" :disable="loading" v-close-popup />
           <q-btn
             color="negative"
-            label="Yes, delete account"
+            :label="t('deleteAccount.yesDelete')"
             :loading="loading"
             @click="deleteAccount"
           />
@@ -65,9 +64,11 @@ import { useRouter } from 'vue-router'
 import { api } from '../boot/api'
 import { authClient } from '../boot/auth'
 import { useAuthStore } from '../stores/auth'
+import { useI18n } from '../composables/useI18n'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const confirmText = ref('')
 const showDialog = ref(false)
@@ -112,7 +113,7 @@ async function deleteAccount() {
   } catch (error) {
     Notify.create({
       type: 'negative',
-      message: error instanceof Error ? error.message : 'Account deletion failed',
+      message: error instanceof Error ? error.message : t('deleteAccount.deletionFailed'),
     })
   } finally {
     loading.value = false

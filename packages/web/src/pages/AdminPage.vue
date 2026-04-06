@@ -222,6 +222,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar, type QTableColumn } from 'quasar'
+import { Capacitor } from '@capacitor/core'
 import { useBandStore } from '../stores/band'
 import { useAuthStore } from '../stores/auth'
 import { apiJson, api } from '../boot/api'
@@ -483,6 +484,14 @@ async function removeLogo(variant: LogoVariant) {
 
 // DB export/import
 async function downloadExport(path: string, fallbackFilename: string) {
+  const isNative = Capacitor.isNativePlatform()
+  // In WebViews, opening a new window must happen in the original user gesture.
+  const nativeWindow = isNative ? window.open('about:blank', '_blank') : null
+  if (nativeWindow && nativeWindow.document) {
+    nativeWindow.document.title = fallbackFilename
+    nativeWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 16px;">Preparing export...</p>'
+  }
+
   try {
     const res = await api(path, { method: 'GET' })
     if (!res.ok) {
@@ -495,7 +504,38 @@ async function downloadExport(path: string, fallbackFilename: string) {
     const match = contentDisposition.match(/filename=\"?([^"]+)\"?/)
     const filename = match?.[1] || fallbackFilename
 
+    // Capacitor WebViews often ignore <a download>; try native share and/or pre-opened window.
+    if (isNative) {
+      try {
+        const exportFile = new File([blob], filename, {
+          type: blob.type || 'application/json',
+          lastModified: Date.now(),
+        })
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [exportFile] })) {
+          await navigator.share({ files: [exportFile], title: filename })
+          nativeWindow?.close()
+          return
+        }
+      } catch (shareError: any) {
+        // Ignore canceled shares; otherwise fall back to opening blob URL.
+        if (shareError?.name === 'AbortError') {
+          nativeWindow?.close()
+          return
+        }
+      }
+    }
+
     const url = URL.createObjectURL(blob)
+    if (isNative) {
+      if (nativeWindow) {
+        nativeWindow.location.href = url
+      } else {
+        window.open(url, '_blank')
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      return
+    }
+
     const a = document.createElement('a')
     a.href = url
     a.download = filename
@@ -504,7 +544,8 @@ async function downloadExport(path: string, fallbackFilename: string) {
     a.remove()
     URL.revokeObjectURL(url)
   } catch (e: any) {
-    $q.notify({ message: e.message || 'Export failed', color: 'negative' })
+    nativeWindow?.close()
+    $q.notify({ message: e.message || t('admin.exportFailed'), color: 'negative' })
   }
 }
 
