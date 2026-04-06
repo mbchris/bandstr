@@ -73,8 +73,8 @@
                 <q-separator class="account-menu-separator" />
                 <q-item disable>
                   <q-item-section>
-                    <q-item-label>{{ t('nav.loggedInAs') }}: {{ activeUserName }} ({{ activeBandRole }})</q-item-label>
-                    <q-item-label caption>{{ activeUserEmail }}</q-item-label>
+                    <q-item-label>{{ t('nav.loggedInAs') }}: {{ truncatedActiveUserName }}</q-item-label>
+                    <q-item-label caption>{{ activeUserEmail }} ({{ activeBandRole }})</q-item-label>
                   </q-item-section>
                 </q-item>
               </q-list>
@@ -159,6 +159,11 @@ const activeBandId = computed({
 const activeBandRole = computed(() => authStore.activeBand?.role ?? 'none')
 const activeUserName = computed(() => authStore.user?.name ?? authStore.user?.email ?? 'Unknown user')
 const activeUserEmail = computed(() => authStore.user?.email ?? '')
+const truncatedActiveUserName = computed(() => {
+  const name = activeUserName.value
+  if (name.length <= 32) return name
+  return `${name.slice(0, 32)}...`
+})
 
 const activeLogoSrc = computed(() => {
   const band = authStore.activeBand
