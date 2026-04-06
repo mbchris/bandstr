@@ -5,9 +5,23 @@
         <q-card-section>
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('voting.heading') }}</div>
-            <div class="row q-gutter-sm">
+            <div class="row q-gutter-sm items-center">
               <q-btn flat round icon="download" @click="handleExport" />
-              <q-btn round color="primary" icon="add" class="round-add-btn" @click="openAddModal" />
+              <span v-if="authStore.isFreePlan" class="text-caption text-grey-6">
+                {{ poolSongCount }}/{{ FREE_POOL_LIMIT }}
+              </span>
+              <q-btn
+                round
+                :color="atPoolLimit ? 'grey' : 'primary'"
+                icon="add"
+                class="round-add-btn"
+                :disable="atPoolLimit"
+                @click="openAddModal"
+              >
+                <q-tooltip v-if="atPoolLimit">
+                  PRO feature — free plan is limited to {{ FREE_POOL_LIMIT }} songs in the voting pool
+                </q-tooltip>
+              </q-btn>
             </div>
           </div>
         </q-card-section>
@@ -97,8 +111,8 @@
               <!-- Actions -->
               <q-item-section side class="song-order-actions">
                 <div class="column q-gutter-xs song-actions">
-                  <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" color="grey" size="sm" @click="openTransferModal(song)">
-                    <q-tooltip>{{ t('voting.sendToSetlist') }}</q-tooltip>
+                  <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
+                    <q-tooltip>{{ atSetlistLimit ? `PRO feature — setlist limit of ${FREE_SETLIST_LIMIT} reached` : t('voting.sendToSetlist') }}</q-tooltip>
                   </q-btn>
                   <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
                   <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
@@ -138,12 +152,17 @@
           <q-input v-model="modalSong.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
           <div class="row items-center q-gutter-md">
             <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
-            <q-slider v-model="modalSong.pitch" :min="-5" :max="5" :step="1" snap label class="col" />
+            <q-slider v-model="modalSong.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
             <q-badge color="grey-8" class="text-body2">
               {{ modalSong.pitch > 0 ? '+' : '' }}{{ modalSong.pitch }}
             </q-badge>
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
-          <q-input v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
+          <div v-if="authStore.isFreePlan" class="row items-center q-gutter-sm">
+            <q-input v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow disable class="col" />
+            <q-badge color="orange" label="PRO feature" />
+          </div>
+          <q-input v-else v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -253,10 +272,22 @@ const { t } = useI18n()
 const searchQuery = ref('')
 const draggingIndex = ref<number | null>(null)
 
+const FREE_SETLIST_LIMIT = 15
+const FREE_POOL_LIMIT = 10
+
 const isAdmin = computed(() => {
   const band = authStore.activeBand
   return band && ['owner', 'admin'].includes(band.role)
 })
+
+const masterSetlistSongCount = computed(() =>
+  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song').length,
+)
+const atSetlistLimit = computed(() => authStore.isFreePlan && masterSetlistSongCount.value >= FREE_SETLIST_LIMIT)
+const poolSongCount = computed(() =>
+  songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist).length,
+)
+const atPoolLimit = computed(() => authStore.isFreePlan && poolSongCount.value >= FREE_POOL_LIMIT)
 
 const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
 const currentUserId = computed(() => authStore.user?.id || '')

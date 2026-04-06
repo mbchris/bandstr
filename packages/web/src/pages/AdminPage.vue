@@ -148,8 +148,12 @@
               <div class="text-subtitle1 text-weight-bold">{{ t('admin.dbManagement') }}</div>
             </q-card-section>
             <q-card-section class="q-gutter-sm">
-              <q-btn class="full-width" color="grey-8" icon="download" @click="exportDb">{{ t('admin.downloadBackup') }}</q-btn>
-              <q-btn class="full-width" color="orange" outline icon="upload" :loading="isImporting" @click="importInputRef?.click()">{{ t('admin.importSql') }}</q-btn>
+              <q-banner v-if="authStore.isFreePlan" rounded class="bg-orange-1 text-orange-9 q-mb-sm">
+                <template #avatar><q-icon name="lock" color="orange" /></template>
+                PRO feature — upgrade to access import/export
+              </q-banner>
+              <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportDb">{{ t('admin.downloadBackup') }}</q-btn>
+              <q-btn class="full-width" color="orange" outline icon="upload" :loading="isImporting" :disable="authStore.isFreePlan" @click="importInputRef?.click()">{{ t('admin.importSql') }}</q-btn>
               <input ref="importInputRef" type="file" accept=".sql" class="hidden" style="display:none" @change="handleImport" />
               <div class="text-caption text-grey text-center">{{ t('admin.sqlWarning') }}</div>
             </q-card-section>
@@ -161,8 +165,8 @@
               <div class="text-subtitle1 text-weight-bold">{{ t('admin.calendarMgmt') }}</div>
             </q-card-section>
             <q-card-section class="q-gutter-sm">
-              <q-btn class="full-width" color="grey-8" icon="download" @click="exportCalendar">{{ t('admin.exportJson') }}</q-btn>
-              <q-btn class="full-width" color="blue" outline icon="upload" :loading="isCalendarImporting" @click="calendarImportRef?.click()">{{ t('admin.importJson') }}</q-btn>
+              <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportCalendar">{{ t('admin.exportJson') }}</q-btn>
+              <q-btn class="full-width" color="blue" outline icon="upload" :loading="isCalendarImporting" :disable="authStore.isFreePlan" @click="calendarImportRef?.click()">{{ t('admin.importJson') }}</q-btn>
               <input ref="calendarImportRef" type="file" accept=".json" class="hidden" style="display:none" @change="handleCalendarImport" />
               <div class="text-caption text-grey text-center">{{ t('admin.jsonHint') }}</div>
             </q-card-section>

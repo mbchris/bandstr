@@ -9,14 +9,18 @@
       <q-card flat bordered class="q-mb-lg">
         <q-card-section class="row items-center justify-between">
           <div class="text-subtitle1 text-weight-bold">All Bands</div>
-          <q-btn
-            color="primary"
-            icon="add"
-            label="Create Band"
-            :disable="!canCreateBand"
-            :title="canCreateBand ? 'Create a new band' : 'Free plan supports only one created band'"
-            @click="showCreateModal = true"
-          />
+          <div class="row items-center q-gutter-sm">
+            <q-badge v-if="!canCreateBand" color="orange" label="PRO feature" />
+            <q-btn
+              color="primary"
+              icon="add"
+              label="Create Band"
+              :disable="!canCreateBand"
+              @click="showCreateModal = true"
+            >
+              <q-tooltip v-if="!canCreateBand">PRO feature — free accounts can only be a member of one band</q-tooltip>
+            </q-btn>
+          </div>
         </q-card-section>
 
         <q-list separator>
@@ -231,9 +235,9 @@ const qrImageUrl = ref('')
 const APP_INVITE_BASE_URL = 'org.capacitor.bandstr://localhost/#/dashboard'
 
 const canCreateBand = computed(() => {
-  const ownedBands = authStore.bands.filter((band) => band.role === 'owner')
-  if (ownedBands.length === 0) return true
-  return ownedBands.some((band) => band.hasProPlan)
+  if (authStore.bands.length === 0) return true
+  // Free users can only be in one band; pro users (effectivePlan === 'pro') can join multiple
+  return authStore.bands.some((band) => band.effectivePlan === 'pro')
 })
 
 function canManageBand(role: string) {

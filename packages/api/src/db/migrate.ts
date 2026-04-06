@@ -123,6 +123,22 @@ async function ensureBandLogoVariantColumns() {
   `)
 }
 
+async function ensureUserSubscriptionColumns() {
+  if (!(await publicTableExists('user'))) return
+
+  await pool.query(`
+    ALTER TABLE "user"
+      ADD COLUMN IF NOT EXISTS "stripe_customer_id" text,
+      ADD COLUMN IF NOT EXISTS "subscription_plan" text NOT NULL DEFAULT 'free',
+      ADD COLUMN IF NOT EXISTS "subscription_status" text NOT NULL DEFAULT 'none',
+      ADD COLUMN IF NOT EXISTS "subscription_interval" text,
+      ADD COLUMN IF NOT EXISTS "subscription_current_period_end" timestamp,
+      ADD COLUMN IF NOT EXISTS "subscription_cancel_at_period_end" boolean NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS "subscription_provider" text NOT NULL DEFAULT 'none',
+      ADD COLUMN IF NOT EXISTS "subscription_provider_ref" text;
+  `)
+}
+
 async function ensureSubscriptionProviderColumns() {
   if (!(await publicTableExists('bands'))) return
 
@@ -181,6 +197,7 @@ export async function runMigrations(options: { closePoolOnDone?: boolean } = {})
     await ensureBandLogoVariantColumns()
     await ensureUserDefaultBandColumn()
     await ensureSubscriptionProviderColumns()
+    await ensureUserSubscriptionColumns()
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
     const ms = Date.now() - started
     console.log(`DB migrations applied in ${ms}ms`)

@@ -86,6 +86,15 @@ export const users = pgTable('user', {
   defaultBandId: integer('default_band_id').references(() => bands.id, { onDelete: 'set null' }),
   devProPlan: boolean('dev_pro_plan').notNull().default(false),
   devProPlanAssignedAt: timestamp('dev_pro_plan_assigned_at'),
+  // User-level subscription (replaces band-level subscription ownership)
+  stripeCustomerId: text('stripe_customer_id'),
+  subscriptionPlan: text('subscription_plan').notNull().default('free'),
+  subscriptionStatus: text('subscription_status').notNull().default('none'),
+  subscriptionInterval: text('subscription_interval'),
+  subscriptionCurrentPeriodEnd: timestamp('subscription_current_period_end'),
+  subscriptionCancelAtPeriodEnd: boolean('subscription_cancel_at_period_end').notNull().default(false),
+  subscriptionProvider: text('subscription_provider').notNull().default('none'),
+  subscriptionProviderRef: text('subscription_provider_ref'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

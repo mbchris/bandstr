@@ -16,6 +16,7 @@ export type BandMembership = {
   slug: string
   plan: string
   hasProPlan?: boolean
+  effectivePlan?: 'free' | 'pro' | 'plus'
   isDefault?: boolean
   subscriptionStatus?: 'none' | 'active' | 'canceled' | 'past_due' | 'trialing' | null
   subscriptionInterval?: 'monthly' | 'yearly' | null
@@ -38,6 +39,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!user.value)
   const activeBand = computed(() => bands.value.find((b) => b.id === activeBandId.value) ?? null)
+  const effectivePlan = computed(() => activeBand.value?.effectivePlan ?? 'free')
+  const isFreePlan = computed(() => effectivePlan.value === 'free')
   const apiBase = (process.env.API_URL ?? '').replace(/\/+$/, '').replace(/\/api$/, '')
 
   async function loadSessionFromBearer() {
@@ -189,6 +192,8 @@ export const useAuthStore = defineStore('auth', () => {
     bands,
     isAuthenticated,
     activeBand,
+    effectivePlan,
+    isFreePlan,
     loadSession,
     loadBands,
     setToken,

@@ -5,11 +5,22 @@
         <q-card-section>
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
-            <div class="row q-gutter-sm">
+            <div class="row q-gutter-sm items-center">
               <q-btn flat round icon="pause_circle" @click="openSpecialModal('pause')" />
               <q-btn flat round icon="tune" @click="openSpecialModal('tuning')" />
               <q-btn flat round icon="download" @click="handleExport" />
-              <q-btn round color="primary" icon="add" class="round-add-btn" @click="openAddSongModal" />
+              <q-btn
+                round
+                :color="atSetlistLimit ? 'grey' : 'primary'"
+                icon="add"
+                class="round-add-btn"
+                :disable="atSetlistLimit"
+                @click="openAddSongModal"
+              >
+                <q-tooltip v-if="atSetlistLimit">
+                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
+                </q-tooltip>
+              </q-btn>
             </div>
           </div>
         </q-card-section>
@@ -185,12 +196,16 @@
           <q-input v-model="addSongForm.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
           <div class="row items-center q-gutter-md">
             <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
-            <q-slider v-model="addSongForm.pitch" :min="-5" :max="5" :step="1" snap label class="col" />
+            <q-slider v-model="addSongForm.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
             <q-badge color="grey-8" class="text-body2">
               {{ addSongForm.pitch > 0 ? '+' : '' }}{{ addSongForm.pitch }}
             </q-badge>
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
-          <q-input v-model="addSongForm.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
+          <div class="row items-center q-gutter-sm">
+            <q-input v-model="addSongForm.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -278,12 +293,19 @@
             <q-input v-model="editingItem.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
             <div class="row items-center q-gutter-md">
               <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
-              <q-slider v-model="editingItem.pitch" :min="-5" :max="5" :step="1" snap label class="col" />
+              <q-slider v-model="editingItem.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
               <q-badge color="grey-8" class="text-body2">{{ editingItem.pitch > 0 ? '+' : '' }}{{ editingItem.pitch }}</q-badge>
+              <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
             </div>
           </template>
-          <q-input v-model="editingItem.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
-          <q-input v-model="editingItemPersonalNote" :label="t('setlist.personalNotes')" :hint="t('setlist.personalNotesHint')" type="textarea" outlined dense autogrow />
+          <div class="row items-center q-gutter-sm">
+            <q-input v-model="editingItem.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
+          <div class="row items-center q-gutter-sm">
+            <q-input v-model="editingItemPersonalNote" :label="t('setlist.personalNotes')" :hint="t('setlist.personalNotesHint')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -376,7 +398,13 @@ function getItemKey(item: Song) {
   return `song-${item.id}`
 }
 
+const FREE_SETLIST_LIMIT = 15
+
 const songCount = computed(() => activeSongs.value.filter((s) => s.type === 'song').length)
+const masterSetlistSongCount = computed(() =>
+  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song').length,
+)
+const atSetlistLimit = computed(() => authStore.isFreePlan && masterSetlistSongCount.value >= FREE_SETLIST_LIMIT)
 const totalDurationMs = computed(() =>
   activeSongs.value
     .filter((s) => s.type === 'song' && typeof s.lengthMs === 'number')

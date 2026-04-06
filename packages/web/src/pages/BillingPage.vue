@@ -3,11 +3,19 @@
     <div class="row items-center q-col-gutter-sm q-mb-md">
       <div class="col">
         <div class="text-h5">Billing</div>
-        <div class="text-caption text-grey-6">Current plan: <span class="text-weight-bold">{{ currentPlanLabel }}</span></div>
-        <div v-if="isInheritedPro" class="text-caption text-positive">Pro access is inherited from an owner/admin user.</div>
-        <div class="text-caption text-grey-6">Band pro access: <span class="text-weight-bold">{{ hasProPlan ? 'Enabled' : 'Disabled' }}</span></div>
-        <div class="text-caption text-grey-6">Status: <span class="text-weight-bold">{{ statusLabel }}</span></div>
-        <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">Interval: {{ subscriptionIntervalLabel }}</div>
+        <div class="text-caption text-grey-6">
+          Your plan:
+          <span class="text-weight-bold">{{ currentPlanLabel }}</span>
+        </div>
+        <div v-if="effectivePlan === 'plus'" class="text-caption text-positive">
+          bandstr plus — pro access inherited from a band member with a pro account.
+        </div>
+        <div class="text-caption text-grey-6">
+          Status: <span class="text-weight-bold">{{ statusLabel }}</span>
+        </div>
+        <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">
+          Interval: {{ subscriptionIntervalLabel }}
+        </div>
         <div v-if="renewalLabel" class="text-caption text-grey-6">{{ renewalLabel }}</div>
         <div v-if="providerHint" class="text-caption text-grey-5 q-mt-xs">{{ providerHint }}</div>
       </div>
@@ -18,7 +26,7 @@
             color="primary"
             icon="manage_accounts"
             label="Manage subscription"
-            :disable="!canManageBilling || loadingPortal || !canManageSubscription"
+            :disable="loadingPortal || !canManageSubscription"
             :loading="loadingPortal"
             @click="openPortal"
           />
@@ -35,10 +43,6 @@
         </div>
       </div>
     </div>
-
-    <q-banner v-if="!canManageBilling" class="bg-grey-9 text-white q-mb-md rounded-borders">
-      Only band admins or owners can change subscription plans.
-    </q-banner>
 
     <div class="row q-col-gutter-md">
       <div v-for="plan in plans" :key="plan.id" class="col-12 col-md-4">
@@ -61,39 +65,45 @@
 
           <q-card-actions align="right" class="q-gutter-sm">
             <q-chip
-              v-if="effectivePlanId === plan.id"
+              v-if="isCurrentPlanCard(plan.id)"
               color="primary"
               text-color="white"
               size="sm"
               icon="check"
-              label="Current plan"
+              :label="effectivePlan === 'plus' && plan.id === 'pro' ? 'Active (inherited)' : 'Current plan'"
             />
 
             <template v-else-if="plan.id === 'pro'">
-              <q-btn
-                color="primary"
-                size="sm"
-                label="Choose monthly"
-                :disable="!canManageBilling || loadingCheckout"
-                :loading="loadingCheckout && selectedPlan === 'pro' && selectedInterval === 'monthly'"
-                @click="startCheckout('monthly')"
-              />
-              <q-btn
-                color="primary"
-                size="sm"
-                outline
-                label="Choose yearly"
-                :disable="!canManageBilling || loadingCheckout"
-                :loading="loadingCheckout && selectedPlan === 'pro' && selectedInterval === 'yearly'"
-                @click="startCheckout('yearly')"
-              />
+              <template v-if="isWebOnly">
+                <q-chip dense color="grey-7" text-color="white" icon="smartphone" label="App only" />
+                <div class="text-caption text-grey-6 q-mt-xs text-right" style="font-size: 11px">
+                  Subscriptions can only be managed in the app using the corresponding app stores.
+                </div>
+              </template>
+              <template v-else>
+                <q-btn
+                  color="primary"
+                  size="sm"
+                  label="Choose monthly"
+                  :loading="loadingCheckout && selectedInterval === 'monthly'"
+                  @click="startCheckout('monthly')"
+                />
+                <q-btn
+                  color="primary"
+                  size="sm"
+                  outline
+                  label="Choose yearly"
+                  :loading="loadingCheckout && selectedInterval === 'yearly'"
+                  @click="startCheckout('yearly')"
+                />
+              </template>
             </template>
 
             <q-btn
               v-else
               flat
               size="sm"
-              :label="plan.id === 'pro-zero' ? 'Internal plan' : 'Included'"
+              label="Included"
               disable
             />
           </q-card-actions>
@@ -126,13 +136,16 @@ import {
   type AppStoreBillingProduct,
 } from '../plugins/appStoreBilling'
 
-type PlanId = 'free' | 'pro' | 'pro-zero'
+const isNativeApp = isAndroidNative() || isIosNative()
+const isWebOnly = !isNativeApp
+
+type EffectivePlan = 'free' | 'pro' | 'plus'
 type BillingInterval = 'monthly' | 'yearly'
 type SubscriptionStatus = 'none' | 'active' | 'canceled' | 'past_due' | 'trialing' | 'grace_period' | 'on_hold' | 'paused'
 type SubscriptionProviderId = 'stripe' | 'google_play' | 'app_store' | 'manual' | 'none'
 
 type Plan = {
-  id: PlanId
+  id: 'free' | 'pro'
   name: string
   bookable: boolean
   prices: {
@@ -151,8 +164,8 @@ const authStore = useAuthStore()
 const route = useRoute()
 
 const plans = ref<Plan[]>([])
-const currentPlan = ref<PlanId>('free')
-const hasProPlan = ref(false)
+const effectivePlan = ref<EffectivePlan>('free')
+const userPlan = ref<'free' | 'pro'>('free')
 const subscriptionStatus = ref<SubscriptionStatus>('none')
 const subscriptionInterval = ref<BillingInterval | null>(null)
 const currentPeriodEnd = ref<string | null>(null)
@@ -163,7 +176,6 @@ const managementUrl = ref<string | null>(null)
 const loadingCheckout = ref(false)
 const loadingPortal = ref(false)
 const loadingRestore = ref(false)
-const selectedPlan = ref<PlanId | null>(null)
 const selectedInterval = ref<BillingInterval | null>(null)
 const playReady = ref(false)
 const playProducts = ref<Record<BillingInterval, PlayBillingProduct | null>>({ monthly: null, yearly: null })
@@ -171,11 +183,6 @@ const playProductIds = ref<Record<BillingInterval, string | null>>({ monthly: nu
 const appStoreReady = ref(false)
 const appStoreProducts = ref<Record<BillingInterval, AppStoreBillingProduct | null>>({ monthly: null, yearly: null })
 const appStoreProductIds = ref<Record<BillingInterval, string | null>>({ monthly: null, yearly: null })
-
-const canManageBilling = computed(() => {
-  const role = authStore.activeBand?.role
-  return role === 'owner' || role === 'admin'
-})
 
 const canManageSubscription = computed(() => {
   const p = subscriptionProvider.value
@@ -186,18 +193,18 @@ const showRestoreButton = computed(() => {
   return (isAndroidNative() && playReady.value) || (isIosNative() && appStoreReady.value)
 })
 
-const effectivePlanId = computed<PlanId>(() => {
-  if (hasProPlan.value && currentPlan.value === 'free') return 'pro'
-  return currentPlan.value
-})
-
-const isInheritedPro = computed(() => currentPlan.value === 'free' && hasProPlan.value)
+/** True when this plan card should show a "current" badge */
+function isCurrentPlanCard(planId: 'free' | 'pro'): boolean {
+  if (effectivePlan.value === 'free') return planId === 'free'
+  if (effectivePlan.value === 'pro') return planId === 'pro' && userPlan.value === 'pro'
+  if (effectivePlan.value === 'plus') return planId === 'pro' // show pro card as active (inherited)
+  return false
+}
 
 const currentPlanLabel = computed(() => {
-  const plan = plans.value.find((p) => p.id === effectivePlanId.value)
-  if (!plan) return effectivePlanId.value
-  if (isInheritedPro.value) return `${plan.name} (inherited)`
-  return plan.name
+  if (effectivePlan.value === 'pro') return 'bandstr pro'
+  if (effectivePlan.value === 'plus') return 'bandstr plus'
+  return 'bandstr free'
 })
 
 const statusLabel = computed(() => {
@@ -248,7 +255,6 @@ function formatLimit(value: number | null) {
 
 function formatPlanPrice(plan: Plan) {
   if (plan.id === 'free') return '0 EUR'
-  if (plan.id === 'pro-zero') return '0 EUR (internal)'
 
   // On Android: show locale-aware Play Store prices if available
   if (isAndroidNative() && playReady.value) {
@@ -282,8 +288,8 @@ function formatPlanPrice(plan: Plan) {
 async function loadBilling() {
   try {
     const data = await apiJson<{
-      currentPlan: PlanId
-      hasProPlan: boolean
+      effectivePlan: EffectivePlan
+      userPlan: 'free' | 'pro'
       subscriptionProvider: SubscriptionProviderId
       currentSubscription: {
         status: SubscriptionStatus
@@ -303,8 +309,8 @@ async function loadBilling() {
       plans: Plan[]
     }>('/billing/plans')
 
-    currentPlan.value = data.currentPlan
-    hasProPlan.value = data.hasProPlan
+    effectivePlan.value = data.effectivePlan
+    userPlan.value = data.userPlan
     subscriptionStatus.value = data.currentSubscription.status
     subscriptionInterval.value = data.currentSubscription.interval
     currentPeriodEnd.value = data.currentSubscription.currentPeriodEnd
@@ -382,7 +388,6 @@ async function loadAppStoreProducts() {
 
 async function startCheckout(interval: BillingInterval) {
   loadingCheckout.value = true
-  selectedPlan.value = 'pro'
   selectedInterval.value = interval
   try {
     if (isAndroidNative() && playReady.value) {
@@ -434,15 +439,13 @@ async function startCheckout(interval: BillingInterval) {
     throw new Error('Checkout URL missing')
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to create checkout session'
-    // Surface cross-provider 409 conflict with a clear message
-    if (msg.includes('already has an active')) {
+    if (msg.includes('already have an active')) {
       Notify.create({ type: 'warning', message: msg })
     } else {
       Notify.create({ type: 'negative', message: msg })
     }
   } finally {
     loadingCheckout.value = false
-    selectedPlan.value = null
     selectedInterval.value = null
   }
 }
@@ -458,7 +461,6 @@ async function openPortal() {
       if (url) {
         window.open(url, '_blank')
       } else {
-        // Fallback to native plugin open
         if (provider === 'google_play' && isAndroidNative()) {
           const { openPlaySubscriptions } = await import('../plugins/playBilling')
           await openPlaySubscriptions()
