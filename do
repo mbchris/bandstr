@@ -10,6 +10,7 @@ env_profile="local"
 build_apk_sign=1
 build_apk_install=1
 build_bundle_sign=1
+android_version_bump="patch"
 deploy_apk_device_id=""
 deploy_ios_device_id=""
 sign_apk_input_path=""
@@ -81,33 +82,39 @@ Commands:
   build local
     Build production Docker image locally and tag latest.
 
-  build-apk [local|production] [--no-sign] [--no-install]
+  build-apk [local|production] [--no-sign] [--no-install] [maj+|min+]
     Build Android APK.
     Default profile: production (if omitted)
     - local uses .env.local (fallback .env)
     - production uses .env.production (fallback .env)
     - --no-sign skips signing
     - --no-install skips adb install
+    - maj+ increments MAJOR and resets MINOR/PATCH to 0
+    - min+ increments MINOR and resets PATCH to 0
+    - default behavior increments PATCH by 1
     Signing env vars for release key (base64):
       ANDROID_SIGNING_KEYSTORE_BASE64
       ANDROID_SIGNING_KEY_ALIAS
       ANDROID_SIGNING_KEYSTORE_PASSWORD
       ANDROID_SIGNING_KEY_PASSWORD
-    Note: versionCode is auto-incremented on every build.
+    Note: versionCode is auto-incremented and versionName is bumped on every build.
     Output: creates named artifact like <appName>-vc<versionCode>-b<buildId>.apk.
 
-  create-apk-bundle [local|production] [--no-sign]
+  create-apk-bundle [local|production] [--no-sign] [maj+|min+]
     Build Android App Bundle (.aab) for Play Store upload.
     Default profile: production (if omitted)
     - local uses .env.local (fallback .env)
     - production uses .env.production (fallback .env)
     - --no-sign skips signing/validation and leaves raw app-release.aab
+    - maj+ increments MAJOR and resets MINOR/PATCH to 0
+    - min+ increments MINOR and resets PATCH to 0
+    - default behavior increments PATCH by 1
     Signing env vars for release key (base64):
       ANDROID_SIGNING_KEYSTORE_BASE64
       ANDROID_SIGNING_KEY_ALIAS
       ANDROID_SIGNING_KEYSTORE_PASSWORD
       ANDROID_SIGNING_KEY_PASSWORD
-    Note: versionCode is auto-incremented on every build.
+    Note: versionCode is auto-incremented and versionName is bumped on every build.
     Output: creates named artifact like <appName>-vc<versionCode>-b<buildId>.aab.
 
   install-bundletool
@@ -180,9 +187,15 @@ if [[ "$command" == "build-apk" ]]; then
       --no-install)
         build_apk_install=0
         ;;
+      maj+)
+        android_version_bump="major"
+        ;;
+      min+)
+        android_version_bump="minor"
+        ;;
       *)
         echo "Error: Unknown option for build-apk: $arg"
-        echo "Usage: ./do build-apk [local|production] [--no-sign] [--no-install]"
+        echo "Usage: ./do build-apk [local|production] [--no-sign] [--no-install] [maj+|min+]"
         exit 1
         ;;
     esac
@@ -204,9 +217,15 @@ elif [[ "$command" == "create-apk-bundle" ]]; then
       --no-sign)
         build_bundle_sign=0
         ;;
+      maj+)
+        android_version_bump="major"
+        ;;
+      min+)
+        android_version_bump="minor"
+        ;;
       *)
         echo "Error: Unknown option for create-apk-bundle: $arg"
-        echo "Usage: ./do create-apk-bundle [local|production] [--no-sign]"
+        echo "Usage: ./do create-apk-bundle [local|production] [--no-sign] [maj+|min+]"
         exit 1
         ;;
     esac
@@ -946,7 +965,7 @@ build_android_apk() {
     fi
   fi
 
-  bump_android_version_code
+  bump_android_version
 
   echo "Building Android APK (debug)..."
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
@@ -1077,7 +1096,26 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
   install_android_apk "$deploy_apk"
 }
 
-bump_android_version_code() {
+resolve_android_version_commit_id() {
+  local from_env="${SOURCE_COMMIT:-}"
+  if [[ -n "$from_env" && "$from_env" != "UNKNOWN" && "$from_env" != "unknown" ]]; then
+    local sanitized
+    sanitized="$(sanitize_filename_component "$from_env")"
+    if [[ -n "$sanitized" ]]; then
+      printf '%s\n' "${sanitized:0:8}"
+      return 0
+    fi
+  fi
+
+  if git rev-parse --short=8 HEAD >/dev/null 2>&1; then
+    git rev-parse --short=8 HEAD
+    return 0
+  fi
+
+  printf 'unknown\n'
+}
+
+bump_android_version() {
   local gradle_file="packages/web/src-capacitor/android/app/build.gradle"
   if [[ ! -f "$gradle_file" ]]; then
     echo "Error: Android Gradle file not found: $gradle_file"
@@ -1091,34 +1129,87 @@ bump_android_version_code() {
     exit 1
   fi
 
+  local current_version_name=""
+  current_version_name="$(grep -E '^[[:space:]]*versionName[[:space:]]+"[^"]+"' "$gradle_file" | head -n 1 | sed -E 's/^[[:space:]]*versionName[[:space:]]+"([^"]+)".*/\1/')"
+  if [[ -z "$current_version_name" ]]; then
+    echo "Error: Could not determine current versionName in $gradle_file"
+    exit 1
+  fi
+
+  local semver_base="$current_version_name"
+  semver_base="$(printf '%s' "$semver_base" | sed -E 's/[[:space:]]*\([^)]+\)[[:space:]]*$//')"
+  local semver_compact
+  semver_compact="$(printf '%s' "$semver_base" | tr -d '[:space:]')"
+
+  if [[ ! "$semver_compact" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    echo "Error: Current versionName must contain SemVer MAJOR.MINOR.PATCH. Found: $current_version_name"
+    exit 1
+  fi
+
+  local major="${BASH_REMATCH[1]}"
+  local minor="${BASH_REMATCH[2]}"
+  local patch="${BASH_REMATCH[3]}"
+
+  case "$android_version_bump" in
+    major)
+      major=$((major + 1))
+      minor=0
+      patch=0
+      ;;
+    minor)
+      minor=$((minor + 1))
+      patch=0
+      ;;
+    patch)
+      patch=$((patch + 1))
+      ;;
+    *)
+      echo "Error: Unsupported version bump mode: $android_version_bump"
+      exit 1
+      ;;
+  esac
+
+  local commit_id=""
+  commit_id="$(resolve_android_version_commit_id)"
+  local minor_padded=""
+  local patch_padded=""
+  printf -v minor_padded "%02d" "$minor"
+  printf -v patch_padded "%02d" "$patch"
+  local next_version_name="${major}.${minor_padded}.${patch_padded} (${commit_id})"
+
   local next_version_code=$((current_version_code + 1))
   local temp_root="${TMPDIR:-${TEMP:-${TMP:-/tmp}}}"
   mkdir -p "$temp_root"
   local tmp_file
   tmp_file="$(mktemp "$temp_root/bandstr-versioncode-XXXXXX")"
 
-  if ! awk -v nextversion="$next_version_code" '
-    BEGIN { updated = 0 }
+  if ! awk -v nextcode="$next_version_code" -v nextname="$next_version_name" '
+    BEGIN { updated_code = 0; updated_name = 0 }
     {
-      if (!updated && $0 ~ /^[[:space:]]*versionCode[[:space:]]+[0-9]+[[:space:]]*$/) {
-        sub(/[0-9]+[[:space:]]*$/, nextversion)
-        updated = 1
+      if (!updated_code && $0 ~ /^[[:space:]]*versionCode[[:space:]]+[0-9]+[[:space:]]*$/) {
+        sub(/[0-9]+[[:space:]]*$/, nextcode)
+        updated_code = 1
+      }
+      if (!updated_name && $0 ~ /^[[:space:]]*versionName[[:space:]]+"[^"]+"[[:space:]]*$/) {
+        sub(/"[^"]+"[[:space:]]*$/, "\"" nextname "\"")
+        updated_name = 1
       }
       print
     }
     END {
-      if (!updated) {
+      if (!updated_code || !updated_name) {
         exit 2
       }
     }
   ' "$gradle_file" > "$tmp_file"; then
     rm -f "$tmp_file"
-    echo "Error: Failed to update versionCode in $gradle_file"
+    echo "Error: Failed to update versionCode/versionName in $gradle_file"
     exit 1
   fi
 
   mv "$tmp_file" "$gradle_file"
   echo "Android versionCode bumped: $current_version_code -> $next_version_code"
+  echo "Android versionName bumped: $current_version_name -> $next_version_name"
 }
 
 build_android_bundle() {

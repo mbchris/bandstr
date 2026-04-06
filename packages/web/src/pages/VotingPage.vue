@@ -71,7 +71,7 @@
                       :key="`${song.id}-voted-${member.id}`"
                       size="24px"
                       class="stack-avatar"
-                      :style="{ left: `${i * 16}px`, zIndex: 30 - i }"
+                      :style="stackedAvatarStyle(song, member.id, i)"
                       color="primary"
                       text-color="white"
                     >
@@ -210,7 +210,13 @@
           <q-list class="q-mt-sm" dense bordered separator>
             <q-item v-for="member in visibleMembers" :key="`d-${detailsSong.id}-${member.id}`">
               <q-item-section avatar>
-                <q-avatar size="24px" color="grey-7" text-color="white">
+                <q-avatar
+                  size="24px"
+                  color="grey-7"
+                  text-color="white"
+                  class="details-avatar"
+                  :style="detailsAvatarStyle(detailsSong, member.id)"
+                >
                   <img v-if="member.image" :src="member.image" />
                   <span v-else>{{ getNameInitial(member.name) }}</span>
                 </q-avatar>
@@ -275,6 +281,27 @@ function canDelete(song: Song) { return isAdmin.value || authStore.user?.id === 
 function voteScore(song: Song, userId: string): number | null {
   const vote = song.allVotes?.find((v) => v.userId === userId)
   return vote?.score ?? null
+}
+
+function voteBorderColor(score: number | null): string {
+  if (score === null) return '#9e9e9e'
+  const clampedScore = Math.max(0, Math.min(3, score))
+  const hue = (clampedScore / 3) * 120
+  return `hsl(${hue} 80% 42%)`
+}
+
+function stackedAvatarStyle(song: Song, userId: string, index: number) {
+  return {
+    left: `${index * 16}px`,
+    zIndex: 30 - index,
+    borderColor: voteBorderColor(voteScore(song, userId)),
+  }
+}
+
+function detailsAvatarStyle(song: Song | null, userId: string) {
+  return {
+    borderColor: voteBorderColor(song ? voteScore(song, userId) : null),
+  }
 }
 
 function getNameInitial(name?: string | null) {
@@ -532,7 +559,13 @@ onMounted(() => {
 
 .stack-avatar {
   position: absolute;
-  border: 2px solid var(--q-dark-page);
+  border-width: 4px;
+  border-style: solid;
+}
+
+.details-avatar {
+  border-width: 3px;
+  border-style: solid;
 }
 
 .option1-actions {
