@@ -32,47 +32,47 @@ const PLANS: Array<{
   limits: { setlistSongs: number | null; members: number | null }
   features: string[]
 }> = [
-  {
-    id: 'free',
-    name: 'bandstr free',
-    bookable: true,
-    prices: { monthly: 0, yearly: 0, currency: 'EUR' },
-    limits: { setlistSongs: 15, members: 5 },
-    features: [
-      'Song voting',
-      'Setlist management (up to 15 songs)',
-      'Gig setlist management',
-      'Bierwart',
-      'Calendar',
-      'Band member availabilities',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'bandstr pro',
-    bookable: true,
-    prices: { monthly: 1.99, yearly: 25, currency: 'EUR' },
-    limits: { setlistSongs: null, members: null },
-    features: [
-      'all from free, plus',
-      'Unlimited setlist size',
-      'Unlimited band members',
-      'Shared notes on songs',
-      'Personal song notes',
-      'Import/export for band data',
-      'Bierwart with counter',      
-      'join multiple bands with one login',
-    ],
-  } ,
-  {
-    id: 'pro-zero',
-    name: 'bandstr pro-zero',
-    bookable: false,
-    prices: { monthly: 0, yearly: 0, currency: 'EUR' },
-    limits: { setlistSongs: null, members: null },
-    features: ['All pro features', 'Internal-only plan'],
-  },
-]
+    {
+      id: 'free',
+      name: 'bandstr free',
+      bookable: true,
+      prices: { monthly: 0, yearly: 0, currency: 'EUR' },
+      limits: { setlistSongs: 15, members: 5 },
+      features: [
+        'Song voting',
+        'Setlist management (up to 15 songs)',
+        'Gig setlist management',
+        'Bierwart',
+        'Calendar',
+        'Band member availabilities',
+      ],
+    },
+    {
+      id: 'pro',
+      name: 'bandstr pro',
+      bookable: true,
+      prices: { monthly: 1.99, yearly: 19.99, currency: 'EUR' },
+      limits: { setlistSongs: null, members: null },
+      features: [
+        'all from free, plus',
+        'Unlimited setlist size',
+        'Unlimited band members',
+        'Shared notes on songs',
+        'Personal song notes',
+        'Import/export for band data',
+        'Bierwart with counter',
+        'join multiple bands with one login',
+      ],
+    },
+    {
+      id: 'pro-zero',
+      name: 'bandstr pro-zero',
+      bookable: false,
+      prices: { monthly: 0, yearly: 0, currency: 'EUR' },
+      limits: { setlistSongs: null, members: null },
+      features: ['All pro features', 'Internal-only plan'],
+    },
+  ]
 
 function appUrlFromRequest(c: Context) {
   const explicit = process.env.APP_URL?.trim()

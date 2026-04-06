@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+print_header() {
+  clear
+  echo "========================================"
+  echo "          m_bandstr do CLI Helper       "
+  echo "========================================"
+  echo
+}
+
+while true; do
+  print_header
+  echo "Please select a task to run:"
+  
+  options=(
+    "Build Production Image (./do build)"
+    "Build APK (./do build-apk)"
+    "Create APK Bundle (./do create-apk-bundle)"
+    "Deploy to Play Console (./do deploy-play-console)"
+    "Quit"
+  )
+  
+  PS3="Enter your choice (1-${#options[@]}): "
+  select opt in "${options[@]}"; do
+    case "$REPLY" in
+      1)
+        echo "Running: ./do build"
+        ./do build
+        read -p "Press Enter to continue..."
+        break
+        ;;
+      2)
+        echo "Running: ./do build-apk"
+        ./do build-apk
+        read -p "Press Enter to continue..."
+        break
+        ;;
+      3)
+        echo "Running: ./do create-apk-bundle"
+        ./do create-apk-bundle
+        read -p "Press Enter to continue..."
+        break
+        ;;
+      4)
+        echo "Running: ./do deploy-play-console"
+        ./do deploy-play-console
+        read -p "Press Enter to continue..."
+        break
+        ;;
+      5)
+        echo "Exiting."
+        exit 0
+        ;;
+      *)
+        echo "Invalid option. Please try again."
+        ;;
+    esac
+  done
+done

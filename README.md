@@ -25,6 +25,15 @@ Key files:
 - `.env.web` for web build/runtime vars (`API_URL`, `DEBUG_MODE`, `MOBILE_CALLBACK_URL`)
 - `.env` / `.env.local` / `.env.production` are used by `./do` and compose profile workflows
 
+Self-registration mail delivery:
+- Better Auth account emails (verification, password reset, change-email confirmation) are sent via `AUTH_EMAIL_WEBHOOK_URL`.
+- Optional auth header for that webhook: `AUTH_EMAIL_WEBHOOK_BEARER_TOKEN`.
+- If no webhook URL is set, emails are logged to the API server output (dev-friendly fallback).
+
+Support-to-GitHub integration:
+- `SUPPORT_GITHUB_ISSUES_URL` defines the target issue list URL (default: `https://github.com/prj120/bandstr/issues`).
+- `SUPPORT_GITHUB_TOKEN` is required for API-side issue creation.
+
 ## Local Development
 
 ### Option A: Native API + Web (recommended during feature work)

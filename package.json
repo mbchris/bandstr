@@ -45,5 +45,8 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "googleapis": "^171.4.0"
   }
 }

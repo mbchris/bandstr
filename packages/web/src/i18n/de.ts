@@ -16,7 +16,9 @@ export default {
     active: 'Aktiv',
     loggedInAs: 'Eingeloggt als',
     subscriptions: 'Abonnements',
+    support: 'Support',
     impress: 'Impressum',
+    accountSecurity: 'Kontosicherheit',
     deleteAccount: 'Konto löschen',
   },
 

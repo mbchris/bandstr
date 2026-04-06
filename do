@@ -117,6 +117,12 @@ Commands:
     Note: versionCode is auto-incremented and versionName is bumped on every build.
     Output: creates named artifact like <appName>-vc<versionCode>-b<buildId>.aab.
 
+  deploy-play-console [local|production] [AAB_PATH]
+    Deploy an existing App Bundle (.aab) to the Google Play Console internal track.
+    If AAB_PATH is omitted, uses the signed release AAB from the build directory.
+    - local uses .env.local
+    - production uses .env.production
+
   install-bundletool
     Download bundletool JAR into ./.tools/bundletool (if missing).
 
@@ -1330,6 +1336,27 @@ deploy_android_apk() {
   install_android_apk "$apk_path" "$explicit_device_id"
 }
 
+deploy_play_console_bundle() {
+  local profile=""
+  local aab_path=""
+  export_env_file ""
+
+  if [[ -z "" ]]; then
+    aab_path="packages/web/src-capacitor/android/app/build/outputs/bundle/release/app-release-signed.aab"
+  fi
+
+  if [[ ! -f "" ]]; then
+    echo "Error: AAB file not found at ."
+    echo "Please build an AAB first using:"
+    echo "  ./do create-apk-bundle "
+    exit 1
+  fi
+
+  local deploy_script="scripts/deploy-play-console.mjs"
+  echo "Deploying  to Play Console (internal track)..."
+  node "" ""
+}
+
 sign_existing_android_apk() {
   local profile="$1"
   local input_path="${2:-}"
@@ -1405,6 +1432,9 @@ case "$command" in
   create-apk-bundle)
     sync_assets
     build_android_bundle "$build_bundle_sign"
+    ;;
+  deploy-play-console)
+    deploy_play_console_bundle "" ""
     ;;
   deploy-apk)
     deploy_android_apk "$env_profile" "$deploy_apk_device_id"

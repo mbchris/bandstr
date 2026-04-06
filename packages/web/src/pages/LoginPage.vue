@@ -6,141 +6,184 @@
     </div>
 
     <template v-else>
-    <q-btn
-      v-if="isDebugMode"
-      class="debug-icon-btn"
-      icon="bug_report"
-      round
-      dense
-      flat
-      color="grey-4"
-      @click="showDebugDialog = true"
-    />
-
-    <q-btn
-      color="white"
-      text-color="dark"
-      icon="img:https://www.google.com/favicon.ico"
-      :label="t('login.google')"
-      class="full-width q-mb-md"
-      unelevated
-      size="md"
-      :loading="loadingGoogle"
-      @click="loginGoogle"
-    />
-
-    <q-btn
-      color="dark"
-      text-color="white"
-      icon="img:https://github.com/favicon.ico"
-      :label="t('login.github')"
-      class="full-width q-btn-github"
-      outline
-      size="md"
-      :loading="loadingGithub"
-      @click="loginGithub"
-    />
-
-    <div v-if="isDebugMode" class="q-mt-sm">
       <q-btn
-        class="full-width"
-        color="grey-7"
-        text-color="white"
-        outline
-        size="sm"
+        v-if="isDebugMode"
+        class="debug-icon-btn"
         icon="bug_report"
-        label="Open Debug"
+        round
+        dense
+        flat
+        color="grey-4"
         @click="showDebugDialog = true"
       />
-    </div>
 
-    <div v-if="error" class="q-mt-md text-negative text-center text-body2">
-      {{ error }}
-    </div>
-    <div v-if="copyStatus" class="q-mt-sm text-center text-caption">
-      {{ copyStatus }}
-    </div>
+      <q-btn-toggle
+        v-model="authMode"
+        spread
+        unelevated
+        class="q-mb-md auth-mode-toggle"
+        toggle-color="primary"
+        :options="modeOptions"
+      />
 
-    <q-dialog v-if="isDebugMode" v-model="showDebugDialog">
-      <q-card class="debug-card">
-        <q-card-section class="row items-center q-pb-sm">
-          <div class="text-subtitle1">Debug Info</div>
-          <q-space />
-          <q-btn dense flat icon="content_copy" label="Copy Debug" @click="copyDebugToClipboard" />
-          <q-btn dense flat round icon="close" @click="showDebugDialog = false" />
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="debug-content text-caption">
-          <div>DEBUG_MODE (raw): {{ debugModeRaw }}</div>
-          <div>Native platform: {{ isNative }}</div>
-          <div>Platform: {{ platform }}</div>
-          <div>Window origin: {{ windowOrigin }}</div>
-          <div>Window href: {{ windowHref }}</div>
-          <div>Route redirect (raw): {{ routeRedirectRaw }}</div>
-          <div>Route token (raw): {{ routeTokenRaw ? '(present)' : '(absent)' }}</div>
-          <div>Route mobileAuth (raw): {{ routeMobileAuthRaw }}</div>
-          <div>Route error (raw): {{ routeErrorRaw }}</div>
-          <div>Redirect path (sanitized): {{ redirectPath }}</div>
-          <div>API_URL (raw): {{ debugApiUrlRaw }}</div>
-          <div>API base (effective): {{ debugApiBase }}</div>
-          <div>Auth URL (effective): {{ debugAuthUrl }}</div>
-          <div>MOBILE_CALLBACK_URL (raw): {{ debugMobileCallbackUrlRaw }}</div>
-          <div>Native app callback (effective): {{ nativeAppCallbackUrl }}</div>
-          <div>Native bridge callback (effective): {{ nativeBridgeCallbackUrl || '(missing API_URL)' }}</div>
-          <div>Web callback (effective): {{ webCallbackUrl }}</div>
-          <div>Social callback (effective): {{ socialCallbackUrl }}</div>
-          <div>User agent: {{ userAgent }}</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <div class="row q-col-gutter-sm">
-            <div class="col-12 col-sm-6">
-              <q-btn
-                class="full-width"
-                color="primary"
-                outline
-                size="sm"
-                :loading="testingAuth"
-                label="Test Auth Endpoint"
-                @click="testAuthEndpoint"
-              />
+      <q-form v-if="authMode === 'signin'" class="column q-gutter-sm q-mb-md" @submit.prevent="signInWithEmail">
+        <q-input v-model="signinEmail" type="email" outlined dense autocomplete="email" label="Email" :rules="[requiredRule, emailRule]" />
+        <q-input
+          v-model="signinPassword"
+          type="password"
+          outlined
+          dense
+          autocomplete="current-password"
+          label="Password"
+          :rules="[requiredRule]"
+        />
+        <q-btn color="primary" label="Sign in with email" type="submit" :loading="loadingEmailSignIn" />
+      </q-form>
+
+      <q-form v-if="authMode === 'signup'" class="column q-gutter-sm q-mb-md" @submit.prevent="signUpWithEmail">
+        <q-input v-model="signupName" outlined dense autocomplete="name" label="Name" :rules="[requiredRule]" />
+        <q-input v-model="signupEmail" type="email" outlined dense autocomplete="email" label="Email" :rules="[requiredRule, emailRule]" />
+        <q-input
+          v-model="signupPassword"
+          type="password"
+          outlined
+          dense
+          autocomplete="new-password"
+          label="Password"
+          :rules="[requiredRule, minPasswordRule]"
+        />
+        <q-btn color="primary" label="Create account" type="submit" :loading="loadingEmailSignUp" />
+      </q-form>
+
+      <q-form v-if="authMode === 'forgot'" class="column q-gutter-sm q-mb-md" @submit.prevent="requestPasswordReset">
+        <q-input v-model="forgotEmail" type="email" outlined dense autocomplete="email" label="Email" :rules="[requiredRule, emailRule]" />
+        <q-btn color="primary" label="Send reset link" type="submit" :loading="loadingPasswordReset" />
+        <div class="text-caption text-grey-5">
+          The reset link will point to <code>/reset-password</code>.
+        </div>
+      </q-form>
+
+      <q-separator dark spaced />
+
+      <q-btn
+        color="white"
+        text-color="dark"
+        icon="img:https://www.google.com/favicon.ico"
+        :label="t('login.google')"
+        class="full-width q-mb-md"
+        unelevated
+        size="md"
+        :loading="loadingGoogle"
+        @click="loginGoogle"
+      />
+
+      <q-btn
+        color="dark"
+        text-color="white"
+        icon="img:https://github.com/favicon.ico"
+        :label="t('login.github')"
+        class="full-width q-btn-github"
+        outline
+        size="md"
+        :loading="loadingGithub"
+        @click="loginGithub"
+      />
+
+      <div class="row justify-between items-center q-mt-sm">
+        <q-btn flat dense color="grey-4" label="Forgot password?" @click="authMode = 'forgot'" />
+        <q-btn flat dense color="grey-4" label="Back to sign in" @click="authMode = 'signin'" />
+      </div>
+
+      <div v-if="error" class="q-mt-md text-negative text-center text-body2">
+        {{ error }}
+      </div>
+      <div v-if="info" class="q-mt-md text-positive text-center text-body2">
+        {{ info }}
+      </div>
+      <div v-if="copyStatus" class="q-mt-sm text-center text-caption">
+        {{ copyStatus }}
+      </div>
+
+      <q-dialog v-if="isDebugMode" v-model="showDebugDialog">
+        <q-card class="debug-card">
+          <q-card-section class="row items-center q-pb-sm">
+            <div class="text-subtitle1">Debug Info</div>
+            <q-space />
+            <q-btn dense flat icon="content_copy" label="Copy Debug" @click="copyDebugToClipboard" />
+            <q-btn dense flat round icon="close" @click="showDebugDialog = false" />
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="debug-content text-caption">
+            <div>DEBUG_MODE (raw): {{ debugModeRaw }}</div>
+            <div>Native platform: {{ isNative }}</div>
+            <div>Platform: {{ platform }}</div>
+            <div>Window origin: {{ windowOrigin }}</div>
+            <div>Window href: {{ windowHref }}</div>
+            <div>Route redirect (raw): {{ routeRedirectRaw }}</div>
+            <div>Route token (raw): {{ routeTokenRaw ? '(present)' : '(absent)' }}</div>
+            <div>Route mobileAuth (raw): {{ routeMobileAuthRaw }}</div>
+            <div>Route error (raw): {{ routeErrorRaw }}</div>
+            <div>Redirect path (sanitized): {{ redirectPath }}</div>
+            <div>API_URL (raw): {{ debugApiUrlRaw }}</div>
+            <div>API base (effective): {{ debugApiBase }}</div>
+            <div>Auth URL (effective): {{ debugAuthUrl }}</div>
+            <div>MOBILE_CALLBACK_URL (raw): {{ debugMobileCallbackUrlRaw }}</div>
+            <div>Native app callback (effective): {{ nativeAppCallbackUrl }}</div>
+            <div>Native bridge callback (effective): {{ nativeBridgeCallbackUrl || '(missing API_URL)' }}</div>
+            <div>Web callback (effective): {{ webCallbackUrl }}</div>
+            <div>Social callback (effective): {{ socialCallbackUrl }}</div>
+            <div>User agent: {{ userAgent }}</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-btn
+                  class="full-width"
+                  color="primary"
+                  outline
+                  size="sm"
+                  :loading="testingAuth"
+                  label="Test Auth Endpoint"
+                  @click="testAuthEndpoint"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-btn
+                  class="full-width"
+                  color="secondary"
+                  outline
+                  size="sm"
+                  :loading="testingBands"
+                  label="Test Bands Endpoint"
+                  @click="testBandsEndpoint"
+                />
+              </div>
+              <div class="col-12">
+                <q-btn
+                  class="full-width"
+                  color="accent"
+                  outline
+                  size="sm"
+                  :loading="testingSession"
+                  label="Probe Session + CORS"
+                  @click="probeSessionAndCors"
+                />
+              </div>
             </div>
-            <div class="col-12 col-sm-6">
-              <q-btn
-                class="full-width"
-                color="secondary"
-                outline
-                size="sm"
-                :loading="testingBands"
-                label="Test Bands Endpoint"
-                @click="testBandsEndpoint"
-              />
+          </q-card-section>
+          <q-card-section v-if="debugOutput" class="q-pt-none">
+            <div class="debug-output">
+              {{ debugOutput }}
             </div>
-            <div class="col-12">
-              <q-btn
-                class="full-width"
-                color="accent"
-                outline
-                size="sm"
-                :loading="testingSession"
-                label="Probe Session + CORS"
-                @click="probeSessionAndCors"
-              />
-            </div>
-          </div>
-        </q-card-section>
-        <q-card-section v-if="debugOutput" class="q-pt-none">
-          <div class="debug-output">
-            {{ debugOutput }}
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+          </q-card-section>
+        </q-card>
+      </q-dialog>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { useRoute, useRouter } from 'vue-router'
 import { authClient } from '../boot/auth'
@@ -152,7 +195,11 @@ const { t } = useI18n()
 const processingToken = ref(!!((new URLSearchParams(window.location.search)).get('token') || window.location.hash.includes('token=')))
 const loadingGoogle = ref(false)
 const loadingGithub = ref(false)
+const loadingEmailSignIn = ref(false)
+const loadingEmailSignUp = ref(false)
+const loadingPasswordReset = ref(false)
 const error = ref<string | null>(null)
+const info = ref<string | null>(null)
 const testingAuth = ref(false)
 const testingBands = ref(false)
 const testingSession = ref(false)
@@ -176,6 +223,25 @@ const debugApiBase = normalizedApiBase || '(same-origin /api)'
 const debugAuthUrl = normalizedApiBase ? `${normalizedApiBase}/api/auth` : '/api/auth'
 const mobileCallbackUrlRaw = (process.env.MOBILE_CALLBACK_URL ?? '').trim()
 const debugMobileCallbackUrlRaw = mobileCallbackUrlRaw || '(empty)'
+
+const authMode = ref<'signin' | 'signup' | 'forgot'>('signin')
+const signinEmail = ref('')
+const signinPassword = ref('')
+const signupName = ref('')
+const signupEmail = ref('')
+const signupPassword = ref('')
+const forgotEmail = ref('')
+
+const modeOptions = computed(() => [
+  { label: 'Email sign in', value: 'signin' },
+  { label: 'Sign up', value: 'signup' },
+  { label: 'Reset', value: 'forgot' },
+])
+
+const requiredRule = (value: string) => (!!value && value.trim().length > 0) || 'Required'
+const emailRule = (value: string) => /.+@.+\..+/.test(value) || 'Please provide a valid email'
+const minPasswordRule = (value: string) => value.length >= 8 || 'At least 8 characters'
+
 function normalizeNativeCallbackBase(url: string): string {
   const fallback = 'org.capacitor.bandstr://localhost/#/login'
   const input = url.trim()
@@ -205,11 +271,6 @@ function sanitizeRedirectPath(value: unknown): string {
   const v = value.trim()
   if (!v.startsWith('/') || v.startsWith('//')) return '/'
   return v === '/login' ? '/' : v
-}
-
-function appendQueryParam(url: string, key: string, value: string): string {
-  const joiner = url.includes('?') ? '&' : '?'
-  return `${url}${joiner}${encodeURIComponent(key)}=${encodeURIComponent(value)}`
 }
 
 function getParamFromCurrentHref(key: string): string {
@@ -272,9 +333,109 @@ function buildTestUrls(path: string): string[] {
   return [...urls]
 }
 
+function authEndpoint(path: string): string {
+  return `${normalizedApiBase}/api/auth${path}`
+}
+
+async function postAuth(path: string, body: Record<string, unknown>) {
+  const response = await fetch(authEndpoint(path), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    message?: string
+    error?: { message?: string }
+    token?: string | null
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.error?.message ?? payload?.message ?? `Auth request failed (${response.status})`)
+  }
+
+  return payload
+}
+
+async function signInWithEmail() {
+  error.value = null
+  info.value = null
+  loadingEmailSignIn.value = true
+  try {
+    const payload = await postAuth('/sign-in/email', {
+      email: signinEmail.value.trim(),
+      password: signinPassword.value,
+      callbackURL: socialCallbackUrl,
+    })
+    if (typeof payload.token === 'string' && payload.token) {
+      authStore.setToken(payload.token)
+    }
+    await authStore.loadSession()
+    if (!authStore.isAuthenticated) {
+      throw new Error('Sign in completed but no active session is available.')
+    }
+    await router.replace({ path: redirectPath })
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Login failed'
+  } finally {
+    loadingEmailSignIn.value = false
+  }
+}
+
+async function signUpWithEmail() {
+  error.value = null
+  info.value = null
+  loadingEmailSignUp.value = true
+  try {
+    const payload = await postAuth('/sign-up/email', {
+      name: signupName.value.trim(),
+      email: signupEmail.value.trim(),
+      password: signupPassword.value,
+      callbackURL: `${window.location.origin}/login?verified=1`,
+    })
+
+    if (typeof payload.token === 'string' && payload.token) {
+      authStore.setToken(payload.token)
+      await authStore.loadSession()
+      await router.replace({ path: redirectPath })
+      return
+    }
+
+    info.value = 'Account created. Please verify your email address before signing in.'
+    authMode.value = 'signin'
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Sign-up failed'
+  } finally {
+    loadingEmailSignUp.value = false
+  }
+}
+
+async function requestPasswordReset() {
+  error.value = null
+  info.value = null
+  loadingPasswordReset.value = true
+  try {
+    await postAuth('/request-password-reset', {
+      email: forgotEmail.value.trim(),
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    info.value = 'If the email exists, a reset link has been sent.'
+    authMode.value = 'signin'
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Could not send reset link'
+  } finally {
+    loadingPasswordReset.value = false
+  }
+}
+
 async function loginGoogle() {
   loadingGoogle.value = true
   error.value = null
+  info.value = null
   try {
     if (isNative) {
       await startNativeSocialLogin('google')
@@ -294,6 +455,7 @@ async function loginGoogle() {
 async function loginGithub() {
   loadingGithub.value = true
   error.value = null
+  info.value = null
   try {
     if (isNative) {
       await startNativeSocialLogin('github')
@@ -480,6 +642,12 @@ async function copyDebugToClipboard() {
 }
 
 onMounted(async () => {
+  if (route.query.verified === '1') {
+    info.value = 'Email verification succeeded. You can sign in now.'
+  } else if (route.query.error && typeof route.query.error === 'string') {
+    error.value = `Authentication error: ${route.query.error}`
+  }
+
   if (!routeTokenRaw) {
     processingToken.value = false
     return
@@ -502,9 +670,6 @@ onMounted(async () => {
   }
 })
 
-// Handle token arriving via deep link while the page is already mounted.
-// Vue Router does not remount the component for same-path navigations (only
-// query params change), so onMounted won't fire again.
 watch(
   () => route.query.token,
   async (newToken) => {
@@ -528,6 +693,10 @@ watch(
 <style scoped>
 .login-page-wrap {
   position: relative;
+}
+
+.auth-mode-toggle :deep(.q-btn) {
+  min-height: 34px;
 }
 
 .q-btn-github {
@@ -560,3 +729,4 @@ watch(
   background: rgba(0, 0, 0, 0.22);
 }
 </style>
+
