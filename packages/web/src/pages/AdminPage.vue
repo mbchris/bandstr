@@ -153,9 +153,9 @@
                 PRO feature — upgrade to access import/export
               </q-banner>
               <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportDb">{{ t('admin.downloadBackup') }}</q-btn>
-              <q-btn class="full-width" color="orange" outline icon="upload" :loading="isImporting" :disable="authStore.isFreePlan" @click="importInputRef?.click()">{{ t('admin.importSql') }}</q-btn>
-              <input ref="importInputRef" type="file" accept=".sql" class="hidden" style="display:none" @change="handleImport" />
-              <div class="text-caption text-grey text-center">{{ t('admin.sqlWarning') }}</div>
+              <q-btn class="full-width" color="orange" outline icon="upload" :loading="isImporting" :disable="authStore.isFreePlan" @click="importInputRef?.click()">{{ t('admin.importBackup') }}</q-btn>
+              <input ref="importInputRef" type="file" accept=".json" class="hidden" style="display:none" @change="handleImport" />
+              <div class="text-caption text-grey text-center">{{ t('admin.backupWarning') }}</div>
             </q-card-section>
           </q-card>
 
@@ -509,20 +509,29 @@ async function downloadExport(path: string, fallbackFilename: string) {
 }
 
 function exportDb() {
-  downloadExport('/admin/db/export', 'bandstr-backup.json')
+  downloadExport('/admin/db/export', 'bandstr-backup.v1.json')
 }
 
 async function handleImport(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    $q.notify({ message: t('admin.invalidBackupFile'), color: 'negative' })
+    ;(event.target as HTMLInputElement).value = ''
+    return
+  }
 
-  $q.dialog({ title: t('admin.importSql'), message: t('admin.importWarningConfirm'), cancel: true }).onOk(async () => {
+  $q.dialog({ title: t('admin.importBackup'), message: t('admin.importWarningConfirm'), cancel: true }).onOk(async () => {
     isImporting.value = true
     const formData = new FormData()
     formData.append('file', file)
     try {
       const res = await api('/admin/db/import', { method: 'POST', body: formData })
-      if (!res.ok) throw new Error(t('admin.failedImport'))
+      const data = await res.json().catch(() => ({} as Record<string, unknown>))
+      if (!res.ok) {
+        const errorMessage = typeof data.error === 'string' ? data.error : t('admin.failedImport')
+        throw new Error(errorMessage)
+      }
       $q.notify({ message: t('admin.importSuccess'), color: 'positive' })
       await bandStore.fetchMembers()
     } catch (e: any) { $q.notify({ message: e.message || t('admin.failedImport'), color: 'negative' }) }
