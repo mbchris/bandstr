@@ -61,9 +61,11 @@ export async function bandHasProPlan(bandId: number): Promise<boolean> {
  * Compute a user's effective plan in the context of a band.
  * Priority: pro (own) > plus (inherited from band member) > free
  */
-export async function userEffectivePlan(userId: string, bandId: number): Promise<'pro' | 'plus' | 'free'> {
+export async function userEffectivePlan(userId: string, bandId?: number | null): Promise<'pro' | 'plus' | 'free'> {
   // Check user's own subscription first
   if (await userHasProPlan(userId)) return 'pro'
+
+  if (!bandId) return 'free'
 
   // Check if any other band member has pro → inherited "plus"
   const otherMembers = await db
