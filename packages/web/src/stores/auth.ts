@@ -6,6 +6,7 @@ export type User = {
   id: string
   name: string
   email: string
+  emailVerified?: boolean
   image?: string | null
 }
 
@@ -99,6 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
             id: data.user.id,
             name: data.user.name,
             email: data.user.email,
+            emailVerified: data.user.emailVerified,
             image: data.user.image,
           }
         }

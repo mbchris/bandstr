@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { bearer, organization } from 'better-auth/plugins'
 import { db } from '../db/index.js'
 import * as schema from '../db/schema.js'
+import { sendAuthEmail } from './auth-email.js'
 
 function normalizeAuthBaseUrl(apiUrl: string): string {
   try {
@@ -47,6 +48,10 @@ function getTrustedOrigins(): string[] {
   return Array.from(new Set([...configured, ...MOBILE_LOCAL_ORIGINS]))
 }
 
+function htmlLink(url: string, label: string): string {
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -78,6 +83,47 @@ export const auth = betterAuth({
     },
   },
 
+  emailVerification: {
+    sendOnSignUp: true,
+    sendOnSignIn: true,
+    autoSignInAfterVerification: true,
+    async sendVerificationEmail({ user, url }) {
+      await sendAuthEmail({
+        kind: 'verify-email',
+        to: user.email,
+        subject: 'bandstr: verify your email',
+        text: `Hi ${user.name || 'there'},\n\nPlease verify your email address:\n${url}\n\nIf you did not request this, you can ignore this message.`,
+        html: [
+          `<p>Hi ${user.name || 'there'},</p>`,
+          `<p>Please verify your email address:</p>`,
+          `<p>${htmlLink(url, 'Verify email address')}</p>`,
+          `<p>If you did not request this, you can ignore this message.</p>`,
+        ].join(''),
+      })
+    },
+  },
+
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+    autoSignIn: false,
+    revokeSessionsOnPasswordReset: true,
+    async sendResetPassword({ user, url }) {
+      await sendAuthEmail({
+        kind: 'reset-password',
+        to: user.email,
+        subject: 'bandstr: reset your password',
+        text: `Hi ${user.name || 'there'},\n\nReset your password via this link:\n${url}\n\nIf you did not request this, you can ignore this message.`,
+        html: [
+          `<p>Hi ${user.name || 'there'},</p>`,
+          '<p>You requested a password reset.</p>',
+          `<p>${htmlLink(url, 'Reset password')}</p>`,
+          '<p>If you did not request this, you can ignore this message.</p>',
+        ].join(''),
+      })
+    },
+  },
+
   plugins: [
     bearer(),
     organization({
@@ -89,6 +135,30 @@ export const auth = betterAuth({
 
   user: {
     additionalFields: {},
+    changeEmail: {
+      enabled: true,
+      async sendChangeEmailConfirmation({ user, newEmail, url }) {
+        await sendAuthEmail({
+          kind: 'change-email',
+          to: user.email,
+          subject: 'bandstr: confirm your email change',
+          text: [
+            `Hi ${user.name || 'there'},`,
+            '',
+            `We received a request to change your email to: ${newEmail}`,
+            `Please confirm this request:\n${url}`,
+            '',
+            'If you did not request this, you can ignore this message.',
+          ].join('\n'),
+          html: [
+            `<p>Hi ${user.name || 'there'},</p>`,
+            `<p>We received a request to change your email to <strong>${newEmail}</strong>.</p>`,
+            `<p>${htmlLink(url, 'Confirm email change')}</p>`,
+            '<p>If you did not request this, you can ignore this message.</p>',
+          ].join(''),
+        })
+      },
+    },
   },
 
   session: {

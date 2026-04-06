@@ -16,7 +16,9 @@ export default {
     active: 'Active',
     loggedInAs: 'Logged in as',
     subscriptions: 'Subscriptions',
+    support: 'Support',
     impress: 'Impress',
+    accountSecurity: 'Account security',
     deleteAccount: 'Delete account',
   },
 

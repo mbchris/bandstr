@@ -229,8 +229,26 @@
 - User can reset the password
 - User can delete the account
 
+**Backlog:** [`docs/backlog/iter-12-user-self-registration.md`](./backlog/iter-12-user-self-registration.md)
+
 
 ## Iteration 13 - Spotify integration optimization
 
 **Goal:** Spotify integration also fetches artist name and song length.
+
+
+## Iteration 14 - Support page
+
+**Goal:** The user can interact with the development team and report bugs or leave comments
+
+- Between the menu items "Subscriptions" and "Impress", there is a menu "Support"
+- Users can "Report a Bug", "Suggest a feature" or "Leave a comment"
+- GitHub Issues are created in the GItHub issues (Config defaults to: https://github.com/prj120/bandstr/issues ) 
+- "Types" are preselected
+- "Tags" are set based on Bug/Suggestion/Comment 
+- The Backend handles to connection to GitHub 
+- Users can leave a message, optionally attach screenshots and leave their email address. 
+- The build ID and environment is included automatically
+
+**Backlog:** [`docs/backlog/iter-14-support-page.md`](./backlog/iter-14-support-page.md)
 
