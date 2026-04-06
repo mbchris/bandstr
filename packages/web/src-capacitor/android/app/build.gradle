@@ -7,8 +7,8 @@ android {
         applicationId "org.capacitor.bandstr"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 39
-        versionName "1.01.13 (67127c5d)"
+        versionCode 41
+        versionName "1.01.15 (9a526a03)"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

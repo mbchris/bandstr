@@ -72,15 +72,15 @@
         </q-card>
       </div>
 
-      <!-- Bandstr Plus (inherited, shown when user has plus plan) -->
-      <div v-if="effectivePlan === 'plus'" class="col-12 col-md-4">
+      <!-- Bandstr Plus (inherited) -->
+      <div class="col-12 col-md-4">
         <q-card bordered flat class="plus-card">
           <q-card-section>
             <div class="row items-center q-gutter-xs">
               <div class="text-h6">bandstr plus</div>
-              <q-badge color="positive" label="Active" />
+              <q-badge v-if="effectivePlan === 'plus'" color="positive" label="Active" />
             </div>
-            <div class="text-subtitle1 q-mt-sm text-positive">Free for you</div>
+            <div v-if="effectivePlan === 'plus'" class="text-subtitle1 q-mt-sm text-positive">Free for you</div>
           </q-card-section>
           <q-separator />
           <q-card-section>
@@ -95,7 +95,7 @@
             <div class="text-body2">- Inherited while a band member has pro</div>
           </q-card-section>
           <q-card-actions align="right">
-            <q-chip color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
+            <q-chip v-if="effectivePlan === 'plus'" color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
           </q-card-actions>
         </q-card>
       </div>
