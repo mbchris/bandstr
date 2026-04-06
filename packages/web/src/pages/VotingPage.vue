@@ -19,7 +19,7 @@
                 @click="openAddModal"
               >
                 <q-tooltip v-if="atPoolLimit">
-                  PRO feature — free plan is limited to {{ FREE_POOL_LIMIT }} songs in the voting pool
+                  {{ t('voting.proPoolLimitTooltip', { limit: FREE_POOL_LIMIT }) }}
                 </q-tooltip>
               </q-btn>
             </div>
@@ -72,11 +72,11 @@
                 </q-item-label>
                 <q-item-label caption>{{ song.artist }}</q-item-label>
                 <div class="row q-gutter-xs q-mt-xs">
-                  <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
-                  <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
+                  <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.spotifyLabel') }}</a>
+                  <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.youtubeLabel') }}</a>
                 </div>
                 <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
-                  Length: {{ formatDuration(song.lengthMs) }}
+                  {{ t('voting.lengthLabel') }}: {{ formatDuration(song.lengthMs) }}
                 </div>
                 <div class="option1-vote-row q-mt-sm">
                   <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
@@ -112,7 +112,7 @@
               <q-item-section side class="song-order-actions">
                 <div class="column q-gutter-xs song-actions">
                   <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
-                    <q-tooltip>{{ atSetlistLimit ? `PRO feature — setlist limit of ${FREE_SETLIST_LIMIT} reached` : t('voting.sendToSetlist') }}</q-tooltip>
+                    <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
                   </q-btn>
                   <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
                   <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
@@ -143,24 +143,24 @@
           <q-input v-model="modalSong.artist" :label="t('voting.artist')" outlined dense />
           <q-input
             v-model="modalSongLengthInput"
-            label="Length (mm:ss)"
-            hint="Example: 3:45"
+            :label="t('voting.lengthInputLabel')"
+            :hint="t('voting.lengthInputHint')"
             outlined
             dense
             @blur="normalizeVotingLengthInput"
           />
           <q-input v-model="modalSong.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
           <div class="row items-center q-gutter-md">
-            <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
+            <span class="text-caption">{{ t('voting.pitchLabel') }}</span>
             <q-slider v-model="modalSong.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
             <q-badge color="grey-8" class="text-body2">
               {{ modalSong.pitch > 0 ? '+' : '' }}{{ modalSong.pitch }}
             </q-badge>
-            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+            <q-badge v-if="authStore.isFreePlan" color="orange" :label="t('voting.proFeature')" />
           </div>
           <div v-if="authStore.isFreePlan" class="row items-center q-gutter-sm">
             <q-input v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow disable class="col" />
-            <q-badge color="orange" label="PRO feature" />
+            <q-badge color="orange" :label="t('voting.proFeature')" />
           </div>
           <q-input v-else v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
         </q-card-section>
@@ -199,16 +199,16 @@
         <q-separator />
         <q-list separator>
           <q-item clickable v-ripple @click="selectOwnVote(0)">
-            <q-item-section>0 (Veto!)</q-item-section>
+            <q-item-section>{{ t('voting.voteOptionVeto') }}</q-item-section>
           </q-item>
           <q-item clickable v-ripple @click="selectOwnVote(1)">
-            <q-item-section>1 (OK)</q-item-section>
+            <q-item-section>{{ t('voting.voteOptionOk') }}</q-item-section>
           </q-item>
           <q-item clickable v-ripple @click="selectOwnVote(2)">
-            <q-item-section>2 (Good)</q-item-section>
+            <q-item-section>{{ t('voting.voteOptionGood') }}</q-item-section>
           </q-item>
           <q-item clickable v-ripple @click="selectOwnVote(3)">
-            <q-item-section>3 (Great)</q-item-section>
+            <q-item-section>{{ t('voting.voteOptionGreat') }}</q-item-section>
           </q-item>
         </q-list>
       </q-card>
@@ -349,10 +349,10 @@ function votedNamesLabel(song: Song): string {
     .map((member) => member.name?.trim())
     .filter((name): name is string => Boolean(name))
 
-  if (!names.length) return 'No one has voted yet.'
-  if (names.length === 1) return `${names[0]} has voted.`
-  if (names.length === 2) return `${names[0]} and ${names[1]} have voted.`
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have voted.`
+  if (!names.length) return t('voting.nobodyVoted')
+  if (names.length === 1) return t('voting.oneVoted', { name: names[0] })
+  if (names.length === 2) return t('voting.twoVoted', { first: names[0], second: names[1] })
+  return t('voting.manyVoted', { names: names.slice(0, -1).join(', '), last: names[names.length - 1] })
 }
 
 // Voting

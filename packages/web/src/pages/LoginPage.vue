@@ -27,39 +27,39 @@
       />
 
       <q-form v-if="authMode === 'signin'" class="column q-gutter-sm q-mb-md" @submit.prevent="signInWithEmail">
-        <q-input v-model="signinEmail" type="email" outlined dense autocomplete="email" label="Email" :rules="[requiredRule, emailRule]" />
+        <q-input v-model="signinEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
         <q-input
           v-model="signinPassword"
           type="password"
           outlined
           dense
           autocomplete="current-password"
-          label="Password"
+          :label="t('login.password')"
           :rules="[requiredRule]"
         />
-        <q-btn color="primary" label="Sign in with email" type="submit" :loading="loadingEmailSignIn" />
+        <q-btn color="primary" :label="t('login.signInEmail')" type="submit" :loading="loadingEmailSignIn" />
       </q-form>
 
       <q-form v-if="authMode === 'signup'" class="column q-gutter-sm q-mb-md" @submit.prevent="signUpWithEmail">
-        <q-input v-model="signupName" outlined dense autocomplete="name" label="Name" :rules="[requiredRule]" />
-        <q-input v-model="signupEmail" type="email" outlined dense autocomplete="email" label="Email" :rules="[requiredRule, emailRule]" />
+        <q-input v-model="signupName" outlined dense autocomplete="name" :label="t('login.name')" :rules="[requiredRule]" />
+        <q-input v-model="signupEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
         <q-input
           v-model="signupPassword"
           type="password"
           outlined
           dense
           autocomplete="new-password"
-          label="Password"
+          :label="t('login.password')"
           :rules="[requiredRule, minPasswordRule]"
         />
-        <q-btn color="primary" label="Create account" type="submit" :loading="loadingEmailSignUp" />
+        <q-btn color="primary" :label="t('login.createAccount')" type="submit" :loading="loadingEmailSignUp" />
       </q-form>
 
       <q-form v-if="authMode === 'forgot'" class="column q-gutter-sm q-mb-md" @submit.prevent="requestPasswordReset">
-        <q-input v-model="forgotEmail" type="email" outlined dense autocomplete="email" label="Email" :rules="[requiredRule, emailRule]" />
-        <q-btn color="primary" label="Send reset link" type="submit" :loading="loadingPasswordReset" />
+        <q-input v-model="forgotEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
+        <q-btn color="primary" :label="t('login.sendResetLink')" type="submit" :loading="loadingPasswordReset" />
         <div class="text-caption text-grey-5">
-          The reset link will point to <code>/reset-password</code>.
+          {{ t('login.resetLinkHint') }}
         </div>
       </q-form>
 
@@ -90,8 +90,8 @@
       />
 
       <div class="row justify-between items-center q-mt-sm">
-        <q-btn flat dense color="grey-4" label="Forgot password?" @click="authMode = 'forgot'" />
-        <q-btn flat dense color="grey-4" label="Back to sign in" @click="authMode = 'signin'" />
+        <q-btn flat dense color="grey-4" :label="t('login.forgotPassword')" @click="authMode = 'forgot'" />
+        <q-btn flat dense color="grey-4" :label="t('login.backToSignIn')" @click="authMode = 'signin'" />
       </div>
 
       <div v-if="error" class="q-mt-md text-negative text-center text-body2">
@@ -233,14 +233,14 @@ const signupPassword = ref('')
 const forgotEmail = ref('')
 
 const modeOptions = computed(() => [
-  { label: 'Email sign in', value: 'signin' },
-  { label: 'Sign up', value: 'signup' },
-  { label: 'Reset', value: 'forgot' },
+  { label: t('login.modeEmailSignIn'), value: 'signin' },
+  { label: t('login.modeSignUp'), value: 'signup' },
+  { label: t('login.modeReset'), value: 'forgot' },
 ])
 
-const requiredRule = (value: string) => (!!value && value.trim().length > 0) || 'Required'
-const emailRule = (value: string) => /.+@.+\..+/.test(value) || 'Please provide a valid email'
-const minPasswordRule = (value: string) => value.length >= 8 || 'At least 8 characters'
+const requiredRule = (value: string) => (!!value && value.trim().length > 0) || t('login.required')
+const emailRule = (value: string) => /.+@.+\..+/.test(value) || t('login.invalidEmail')
+const minPasswordRule = (value: string) => value.length >= 8 || t('login.minPassword')
 
 function normalizeNativeCallbackBase(url: string): string {
   const fallback = 'org.capacitor.bandstr://localhost/#/login'
@@ -376,11 +376,11 @@ async function signInWithEmail() {
     }
     await authStore.loadSession()
     if (!authStore.isAuthenticated) {
-      throw new Error('Sign in completed but no active session is available.')
+      throw new Error(t('login.signInNoSession'))
     }
     await router.replace({ path: redirectPath })
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Login failed'
+    error.value = e instanceof Error ? e.message : t('login.loginFailed')
   } finally {
     loadingEmailSignIn.value = false
   }
@@ -405,10 +405,10 @@ async function signUpWithEmail() {
       return
     }
 
-    info.value = 'Account created. Please verify your email address before signing in.'
+    info.value = t('login.accountCreatedVerify')
     authMode.value = 'signin'
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Sign-up failed'
+    error.value = e instanceof Error ? e.message : t('login.signupFailed')
   } finally {
     loadingEmailSignUp.value = false
   }
@@ -423,10 +423,10 @@ async function requestPasswordReset() {
       email: forgotEmail.value.trim(),
       redirectTo: `${window.location.origin}/reset-password`,
     })
-    info.value = 'If the email exists, a reset link has been sent.'
+    info.value = t('login.resetIfExists')
     authMode.value = 'signin'
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Could not send reset link'
+    error.value = e instanceof Error ? e.message : t('login.resetFailed')
   } finally {
     loadingPasswordReset.value = false
   }
@@ -442,11 +442,11 @@ async function loginGoogle() {
     } else {
       const result = await authClient.signIn.social({ provider: 'google', callbackURL: socialCallbackUrl })
       if (result?.error) {
-        throw new Error(result.error.message || 'Login failed')
+        throw new Error(result.error.message || t('login.loginFailed'))
       }
     }
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Login failed'
+    error.value = e instanceof Error ? e.message : t('login.loginFailed')
   } finally {
     loadingGoogle.value = false
   }
@@ -462,11 +462,11 @@ async function loginGithub() {
     } else {
       const result = await authClient.signIn.social({ provider: 'github', callbackURL: socialCallbackUrl })
       if (result?.error) {
-        throw new Error(result.error.message || 'Login failed')
+        throw new Error(result.error.message || t('login.loginFailed'))
       }
     }
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Login failed'
+    error.value = e instanceof Error ? e.message : t('login.loginFailed')
   } finally {
     loadingGithub.value = false
   }
@@ -474,7 +474,7 @@ async function loginGithub() {
 
 async function startNativeSocialLogin(provider: 'google' | 'github') {
   if (!nativeOauthStartUrlBase || !nativeBridgeCallbackUrl) {
-    throw new Error('Native OAuth requires API_URL to be configured for callback bridging')
+    throw new Error(t('login.nativeOauthRequiresApi'))
   }
 
   const startUrl =
@@ -631,9 +631,9 @@ async function copyDebugToClipboard() {
 
   try {
     await navigator.clipboard.writeText(payload)
-    copyStatus.value = 'Debug copied to clipboard'
+    copyStatus.value = t('login.debugCopied')
   } catch {
-    copyStatus.value = 'Clipboard copy failed'
+    copyStatus.value = t('login.debugCopyFailed')
   }
 
   window.setTimeout(() => {
@@ -643,9 +643,9 @@ async function copyDebugToClipboard() {
 
 onMounted(async () => {
   if (route.query.verified === '1') {
-    info.value = 'Email verification succeeded. You can sign in now.'
+    info.value = t('login.emailVerificationSucceeded')
   } else if (route.query.error && typeof route.query.error === 'string') {
-    error.value = `Authentication error: ${route.query.error}`
+    error.value = t('login.authenticationError', { error: route.query.error })
   }
 
   if (!routeTokenRaw) {
@@ -729,4 +729,3 @@ watch(
   background: rgba(0, 0, 0, 0.22);
 }
 </style>
-

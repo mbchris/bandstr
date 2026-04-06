@@ -100,7 +100,7 @@
         <q-card-actions class="row justify-between">
           <div class="row q-gutter-sm">
             <q-btn v-if="editingEvent" flat icon="delete" color="red" :label="t('common.delete')" @click="handleDeleteEvent" />
-            <q-btn v-if="editingEvent" flat icon="download" label="iCal" @click="exportIcal(editingEvent)" />
+            <q-btn v-if="editingEvent" flat icon="download" :label="t('calendar.exportIcal')" @click="exportIcal(editingEvent)" />
           </div>
           <div class="row q-gutter-sm">
             <q-btn flat :label="t('common.cancel')" v-close-popup />
