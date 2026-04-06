@@ -2,11 +2,10 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, or } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { users } from '../db/schema.js'
-import { requireAuth } from '../middleware/auth.js'
-import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
+import { users, bandMembers } from '../db/schema.js'
+import { requireAuth, type AuthEnv } from '../middleware/auth.js'
 import { userEffectivePlan } from '../lib/entitlements.js'
 import { stripeProvider, googlePlayProvider, getProvider } from '../lib/subscription/registry.js'
 import { getStripe, envPriceIdForPro } from '../lib/subscription/providers/stripe.js'
@@ -19,7 +18,7 @@ import {
   type WebhookBandUpdate,
 } from '../lib/subscription/types.js'
 
-export const billing = new Hono<TenantEnv>()
+export const billing = new Hono<AuthEnv>()
 
 type PlanId = 'free' | 'pro'
 
@@ -73,6 +72,24 @@ function appUrlFromRequest(c: Context) {
   const originHeader = c.req.header('Origin')
   if (originHeader) return originHeader
   return 'http://localhost:9000'
+}
+
+async function resolveOptionalBandId(c: Context<AuthEnv>): Promise<number | null> {
+  const rawBandId = c.req.header('X-Band-Id')?.trim()
+  if (!rawBandId) return null
+
+  const bandId = Number(rawBandId)
+  if (!Number.isInteger(bandId) || bandId <= 0) return null
+
+  const userId = c.get('user').id
+  const [membership] = await db
+    .select({ bandId: bandMembers.bandId })
+    .from(bandMembers)
+    .where(and(eq(bandMembers.userId, userId), eq(bandMembers.bandId, bandId)))
+    .limit(1)
+
+  if (!membership) return null
+  return bandId
 }
 
 // ─── DB write helper ──────────────────────────────────────────────────────────
@@ -132,9 +149,9 @@ async function applyWebhookUpdate(update: WebhookBandUpdate) {
 
 // ─── GET /plans ───────────────────────────────────────────────────────────────
 
-billing.get('/plans', requireAuth, requireTenant, async (c) => {
+billing.get('/plans', requireAuth, async (c) => {
   const userId = c.get('user').id
-  const bandId = c.get('bandId')
+  const bandId = await resolveOptionalBandId(c)
 
   const [user] = await db
     .select({
@@ -196,7 +213,6 @@ billing.get('/plans', requireAuth, requireTenant, async (c) => {
 billing.post(
   '/google-play/activate',
   requireAuth,
-  requireTenant,
   zValidator(
     'json',
     z.object({
@@ -247,7 +263,6 @@ billing.post(
 billing.post(
   '/google-play/restore',
   requireAuth,
-  requireTenant,
   zValidator(
     'json',
     z.object({
@@ -279,7 +294,6 @@ billing.post(
 billing.post(
   '/apple/activate',
   requireAuth,
-  requireTenant,
   zValidator(
     'json',
     z.object({
@@ -340,7 +354,6 @@ billing.post(
 billing.post(
   '/checkout',
   requireAuth,
-  requireTenant,
   zValidator('json', z.object({ plan: z.literal('pro'), interval: z.enum(['monthly', 'yearly']) })),
   async (c) => {
     try {
@@ -413,7 +426,7 @@ billing.post(
 
 // ─── GET /portal (Stripe, web only) ──────────────────────────────────────────
 
-billing.get('/portal', requireAuth, requireTenant, async (c) => {
+billing.get('/portal', requireAuth, async (c) => {
   try {
     const stripe = getStripe()
     const userId = c.get('user').id
