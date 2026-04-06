@@ -22,7 +22,7 @@ import {
 
 export const billing = new Hono<TenantEnv>()
 
-type PlanId = 'free' | 'pro' | 'pro-zero'
+type PlanId = 'free' | 'pro' 
 
 const PLANS: Array<{
   id: PlanId
@@ -63,14 +63,6 @@ const PLANS: Array<{
         'Bierwart with counter',
         'join multiple bands with one login',
       ],
-    },
-    {
-      id: 'pro-zero',
-      name: 'bandstr pro-zero',
-      bookable: false,
-      prices: { monthly: 0, yearly: 0, currency: 'EUR' },
-      limits: { setlistSongs: null, members: null },
-      features: ['All pro features', 'Internal-only plan'],
     },
   ]
 
@@ -413,31 +405,31 @@ billing.get('/portal', requireAuth, requireTenant, requireRole('admin'), async (
 
 // ─── POST /internal/assign-pro-zero ──────────────────────────────────────────
 
-billing.post(
-  '/internal/assign-pro-zero',
-  zValidator('json', z.object({ bandId: z.number().int().positive() })),
-  async (c) => {
-    const token = c.req.header('x-internal-admin-token')
-    if (!token || token !== process.env.INTERNAL_ADMIN_TOKEN) {
-      return c.json({ error: 'Forbidden' }, 403)
-    }
+// billing.post(
+//   '/internal/assign-pro-zero',
+//   zValidator('json', z.object({ bandId: z.number().int().positive() })),
+//   async (c) => {
+//     const token = c.req.header('x-internal-admin-token')
+//     if (!token || token !== process.env.INTERNAL_ADMIN_TOKEN) {
+//       return c.json({ error: 'Forbidden' }, 403)
+//     }
 
-    const { bandId } = c.req.valid('json')
-    const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
-    if (!band) return c.json({ error: 'Band not found' }, 404)
+//     const { bandId } = c.req.valid('json')
+//     const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1)
+//     if (!band) return c.json({ error: 'Band not found' }, 404)
 
-    await writeBandSubscription(bandId, 'manual', {
-      plan: 'pro-zero',
-      status: 'active',
-      interval: null,
-      currentPeriodEnd: null,
-      cancelAtPeriodEnd: false,
-      providerRef: null,
-    })
+//     await writeBandSubscription(bandId, 'manual', {
+//       plan: 'pro-zero',
+//       status: 'active',
+//       interval: null,
+//       currentPeriodEnd: null,
+//       cancelAtPeriodEnd: false,
+//       providerRef: null,
+//     })
 
-    return c.json({ ok: true })
-  },
-)
+//     return c.json({ ok: true })
+//   },
+// )
 
 // ─── POST /internal/assign-user-pro ──────────────────────────────────────────
 
