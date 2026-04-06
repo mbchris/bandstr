@@ -20,6 +20,8 @@ export default {
     impress: 'Impress',
     accountSecurity: 'Account security',
     deleteAccount: 'Delete account',
+    billing: 'Subscription',
+    manageBands: 'Manage bands',
   },
 
   // Common

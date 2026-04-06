@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { bandMembers, bands, users } from '../db/schema.js'
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
@@ -40,25 +40,28 @@ account.put('/default-band', zValidator('json', setDefaultBandSchema), async (c)
 account.delete('/', async (c) => {
   const userId = c.get('user').id
 
-  const blockingBandsResult = await db.execute<{ band_id: number }>(sql`
-    select bm.band_id
-    from ${bandMembers} bm
-    where bm.user_id = ${userId}
-      and bm.role = 'owner'
-      and exists (
-        select 1 from ${bandMembers} m
-        where m.band_id = bm.band_id
-          and m.user_id <> ${userId}
-      )
-      and not exists (
-        select 1 from ${bandMembers} o
-        where o.band_id = bm.band_id
-          and o.role = 'owner'
-          and o.user_id <> ${userId}
-      )
-  `)
+  // Find bands where this user is the sole owner but there are other members
+  const ownedBandIds = (
+    await db
+      .select({ bandId: bandMembers.bandId })
+      .from(bandMembers)
+      .where(and(eq(bandMembers.userId, userId), eq(bandMembers.role, 'owner')))
+  ).map((r) => r.bandId)
 
-  const blockingBandIds = blockingBandsResult.rows.map((row) => row.band_id)
+  const blockingBandIds: number[] = []
+  for (const bandId of ownedBandIds) {
+    const allMembers = await db
+      .select({ userId: bandMembers.userId, role: bandMembers.role })
+      .from(bandMembers)
+      .where(eq(bandMembers.bandId, bandId))
+
+    const hasOtherMembers = allMembers.some((m) => m.userId !== userId)
+    const hasOtherOwner = allMembers.some((m) => m.userId !== userId && m.role === 'owner')
+
+    if (hasOtherMembers && !hasOtherOwner) {
+      blockingBandIds.push(bandId)
+    }
+  }
 
   if (blockingBandIds.length > 0) {
     return c.json(
@@ -72,18 +75,18 @@ account.delete('/', async (c) => {
   }
 
   await db.transaction(async (tx) => {
+    // Delete the user — cascades to sessions, accounts, band_members, votes, personal_notes
     await tx.delete(users).where(eq(users.id, userId))
 
-    // Remove orphaned bands left without members (for example after deleting a sole-owner account).
-    await tx
-      .delete(bands)
-      .where(
-        sql`not exists (
-          select 1
-          from ${bandMembers}
-          where ${bandMembers.bandId} = ${bands.id}
-        )`,
-      )
+    // Remove orphaned bands that now have no members
+    const remainingBandIds = (
+      await tx.select({ bandId: bandMembers.bandId }).from(bandMembers)
+    ).map((r) => r.bandId)
+
+    const bandsToDelete = ownedBandIds.filter((id) => !remainingBandIds.includes(id))
+    for (const bandId of bandsToDelete) {
+      await tx.delete(bands).where(eq(bands.id, bandId))
+    }
   })
 
   return c.json({ ok: true })

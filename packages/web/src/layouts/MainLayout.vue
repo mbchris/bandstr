@@ -27,7 +27,7 @@
             @click="toggleLocale"
           />
 
-          <q-btn v-if="!isBillingRoute" flat round dense class="header-action-btn" icon="account_circle">
+          <q-btn flat round dense class="header-action-btn" icon="account_circle">
             <q-menu anchor="bottom right" self="top right">
               <q-list style="min-width: 260px">
                 <q-item clickable v-close-popup @click="goDashboard">
@@ -51,6 +51,19 @@
                   <q-separator />
                 </template>
 
+                <q-separator />
+                <q-item clickable v-close-popup @click="router.push('/billing')">
+                  <q-item-section>
+                    <q-item-label>{{ t('nav.billing') }}</q-item-label>
+                    <q-item-label caption class="text-primary text-weight-medium">{{ effectivePlanLabel }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup @click="router.push('/bands/manage')">
+                  <q-item-section>{{ t('nav.manageBands') }}</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup @click="router.push('/account/security')">
+                  <q-item-section>{{ t('nav.accountSecurity') }}</q-item-section>
+                </q-item>
                 <q-separator />
                 <q-item clickable v-close-popup @click="goSupport">
                   <q-item-section>{{ t('nav.support') }}</q-item-section>
@@ -148,6 +161,12 @@ const activeBandId = computed({
 })
 
 const activeBandRole = computed(() => authStore.activeBand?.role ?? 'none')
+const effectivePlanLabel = computed(() => {
+  const p = authStore.effectivePlan
+  if (p === 'pro') return 'bandstr pro'
+  if (p === 'plus') return 'bandstr plus'
+  return 'bandstr free'
+})
 const activeUserName = computed(() => authStore.user?.name ?? authStore.user?.email ?? 'Unknown user')
 const activeUserEmail = computed(() => authStore.user?.email ?? '')
 const truncatedActiveUserName = computed(() => {
@@ -207,10 +226,6 @@ function selectBand(id: number) {
   activeBandId.value = id
 }
 
-function formatPlanLabel(plan: string | null | undefined, hasProPlan?: boolean) {
-  const normalized = (hasProPlan ? 'pro' : (plan ?? 'free')).toUpperCase()
-  return `${normalized} plan`
-}
 
 function goDashboard() {
   router.push('/dashboard')

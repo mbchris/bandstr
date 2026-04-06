@@ -21,7 +21,6 @@ type SupportKind = z.infer<typeof createTicketSchema>['type']
 type RepoConfig = {
   owner: string
   repo: string
-  issuesUrl: string
 }
 
 function getBuildId(): string {
@@ -63,7 +62,6 @@ function parseRepoConfigFromIssuesUrl(url: string): RepoConfig {
   return {
     owner,
     repo,
-    issuesUrl: `https://github.com/${owner}/${repo}/issues`,
   }
 }
 
@@ -220,17 +218,15 @@ support.use('*', requireAuth)
 
 support.get('/config', (c) => {
   try {
-    const repoConfig = parseRepoConfigFromIssuesUrl(getConfiguredIssuesUrl())
+    parseRepoConfigFromIssuesUrl(getConfiguredIssuesUrl())
     const hasToken = !!(process.env.SUPPORT_GITHUB_TOKEN ?? process.env.GITHUB_TOKEN ?? '').trim()
     return c.json({
-      issuesUrl: repoConfig.issuesUrl,
       githubEnabled: hasToken,
       buildId: getBuildId(),
       environment: getRuntimeEnv(),
     })
   } catch (error) {
     return c.json({
-      issuesUrl: getConfiguredIssuesUrl(),
       githubEnabled: false,
       buildId: getBuildId(),
       environment: getRuntimeEnv(),
@@ -341,7 +337,6 @@ support.post('/tickets', zValidator('json', createTicketSchema), async (c) => {
 
   return c.json({
     ok: true,
-    issueUrl: payload.html_url ?? repoConfig.issuesUrl,
     issueNumber: payload.number ?? null,
   })
 })
