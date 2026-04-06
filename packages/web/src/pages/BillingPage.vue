@@ -45,67 +45,92 @@
     </div>
 
     <div class="row q-col-gutter-md">
-      <div v-for="plan in plans" :key="plan.id" class="col-12 col-md-4">
+      <!-- Free plan -->
+      <div class="col-12 col-md-4">
         <q-card bordered flat>
+          <q-card-section>
+            <div class="text-h6">bandstr free</div>
+            <div class="text-subtitle1 q-mt-sm">0 EUR</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <div class="text-caption text-grey-7 q-mb-xs">Limits</div>
+            <div class="text-body2">Setlist songs: 15</div>
+            <div class="text-body2">Members: 5</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">Includes</div>
+            <div class="text-body2">- Song voting</div>
+            <div class="text-body2">- Setlist management (up to 15 songs)</div>
+            <div class="text-body2">- Gig setlist management</div>
+            <div class="text-body2">- Bierwart</div>
+            <div class="text-body2">- Calendar</div>
+            <div class="text-body2">- Band member availabilities</div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-chip v-if="effectivePlan === 'free'" color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
+            <q-btn v-else flat size="sm" label="Included" disable />
+          </q-card-actions>
+        </q-card>
+      </div>
+
+      <!-- Bandstr Plus (inherited, shown when user has plus plan) -->
+      <div v-if="effectivePlan === 'plus'" class="col-12 col-md-4">
+        <q-card bordered flat class="plus-card">
+          <q-card-section>
+            <div class="row items-center q-gutter-xs">
+              <div class="text-h6">bandstr plus</div>
+              <q-badge color="positive" label="Active" />
+            </div>
+            <div class="text-subtitle1 q-mt-sm text-positive">Free for you</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <div class="text-body2 q-mb-md">
+              You're lucky! Someone in your band has a bandstr pro subscription. This unlocks all pro features for you as well and elevates your free account to a plus account. Isn't this a nice subscription model?
+            </div>
+            <div class="text-caption text-grey-7 q-mb-xs">Limits</div>
+            <div class="text-body2">Setlist songs: Unlimited</div>
+            <div class="text-body2">Members: Unlimited</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">Includes</div>
+            <div class="text-body2">- All features from bandstr pro</div>
+            <div class="text-body2">- Inherited while a band member has pro</div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-chip color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
+          </q-card-actions>
+        </q-card>
+      </div>
+
+      <!-- Pro plan -->
+      <div class="col-12 col-md-4">
+        <q-card v-for="plan in plans.filter(p => p.id === 'pro')" :key="plan.id" bordered flat>
           <q-card-section>
             <div class="text-h6">{{ plan.name }}</div>
             <div class="text-subtitle1 q-mt-sm">{{ formatPlanPrice(plan) }}</div>
           </q-card-section>
-
           <q-separator />
-
           <q-card-section>
             <div class="text-caption text-grey-7 q-mb-xs">Limits</div>
             <div class="text-body2">Setlist songs: {{ formatLimit(plan.limits.setlistSongs) }}</div>
             <div class="text-body2">Members: {{ formatLimit(plan.limits.members) }}</div>
-
             <div class="text-caption text-grey-7 q-mt-md q-mb-xs">Includes</div>
             <div v-for="feature in plan.features" :key="feature" class="text-body2">- {{ feature }}</div>
           </q-card-section>
-
           <q-card-actions align="right" class="q-gutter-sm">
-            <q-chip
-              v-if="isCurrentPlanCard(plan.id)"
-              color="primary"
-              text-color="white"
-              size="sm"
-              icon="check"
-              :label="effectivePlan === 'plus' && plan.id === 'pro' ? 'Active (inherited)' : 'Current plan'"
-            />
-
-            <template v-else-if="plan.id === 'pro'">
+            <q-chip v-if="effectivePlan === 'pro'" color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
+            <template v-else>
               <template v-if="isWebOnly">
-                <q-chip dense color="grey-7" text-color="white" icon="smartphone" label="App only" />
-                <div class="text-caption text-grey-6 q-mt-xs text-right" style="font-size: 11px">
-                  Subscriptions can only be managed in the app using the corresponding app stores.
+                <div class="column items-end q-gutter-xs">
+                  <q-chip dense color="grey-7" text-color="white" icon="smartphone" label="App only" />
+                  <div class="text-caption text-grey-6 text-right" style="font-size: 11px">
+                    Subscriptions can only be managed in the app using the corresponding app stores.
+                  </div>
                 </div>
               </template>
               <template v-else>
-                <q-btn
-                  color="primary"
-                  size="sm"
-                  label="Choose monthly"
-                  :loading="loadingCheckout && selectedInterval === 'monthly'"
-                  @click="startCheckout('monthly')"
-                />
-                <q-btn
-                  color="primary"
-                  size="sm"
-                  outline
-                  label="Choose yearly"
-                  :loading="loadingCheckout && selectedInterval === 'yearly'"
-                  @click="startCheckout('yearly')"
-                />
+                <q-btn color="primary" size="sm" label="Choose monthly" :loading="loadingCheckout && selectedInterval === 'monthly'" @click="startCheckout('monthly')" />
+                <q-btn color="primary" size="sm" outline label="Choose yearly" :loading="loadingCheckout && selectedInterval === 'yearly'" @click="startCheckout('yearly')" />
               </template>
             </template>
-
-            <q-btn
-              v-else
-              flat
-              size="sm"
-              label="Included"
-              disable
-            />
           </q-card-actions>
         </q-card>
       </div>
@@ -193,13 +218,6 @@ const showRestoreButton = computed(() => {
   return (isAndroidNative() && playReady.value) || (isIosNative() && appStoreReady.value)
 })
 
-/** True when this plan card should show a "current" badge */
-function isCurrentPlanCard(planId: 'free' | 'pro'): boolean {
-  if (effectivePlan.value === 'free') return planId === 'free'
-  if (effectivePlan.value === 'pro') return planId === 'pro' && userPlan.value === 'pro'
-  if (effectivePlan.value === 'plus') return planId === 'pro' // show pro card as active (inherited)
-  return false
-}
 
 const currentPlanLabel = computed(() => {
   if (effectivePlan.value === 'pro') return 'bandstr pro'

@@ -160,7 +160,7 @@ async function submit() {
       }),
     })
 
-    const payload = (await response.json().catch(() => ({}))) as { issueUrl?: string; error?: string }
+    const payload = (await response.json().catch(() => ({}))) as { error?: string }
     if (!response.ok) {
       throw new Error(payload.error ?? `Support request failed (${response.status})`)
     }

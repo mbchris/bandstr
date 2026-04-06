@@ -75,7 +75,7 @@ app.use(
       return allowed.includes(origin) ? origin : allowed[0]
     },
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Band-Id'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Band-Id', 'X-Client-Build-Id', 'X-Client-Environment'],
   }),
 )
 
