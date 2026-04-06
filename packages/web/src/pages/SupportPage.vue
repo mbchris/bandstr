@@ -46,6 +46,7 @@
             autogrow
             type="textarea"
             label="Message"
+            input-style="min-height: 220px;"
             :rules="[messageRule]"
           />
 
