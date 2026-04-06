@@ -21,6 +21,7 @@ export type BandMembership = {
   subscriptionInterval?: 'monthly' | 'yearly' | null
   subscriptionCurrentPeriodEnd?: string | null
   subscriptionCancelAtPeriodEnd?: boolean
+  subscriptionProvider?: string | null
   role: string
   logo?: string | null
   logoDark?: string | null
