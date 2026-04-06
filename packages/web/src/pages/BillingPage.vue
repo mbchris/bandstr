@@ -9,17 +9,30 @@
         <div class="text-caption text-grey-6">Status: <span class="text-weight-bold">{{ statusLabel }}</span></div>
         <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">Interval: {{ subscriptionIntervalLabel }}</div>
         <div v-if="renewalLabel" class="text-caption text-grey-6">{{ renewalLabel }}</div>
+        <div v-if="providerHint" class="text-caption text-grey-5 q-mt-xs">{{ providerHint }}</div>
       </div>
       <div class="col-auto">
-        <q-btn
-          outline
-          color="primary"
-          icon="manage_accounts"
-          label="Manage subscription"
-          :disable="!canManageBilling || loadingPortal || currentPlan === 'pro-zero'"
-          :loading="loadingPortal"
-          @click="openPortal"
-        />
+        <div class="column q-gutter-sm items-end">
+          <q-btn
+            outline
+            color="primary"
+            icon="manage_accounts"
+            label="Manage subscription"
+            :disable="!canManageBilling || loadingPortal || !canManageSubscription"
+            :loading="loadingPortal"
+            @click="openPortal"
+          />
+          <q-btn
+            v-if="showRestoreButton"
+            flat
+            dense
+            color="grey-6"
+            icon="replay"
+            label="Restore purchases"
+            :loading="loadingRestore"
+            @click="restorePurchases"
+          />
+        </div>
       </div>
     </div>
 
@@ -99,23 +112,24 @@ import { useAuthStore } from '../stores/auth'
 import {
   initializePlayBilling,
   isAndroidNative,
-  openPlaySubscriptions,
   purchasePlaySubscription,
   queryPlaySubscriptions,
+  restorePlaySubscriptions,
   type PlayBillingProduct,
 } from '../plugins/playBilling'
 import {
   initializeAppStoreBilling,
   isIosNative,
-  openAppStoreSubscriptions,
   purchaseAppStoreSubscription,
   queryAppStoreSubscriptions,
+  restoreAppStoreSubscriptions,
   type AppStoreBillingProduct,
 } from '../plugins/appStoreBilling'
 
 type PlanId = 'free' | 'pro' | 'pro-zero'
 type BillingInterval = 'monthly' | 'yearly'
-type SubscriptionStatus = 'none' | 'active' | 'canceled' | 'past_due' | 'trialing'
+type SubscriptionStatus = 'none' | 'active' | 'canceled' | 'past_due' | 'trialing' | 'grace_period' | 'on_hold' | 'paused'
+type SubscriptionProviderId = 'stripe' | 'google_play' | 'app_store' | 'manual' | 'none'
 
 type Plan = {
   id: PlanId
@@ -143,9 +157,12 @@ const subscriptionStatus = ref<SubscriptionStatus>('none')
 const subscriptionInterval = ref<BillingInterval | null>(null)
 const currentPeriodEnd = ref<string | null>(null)
 const cancelAtPeriodEnd = ref(false)
+const subscriptionProvider = ref<SubscriptionProviderId>('none')
+const managementUrl = ref<string | null>(null)
 
 const loadingCheckout = ref(false)
 const loadingPortal = ref(false)
+const loadingRestore = ref(false)
 const selectedPlan = ref<PlanId | null>(null)
 const selectedInterval = ref<BillingInterval | null>(null)
 const playReady = ref(false)
@@ -158,6 +175,15 @@ const appStoreProductIds = ref<Record<BillingInterval, string | null>>({ monthly
 const canManageBilling = computed(() => {
   const role = authStore.activeBand?.role
   return role === 'owner' || role === 'admin'
+})
+
+const canManageSubscription = computed(() => {
+  const p = subscriptionProvider.value
+  return p === 'stripe' || p === 'google_play' || p === 'app_store'
+})
+
+const showRestoreButton = computed(() => {
+  return (isAndroidNative() && playReady.value) || (isIosNative() && appStoreReady.value)
 })
 
 const effectivePlanId = computed<PlanId>(() => {
@@ -181,8 +207,26 @@ const statusLabel = computed(() => {
     canceled: 'Canceled',
     past_due: 'Past due',
     trialing: 'Trialing',
+    grace_period: 'Grace period — payment retry in progress',
+    on_hold: 'On hold — update payment in Google Play',
+    paused: 'Paused',
   }
   return map[subscriptionStatus.value]
+})
+
+const providerHint = computed(() => {
+  const p = subscriptionProvider.value
+  const s = subscriptionStatus.value
+  if (p === 'google_play' && (s === 'active' || s === 'grace_period' || s === 'trialing')) {
+    return 'Your subscription is managed through Google Play. Tap "Manage subscription" to change or cancel.'
+  }
+  if (p === 'app_store' && (s === 'active' || s === 'grace_period' || s === 'trialing')) {
+    return 'Your subscription is managed through the App Store. Tap "Manage subscription" to change or cancel.'
+  }
+  if (p === 'google_play' && s === 'on_hold') {
+    return 'Your subscription is on hold. Update your payment method in Google Play to restore access.'
+  }
+  return null
 })
 
 const renewalLabel = computed(() => {
@@ -205,6 +249,31 @@ function formatLimit(value: number | null) {
 function formatPlanPrice(plan: Plan) {
   if (plan.id === 'free') return '0 EUR'
   if (plan.id === 'pro-zero') return '0 EUR (internal)'
+
+  // On Android: show locale-aware Play Store prices if available
+  if (isAndroidNative() && playReady.value) {
+    const monthlyPrice = playProducts.value.monthly?.offers[0]?.formattedPrice
+    const yearlyPrice = playProducts.value.yearly?.offers[0]?.formattedPrice
+    if (monthlyPrice || yearlyPrice) {
+      const parts: string[] = []
+      if (monthlyPrice) parts.push(`${monthlyPrice}/month`)
+      if (yearlyPrice) parts.push(`${yearlyPrice}/year`)
+      return parts.join(' or ')
+    }
+  }
+
+  // On iOS: show locale-aware App Store prices if available
+  if (isIosNative() && appStoreReady.value) {
+    const monthlyPrice = appStoreProducts.value.monthly?.offers[0]?.formattedPrice
+    const yearlyPrice = appStoreProducts.value.yearly?.offers[0]?.formattedPrice
+    if (monthlyPrice || yearlyPrice) {
+      const parts: string[] = []
+      if (monthlyPrice) parts.push(`${monthlyPrice}/month`)
+      if (yearlyPrice) parts.push(`${yearlyPrice}/year`)
+      return parts.join(' or ')
+    }
+  }
+
   const monthly = plan.prices.monthly ?? 0
   const yearly = plan.prices.yearly ?? 0
   return `${monthly} ${plan.prices.currency}/month or ${yearly} ${plan.prices.currency}/year`
@@ -215,11 +284,13 @@ async function loadBilling() {
     const data = await apiJson<{
       currentPlan: PlanId
       hasProPlan: boolean
+      subscriptionProvider: SubscriptionProviderId
       currentSubscription: {
         status: SubscriptionStatus
         interval: BillingInterval | null
         currentPeriodEnd: string | null
         cancelAtPeriodEnd: boolean
+        managementUrl: string | null
       }
       android: {
         packageName: string | null
@@ -238,6 +309,8 @@ async function loadBilling() {
     subscriptionInterval.value = data.currentSubscription.interval
     currentPeriodEnd.value = data.currentSubscription.currentPeriodEnd
     cancelAtPeriodEnd.value = data.currentSubscription.cancelAtPeriodEnd
+    subscriptionProvider.value = data.subscriptionProvider
+    managementUrl.value = data.currentSubscription.managementUrl
     plans.value = data.plans
     playProductIds.value = data.android.proProducts
     appStoreProductIds.value = data.ios.proProducts
@@ -360,10 +433,13 @@ async function startCheckout(interval: BillingInterval) {
     }
     throw new Error('Checkout URL missing')
   } catch (error) {
-    Notify.create({
-      type: 'negative',
-      message: error instanceof Error ? error.message : 'Failed to create checkout session',
-    })
+    const msg = error instanceof Error ? error.message : 'Failed to create checkout session'
+    // Surface cross-provider 409 conflict with a clear message
+    if (msg.includes('already has an active')) {
+      Notify.create({ type: 'warning', message: msg })
+    } else {
+      Notify.create({ type: 'negative', message: msg })
+    }
   } finally {
     loadingCheckout.value = false
     selectedPlan.value = null
@@ -374,14 +450,29 @@ async function startCheckout(interval: BillingInterval) {
 async function openPortal() {
   loadingPortal.value = true
   try {
-    if (isAndroidNative() && playReady.value) {
-      await openPlaySubscriptions()
+    const provider = subscriptionProvider.value
+
+    // Google Play / App Store: open the management deep-link
+    if (provider === 'google_play' || provider === 'app_store') {
+      const url = managementUrl.value
+      if (url) {
+        window.open(url, '_blank')
+      } else {
+        // Fallback to native plugin open
+        if (provider === 'google_play' && isAndroidNative()) {
+          const { openPlaySubscriptions } = await import('../plugins/playBilling')
+          await openPlaySubscriptions()
+        } else if (provider === 'app_store' && isIosNative()) {
+          const { openAppStoreSubscriptions } = await import('../plugins/appStoreBilling')
+          await openAppStoreSubscriptions()
+        } else {
+          throw new Error(`Manage your subscription in ${provider === 'google_play' ? 'Google Play' : 'the App Store'}.`)
+        }
+      }
       return
     }
-    if (isIosNative() && appStoreReady.value) {
-      await openAppStoreSubscriptions()
-      return
-    }
+
+    // Stripe: open the customer portal
     const data = await apiJson<{ url: string }>('/billing/portal')
     if (data.url) {
       window.location.href = data.url
@@ -395,6 +486,61 @@ async function openPortal() {
     })
   } finally {
     loadingPortal.value = false
+  }
+}
+
+async function restorePurchases() {
+  loadingRestore.value = true
+  try {
+    if (isAndroidNative() && playReady.value) {
+      const result = await restorePlaySubscriptions()
+      if (!result.purchases || result.purchases.length === 0) {
+        Notify.create({ type: 'info', message: 'No purchases found to restore.' })
+        return
+      }
+      const purchase = result.purchases[0]
+      const productId = purchase.products?.[0] ?? playProductIds.value.monthly ?? ''
+      await apiJson('/billing/google-play/restore', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId,
+          purchaseToken: purchase.purchaseToken,
+        }),
+      })
+      Notify.create({ type: 'positive', message: 'Subscription restored successfully.' })
+      await loadBilling()
+      return
+    }
+
+    if (isIosNative() && appStoreReady.value) {
+      const result = await restoreAppStoreSubscriptions()
+      if (!result.purchases || result.purchases.length === 0) {
+        Notify.create({ type: 'info', message: 'No purchases found to restore.' })
+        return
+      }
+      const purchase = result.purchases[0]
+      const productId = purchase.products?.[0] ?? appStoreProductIds.value.monthly ?? ''
+      await apiJson('/billing/apple/activate', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId,
+          originalTransactionId: purchase.purchaseToken,
+          transactionId: purchase.orderId ?? undefined,
+        }),
+      })
+      Notify.create({ type: 'positive', message: 'Subscription restored successfully.' })
+      await loadBilling()
+      return
+    }
+
+    Notify.create({ type: 'info', message: 'Restore is only available on Android and iOS.' })
+  } catch (error) {
+    Notify.create({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Failed to restore purchases',
+    })
+  } finally {
+    loadingRestore.value = false
   }
 }
 
