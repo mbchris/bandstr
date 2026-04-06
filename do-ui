@@ -19,12 +19,13 @@ while true; do
   
   options=(
     "Build Production Image (./do build)"
-    "Build APK (./do build-apk)"
+    "Build APK (./do build-apk production --no-install)"
+    "Deploy APK (./do deploy-apk production)"
     "Create APK Bundle (./do create-apk-bundle)"
     "Deploy to Play Console (./do deploy-play-console)"
     "Quit"
   )
-  
+
   PS3="Enter your choice (1-${#options[@]}): "
   select opt in "${options[@]}"; do
     case "$REPLY" in
@@ -35,24 +36,30 @@ while true; do
         break
         ;;
       2)
-        echo "Running: ./do build-apk --no-install"
-        ./do build-apk --no-install
+        echo "Running: ./do build-apk production --no-install"
+        ./do build-apk production --no-install
         read -p "Press Enter to continue..."
         break
         ;;
       3)
+        echo "Running: ./do deploy-apk production"
+        ./do deploy-apk production
+        read -p "Press Enter to continue..."
+        break
+        ;;
+      4)
         echo "Running: ./do create-apk-bundle"
         ./do create-apk-bundle
         read -p "Press Enter to continue..."
         break
         ;;
-      4)
+      5)
         echo "Running: ./do deploy-play-console"
         ./do deploy-play-console
         read -p "Press Enter to continue..."
         break
         ;;
-      5)
+      6)
         echo "Exiting."
         exit 0
         ;;

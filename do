@@ -13,13 +13,14 @@ build_bundle_sign=1
 android_version_bump="patch"
 deploy_apk_device_id=""
 deploy_ios_device_id=""
+deploy_play_console_aab_path=""
 sign_apk_input_path=""
 upload_ios_input_path=""
 apk_api_url=""
 
 is_profile_scoped_command() {
   case "$1" in
-    build-apk|create-apk-bundle|deploy-apk|sign-apk|build-ios|deploy-ios)
+    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios)
       return 0
       ;;
     *)
@@ -119,6 +120,7 @@ Commands:
 
   deploy-play-console [local|production] [AAB_PATH]
     Deploy an existing App Bundle (.aab) to the Google Play Console internal track.
+    Default profile: production (if omitted)
     If AAB_PATH is omitted, uses the signed release AAB from the build directory.
     - local uses .env.local
     - production uses .env.production
@@ -239,15 +241,28 @@ elif [[ "$command" == "create-apk-bundle" ]]; then
 elif [[ "$command" == "deploy-apk" ]]; then
   deploy_arg="${2:-}"
   if [[ -z "$deploy_arg" ]]; then
-    env_profile="local"
+    env_profile="production"
     deploy_apk_device_id=""
   elif [[ "$deploy_arg" == "local" || "$deploy_arg" == "production" ]]; then
     env_profile="$deploy_arg"
     deploy_apk_device_id="${3:-}"
   else
     # Backwards compatibility: treat second arg as DEVICE_ID.
-    env_profile="local"
+    env_profile="production"
     deploy_apk_device_id="$deploy_arg"
+  fi
+elif [[ "$command" == "deploy-play-console" ]]; then
+  deploy_arg="${2:-}"
+  if [[ -z "$deploy_arg" ]]; then
+    env_profile="production"
+    deploy_play_console_aab_path=""
+  elif [[ "$deploy_arg" == "local" || "$deploy_arg" == "production" ]]; then
+    env_profile="$deploy_arg"
+    deploy_play_console_aab_path="${3:-}"
+  else
+    # Treat second arg as AAB_PATH, default to production.
+    env_profile="production"
+    deploy_play_console_aab_path="$deploy_arg"
   fi
 elif [[ "$command" == "deploy-ios" ]]; then
   deploy_arg="${2:-}"
@@ -306,7 +321,7 @@ if [[ "$command" == "keygen-apk" ]]; then
   exit $?
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -1337,24 +1352,24 @@ deploy_android_apk() {
 }
 
 deploy_play_console_bundle() {
-  local profile=""
-  local aab_path=""
-  export_env_file ""
+  local profile="$1"
+  local aab_path="${2:-}"
+  export_env_file "$env_file"
 
-  if [[ -z "" ]]; then
+  if [[ -z "$aab_path" ]]; then
     aab_path="packages/web/src-capacitor/android/app/build/outputs/bundle/release/app-release-signed.aab"
   fi
 
-  if [[ ! -f "" ]]; then
-    echo "Error: AAB file not found at ."
+  if [[ ! -f "$aab_path" ]]; then
+    echo "Error: AAB file not found at $aab_path."
     echo "Please build an AAB first using:"
-    echo "  ./do create-apk-bundle "
+    echo "  ./do create-apk-bundle $profile"
     exit 1
   fi
 
   local deploy_script="scripts/deploy-play-console.mjs"
-  echo "Deploying  to Play Console (internal track)..."
-  node "" ""
+  echo "Deploying $aab_path to Play Console (internal track)..."
+  node "$deploy_script" "$aab_path"
 }
 
 sign_existing_android_apk() {
@@ -1434,7 +1449,7 @@ case "$command" in
     build_android_bundle "$build_bundle_sign"
     ;;
   deploy-play-console)
-    deploy_play_console_bundle "" ""
+    deploy_play_console_bundle "$env_profile" "$deploy_play_console_aab_path"
     ;;
   deploy-apk)
     deploy_android_apk "$env_profile" "$deploy_apk_device_id"
