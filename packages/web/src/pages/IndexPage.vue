@@ -40,9 +40,15 @@
                 <div class="text-caption text-grey">{{ t('home.hasDrinks') }}</div>
               </div>
               <div class="row items-center q-gutter-xs">
-                <q-btn flat round dense icon="remove_circle" color="orange" size="sm" :loading="beerLoading" @click.stop="removeBeer" />
-                <q-badge color="orange" :label="String(bierwart.beerCount || 0)" />
-                <q-btn flat round dense icon="add_circle" color="orange" size="sm" :loading="beerLoading" @click.stop="addBeer" />
+                <template v-if="authStore.isFreePlan">
+                  <q-badge color="orange" :label="String(bierwart.beerCount || 0)" />
+                  <q-chip dense color="orange" text-color="white" size="sm" icon="lock" label="PRO feature" class="q-ml-xs" />
+                </template>
+                <template v-else>
+                  <q-btn flat round dense icon="remove_circle" color="orange" size="sm" :loading="beerLoading" @click.stop="removeBeer" />
+                  <q-badge color="orange" :label="String(bierwart.beerCount || 0)" />
+                  <q-btn flat round dense icon="add_circle" color="orange" size="sm" :loading="beerLoading" @click.stop="addBeer" />
+                </template>
               </div>
               <q-btn flat round dense icon="edit" size="sm" color="grey-4" />
             </div>

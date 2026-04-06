@@ -8,7 +8,7 @@ import { bands as bandsTable, bandInviteCodes, bandMembers, users as usersTable 
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
 import { requireTenant } from '../middleware/tenant.js'
 import { requireRole } from '../middleware/rbac.js'
-import { bandHasProPlan, normalizePlan, userHasDeveloperProPlan } from '../lib/entitlements.js'
+import { bandHasProPlan, normalizePlan, userEffectivePlan, userHasProPlan } from '../lib/entitlements.js'
 
 export const bands = new Hono<AuthEnv>()
 const INVITE_TTL_DAYS = 30
@@ -76,11 +76,16 @@ bands.get('/', requireAuth, async (c) => {
   const enriched = await Promise.all(
     rows.map(async (row) => {
       const normalizedPlan = normalizePlan(row.plan)
+      const [hasPro, effectivePlan] = await Promise.all([
+        bandHasProPlan(row.id),
+        userEffectivePlan(userId, row.id),
+      ])
       return {
         ...row,
         plan: normalizedPlan,
         isDefault: row.id === defaultBandId,
-        hasProPlan: await bandHasProPlan(row.id),
+        hasProPlan: hasPro,
+        effectivePlan,
       }
     }),
   )
@@ -105,20 +110,17 @@ function toBandSlug(name: string) {
 bands.post('/', requireAuth, zValidator('json', createBandSchema), async (c) => {
   const userId = c.get('user').id
   const { name } = c.req.valid('json')
-  const ownedBands = await db
-    .select({ plan: bandsTable.plan })
+  // Free users can only be in one band; pro users can create/join multiple
+  const existingBandCount = await db
+    .select({ id: bandMembers.bandId })
     .from(bandMembers)
-    .innerJoin(bandsTable, eq(bandsTable.id, bandMembers.bandId))
-    .where(and(eq(bandMembers.userId, userId), eq(bandMembers.role, 'owner')))
-  const userHasProPlan = await userHasDeveloperProPlan(userId)
+    .where(eq(bandMembers.userId, userId))
+  const hasPro = await userHasProPlan(userId)
 
-  const canCreateAnotherBand =
-    userHasProPlan || ownedBands.length === 0 || ownedBands.some((band) => normalizePlan(band.plan) !== 'free')
-
-  if (!canCreateAnotherBand) {
+  if (!hasPro && existingBandCount.length >= 1) {
     return c.json(
       {
-        error: 'Free plan allows creating only one band. Upgrade to create additional bands.',
+        error: 'Free plan allows being a member of only one band. Upgrade to pro to join multiple bands.',
       },
       403,
     )
@@ -356,6 +358,21 @@ bands.post('/join', requireAuth, zValidator('json', joinBandSchema), async (c) =
     .limit(1)
 
   if (existing) return c.json({ error: 'You are already a member of this band' }, 409)
+
+  // Free users can only be in one band
+  const hasPro = await userHasProPlan(userId)
+  if (!hasPro) {
+    const currentMemberships = await db
+      .select({ id: bandMembers.bandId })
+      .from(bandMembers)
+      .where(eq(bandMembers.userId, userId))
+    if (currentMemberships.length >= 1) {
+      return c.json(
+        { error: 'Free plan allows being a member of only one band. Upgrade to pro to join multiple bands.' },
+        403,
+      )
+    }
+  }
 
   const [targetBand] = await db
     .select({ id: bandsTable.id })
