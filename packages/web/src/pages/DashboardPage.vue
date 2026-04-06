@@ -4,7 +4,7 @@
       <div class="row items-center q-col-gutter-sm q-mb-lg">
         <div class="col-12 col-md">
           <div class="text-h4 text-weight-bold">Dashboard</div>
-          <div class="text-body2 text-grey-7">Manage your bands, subscription, and invitation access.</div>
+          <div class="text-body2 text-grey-7">Manage your bands, account, subscriptions, and invitation access.</div>
           <div class="text-caption text-grey-8 q-mt-xs">Logged in as {{ userIdentity }}</div>
         </div>
       </div>
@@ -124,9 +124,55 @@
                 <div class="text-h6">Manage Subscriptions</div>
                 <div class="text-caption text-grey-7">Current plan: {{ activePlanLabel }}</div>
                 <div class="text-caption text-grey-7">Status: {{ activeSubscriptionStatusLabel }}</div>
+                <div v-if="activeSubscriptionProvider === 'google_play'" class="text-caption text-grey-7">
+                  Provider: Google Play
+                </div>
+                <div v-else-if="activeSubscriptionProvider === 'app_store'" class="text-caption text-grey-7">
+                  Provider: App Store
+                </div>
+                <div v-else-if="activeSubscriptionProvider === 'stripe'" class="text-caption text-grey-7">
+                  Provider: Stripe
+                </div>
               </div>
-              <q-btn color="primary" round dense icon="payments" @click="router.push('/billing')">
-                <q-tooltip>Open Billing</q-tooltip>
+              <div class="column q-gutter-xs items-end">
+                <q-btn
+                  v-if="activeSubscriptionProvider === 'google_play'"
+                  color="primary"
+                  round
+                  dense
+                  icon="open_in_new"
+                  :loading="loadingManage"
+                  @click="openGooglePlayManagement"
+                >
+                  <q-tooltip>Manage in Google Play</q-tooltip>
+                </q-btn>
+                <q-btn color="primary" round dense icon="payments" @click="router.push('/billing')">
+                  <q-tooltip>Open Billing</q-tooltip>
+                </q-btn>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <q-card flat bordered class="q-mb-lg">
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <div class="text-h6">Manage Account</div>
+                <div class="text-caption text-grey-7">Security settings, email, password, and linked providers.</div>
+              </div>
+              <q-btn color="primary" round dense icon="manage_accounts" @click="router.push('/account/security')">
+                <q-tooltip>Open Account Settings</q-tooltip>
+              </q-btn>
+            </q-card-section>
+          </q-card>
+
+          <q-card flat bordered>
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <div class="text-h6">Delete Account</div>
+                <div class="text-caption text-grey-7">Permanently remove your account and all related data.</div>
+              </div>
+              <q-btn color="negative" round dense icon="delete_forever" @click="router.push('/delete-account')">
+                <q-tooltip>Open Delete Account</q-tooltip>
               </q-btn>
             </q-card-section>
           </q-card>
@@ -262,6 +308,7 @@ import { Notify, copyToClipboard, useQuasar } from 'quasar'
 import { apiJson } from '../boot/api'
 import { useAuthStore, type BandMembership } from '../stores/auth'
 import { useBandStore } from '../stores/band'
+import { isAndroidNative } from '../plugins/playBilling'
 
 const router = useRouter()
 const route = useRoute()
@@ -271,6 +318,7 @@ const $q = useQuasar()
 
 const joining = ref(false)
 const creatingBand = ref(false)
+const loadingManage = ref(false)
 const showCreateBandDialog = ref(false)
 const newBandName = ref('')
 const joinCode = ref('')
@@ -302,6 +350,7 @@ type InviteCode = {
 const activePlanLabel = computed(() =>
   formatPlanLabel(authStore.activeBand?.plan, authStore.activeBand?.hasProPlan),
 )
+const activeSubscriptionProvider = computed(() => authStore.activeBand?.subscriptionProvider ?? null)
 const userIdentity = computed(() => {
   const name = authStore.user?.name?.trim() || 'Unknown user'
   const email = authStore.user?.email?.trim() || 'no-email'
@@ -572,6 +621,33 @@ function invalidateInviteCode(inviteId: number) {
       })
     }
   })
+}
+
+async function openGooglePlayManagement() {
+  loadingManage.value = true
+  try {
+    const data = await apiJson<{
+      currentSubscription: { managementUrl: string | null }
+    }>('/billing/plans')
+    const url = data.currentSubscription.managementUrl
+    if (url) {
+      window.open(url, '_blank')
+      return
+    }
+    if (isAndroidNative()) {
+      const { openPlaySubscriptions } = await import('../plugins/playBilling')
+      await openPlaySubscriptions()
+      return
+    }
+    Notify.create({ type: 'info', message: 'Open Google Play to manage your subscription.' })
+  } catch (error) {
+    Notify.create({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Failed to open Google Play subscription management',
+    })
+  } finally {
+    loadingManage.value = false
+  }
 }
 
 onMounted(async () => {

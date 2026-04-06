@@ -52,20 +52,11 @@
                 </template>
 
                 <q-separator />
-                <q-item clickable v-close-popup @click="goBilling">
-                  <q-item-section>{{ t('nav.subscriptions') }}</q-item-section>
-                </q-item>
                 <q-item clickable v-close-popup @click="goSupport">
                   <q-item-section>{{ t('nav.support') }}</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="router.push('/impress')">
                   <q-item-section>{{ t('nav.impress') }}</q-item-section>
-                </q-item>
-                <q-item clickable v-close-popup @click="goAccountSecurity">
-                  <q-item-section>{{ t('nav.accountSecurity') }}</q-item-section>
-                </q-item>
-                <q-item clickable v-close-popup @click="goDeleteAccount">
-                  <q-item-section>{{ t('nav.deleteAccount') }}</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="handleLogout">
                   <q-item-section>{{ t('nav.signOut') }}</q-item-section>
@@ -225,20 +216,8 @@ function goDashboard() {
   router.push('/dashboard')
 }
 
-function goBilling() {
-  router.push('/billing')
-}
-
 function goSupport() {
   router.push('/support')
-}
-
-function goDeleteAccount() {
-  router.push('/delete-account')
-}
-
-function goAccountSecurity() {
-  router.push('/account/security')
 }
 
 async function handleLogout() {

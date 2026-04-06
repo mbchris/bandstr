@@ -47,6 +47,7 @@ bands.get('/', requireAuth, async (c) => {
       subscriptionInterval: bandsTable.subscriptionInterval,
       subscriptionCurrentPeriodEnd: bandsTable.subscriptionCurrentPeriodEnd,
       subscriptionCancelAtPeriodEnd: bandsTable.subscriptionCancelAtPeriodEnd,
+      subscriptionProvider: bandsTable.subscriptionProvider,
       role: bandMembers.role,
     })
     .from(bandMembers)
