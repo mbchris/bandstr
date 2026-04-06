@@ -35,8 +35,8 @@ while true; do
         break
         ;;
       2)
-        echo "Running: ./do build-apk"
-        ./do build-apk
+        echo "Running: ./do build-apk --no-install"
+        ./do build-apk --no-install
         read -p "Press Enter to continue..."
         break
         ;;

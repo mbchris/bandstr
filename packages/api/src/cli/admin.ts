@@ -254,6 +254,42 @@ async function deleteUser(options: Record<string, string | boolean>): Promise<vo
   console.log(`User deleted: id=${deleted.id} email=${deleted.email} name=${deleted.name}`)
 }
 
+async function verifyUserEmail(options: Record<string, string | boolean>): Promise<void> {
+  const userId = optionalStringOption(options, 'user-id')
+  const email = optionalStringOption(options, 'email')
+  const verified = readBooleanOption(options, 'verified', true)
+
+  if (!userId && !email) {
+    throw new Error('Provide either --user-id or --email')
+  }
+  if (userId && email) {
+    throw new Error('Use either --user-id or --email, not both')
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({
+      emailVerified: verified,
+      updatedAt: new Date(),
+    })
+    .where(userId ? eq(users.id, userId) : eq(users.email, email!))
+    .returning({
+      id: users.id,
+      email: users.email,
+      emailVerified: users.emailVerified,
+    })
+
+  if (!updated) {
+    throw new Error(`User not found (${userId ? `user-id=${userId}` : `email=${email}`})`)
+  }
+
+  console.log(
+    `User email verification updated: userId=${updated.id} email=${updated.email} emailVerified=${
+      updated.emailVerified ? 'yes' : 'no'
+    }`,
+  )
+}
+
 async function assignUserToBand(options: Record<string, string | boolean>): Promise<void> {
   const userId = requireStringOption(options, 'user-id')
   const bandId = readIntOption(options, 'band-id')
@@ -669,6 +705,7 @@ Commands:
   list-users
   list-bands
   add-user --name "<name>" --email "<email>" [--id "<id>"] [--email-verified true|false] [--dev-pro-plan true|false]
+  verify-user-email [--user-id "<user-id>" | --email "<email>"] [--verified true|false]
   delete-user --user-id "<user-id>"
   assign-user-to-band --user-id "<user-id>" --band-id <id> [--role owner|admin|member] [--sort-order <n>] [--is-hidden true|false] [--beer-count <n>]
   remove-user-from-band --user-id "<user-id>" --band-id <id>
@@ -701,6 +738,9 @@ async function main(): Promise<void> {
       break
     case 'delete-user':
       await deleteUser(options)
+      break
+    case 'verify-user-email':
+      await verifyUserEmail(options)
       break
     case 'assign-user-to-band':
       await assignUserToBand(options)

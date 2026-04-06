@@ -63,6 +63,7 @@ import { computed, ref } from 'vue'
 import { Notify } from 'quasar'
 import { useRouter } from 'vue-router'
 import { api } from '../boot/api'
+import { authClient } from '../boot/auth'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -82,10 +83,28 @@ async function deleteAccount() {
   if (!isPhraseValid.value || loading.value) return
   loading.value = true
   try {
+    const apiBase = (process.env.API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '')
     const res = await api('/account', { method: 'DELETE' })
     const body = (await res.json().catch(() => null)) as { error?: string } | null
     if (!res.ok) {
       throw new Error(body?.error ?? `Failed to delete account (${res.status})`)
+    }
+
+    // Explicitly invalidate cookie and bearer sessions after account deletion.
+    await authClient.signOut().catch(() => undefined)
+    await fetch(`${apiBase}/api/auth/sign-out`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: '{}',
+    }).catch(() => undefined)
+
+    if (authStore.token) {
+      await fetch(`${apiBase}/api/mobile-auth/revoke-token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authStore.token}` },
+        credentials: 'omit',
+      }).catch(() => undefined)
     }
 
     authStore.clearSession()

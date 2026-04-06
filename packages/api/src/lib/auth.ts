@@ -167,8 +167,10 @@ export const auth = betterAuth({
     expiresIn: sessionExpiresInSeconds,
     disableSessionRefresh: true,
     // Support both cookie (web) and bearer token (mobile/Capacitor)
+    // Keep session state authoritative in DB; this avoids stale cookie-cache
+    // behavior where users appear logged in after explicit token/session revocation.
     cookieCache: {
-      enabled: true,
+      enabled: false,
       maxAge: 60 * 60 * 24 * 7, // 1 week
     },
   },
