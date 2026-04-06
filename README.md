@@ -29,6 +29,8 @@ Self-registration mail delivery:
 - Better Auth account emails (verification, password reset, change-email confirmation) are sent via `AUTH_EMAIL_WEBHOOK_URL`.
 - Optional auth header for that webhook: `AUTH_EMAIL_WEBHOOK_BEARER_TOKEN`.
 - If no webhook URL is set, emails are logged to the API server output (dev-friendly fallback).
+- There is no built-in SMTP sender in this repo right now; configure a webhook target that forwards to your mail provider.
+- If registration mails are not received, first verify that `AUTH_EMAIL_WEBHOOK_URL` is set and reachable from the API runtime.
 
 Support-to-GitHub integration:
 - `SUPPORT_GITHUB_ISSUES_URL` defines the target issue list URL (default: `https://github.com/prj120/bandstr/issues`).
@@ -206,6 +208,9 @@ docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli list-bands'
 
 # user + membership
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli add-user --name "Jane Admin" --email "jane@example.com"'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli verify-user-email --email "jane@example.com" --verified true'
+# alternatively by user id:
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli verify-user-email --user-id "<user-id>" --verified true'
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli delete-user --user-id "<user-id>"'
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli assign-user-to-band --user-id "<user-id>" --band-id 1 --role admin'
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli remove-user-from-band --user-id "<user-id>" --band-id 1'

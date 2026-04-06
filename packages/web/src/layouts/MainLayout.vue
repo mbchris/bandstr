@@ -240,9 +240,23 @@ async function handleLogout() {
   const { authClient } = await import('../boot/auth')
   const apiBase = (process.env.API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '')
   try {
-    if (authStore.token) {
-      let revoked = false
+    // Always attempt cookie-session sign out first.
+    await authClient.signOut().catch(() => undefined)
 
+    const signOutRes = await fetch(`${apiBase}/api/auth/sign-out`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: '{}',
+    }).catch(() => null)
+
+    if (signOutRes && !signOutRes.ok && signOutRes.status !== 401) {
+      throw new Error(`Sign-out failed (${signOutRes.status})`)
+    }
+
+    if (authStore.token) {
       const revokeRes = await fetch(`${apiBase}/api/mobile-auth/revoke-token`, {
         method: 'POST',
         headers: {
@@ -250,28 +264,9 @@ async function handleLogout() {
         },
         credentials: 'omit',
       })
-      if (revokeRes.ok) {
-        revoked = true
+      if (!revokeRes.ok && revokeRes.status !== 404) {
+        throw new Error(`Token revocation failed (${revokeRes.status})`)
       }
-
-      // Keep Better Auth state/cookies in sync too (especially for web sessions).
-      const signOutRes = await fetch(`${apiBase}/api/auth/sign-out`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`,
-        },
-        credentials: 'include',
-      })
-      if (signOutRes.ok) {
-        revoked = true
-      }
-
-      if (!revoked) {
-        throw new Error('Token revocation failed')
-      }
-    } else {
-      await authClient.signOut()
     }
   } catch {
     $q.notify({

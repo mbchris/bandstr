@@ -10,12 +10,14 @@
           <div class="q-pa-lg auth-card">
             <div class="text-center q-mb-lg">
               <div class="text-h4 text-weight-bold text-white auth-title">bandstr</div>
-              <div class="text-body2 text-grey-4 q-mt-xs">Band management for musicians</div>
+              <div class="text-body2 text-grey-4 q-mt-xs">Manage. Your. Band.</div>
             </div>
             <p class="text-body2 text-grey-2 q-mb-lg auth-lead">
-              Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore
-              et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea
+              Manage your setlists, song votings, calendar entries and keep track of who is bringing the drinks. Bandstr brings the structure you need for focussing on jamming instead of having endless messenger conversations!
               rebum.
+            </p>
+            <p>
+            More music. Less chaos. Bandstr!
             </p>
             <router-view />
           </div>
