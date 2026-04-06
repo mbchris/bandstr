@@ -2,19 +2,19 @@
   <q-page class="q-pa-md">
     <div class="row items-center q-col-gutter-sm q-mb-md">
       <div class="col">
-        <div class="text-h5">Billing</div>
+        <div class="text-h5">{{ t('billingPage.title') }}</div>
         <div class="text-caption text-grey-6">
-          Your plan:
+          {{ t('billingPage.yourPlan') }}
           <span class="text-weight-bold">{{ currentPlanLabel }}</span>
         </div>
         <div v-if="effectivePlan === 'plus'" class="text-caption text-positive">
-          bandstr plus — pro access inherited from a band member with a pro account.
+          {{ t('billingPage.plusInherited') }}
         </div>
         <div class="text-caption text-grey-6">
-          Status: <span class="text-weight-bold">{{ statusLabel }}</span>
+          {{ t('billingPage.status') }} <span class="text-weight-bold">{{ statusLabel }}</span>
         </div>
         <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">
-          Interval: {{ subscriptionIntervalLabel }}
+          {{ t('billingPage.interval') }} {{ subscriptionIntervalLabel }}
         </div>
         <div v-if="renewalLabel" class="text-caption text-grey-6">{{ renewalLabel }}</div>
         <div v-if="providerHint" class="text-caption text-grey-5 q-mt-xs">{{ providerHint }}</div>
@@ -25,7 +25,7 @@
             outline
             color="primary"
             icon="manage_accounts"
-            label="Manage subscription"
+            :label="t('billingPage.manageSubscription')"
             :disable="loadingPortal || !canManageSubscription"
             :loading="loadingPortal"
             @click="openPortal"
@@ -36,7 +36,7 @@
             dense
             color="grey-6"
             icon="replay"
-            label="Restore purchases"
+            :label="t('billingPage.restorePurchases')"
             :loading="loadingRestore"
             @click="restorePurchases"
           />
@@ -54,10 +54,10 @@
           </q-card-section>
           <q-separator />
           <q-card-section>
-            <div class="text-caption text-grey-7 q-mb-xs">Limits</div>
-            <div class="text-body2">Setlist songs: 15</div>
-            <div class="text-body2">Members: 5</div>
-            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">Includes</div>
+            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
+            <div class="text-body2">{{ t('billingPage.setlistSongsLimit', { count: 15 }) }}</div>
+            <div class="text-body2">{{ t('billingPage.membersLimit', { count: 5 }) }}</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
             <div class="text-body2">- Song voting</div>
             <div class="text-body2">- Setlist management (up to 15 songs)</div>
             <div class="text-body2">- Gig setlist management</div>
@@ -66,8 +66,8 @@
             <div class="text-body2">- Band member availabilities</div>
           </q-card-section>
           <q-card-actions align="right">
-            <q-chip v-if="effectivePlan === 'free'" color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
-            <q-btn v-else flat size="sm" label="Included" disable />
+            <q-chip v-if="effectivePlan === 'free'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
+            <q-btn v-else flat size="sm" :label="t('billingPage.included')" disable />
           </q-card-actions>
         </q-card>
       </div>
@@ -78,24 +78,24 @@
           <q-card-section>
             <div class="row items-center q-gutter-xs">
               <div class="text-h6">bandstr plus</div>
-              <q-badge v-if="effectivePlan === 'plus'" color="positive" label="Active" />
+              <q-badge v-if="effectivePlan === 'plus'" color="positive" :label="t('billingPage.active')" />
             </div>
-            <div v-if="effectivePlan === 'plus'" class="text-subtitle1 q-mt-sm text-positive">Free for you</div>
+            <div v-if="effectivePlan === 'plus'" class="text-subtitle1 q-mt-sm text-positive">{{ t('billingPage.freeForYou') }}</div>
           </q-card-section>
           <q-separator />
           <q-card-section>
             <div class="text-body2 q-mb-md">
               You're lucky! Someone in your band has a bandstr pro subscription. This unlocks all pro features for you as well and elevates your free account to a plus account. Isn't this a nice subscription model?
             </div>
-            <div class="text-caption text-grey-7 q-mb-xs">Limits</div>
-            <div class="text-body2">Setlist songs: Unlimited</div>
-            <div class="text-body2">Members: Unlimited</div>
-            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">Includes</div>
+            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
+            <div class="text-body2">{{ t('billingPage.setlistSongsUnlimited') }}</div>
+            <div class="text-body2">{{ t('billingPage.membersUnlimited') }}</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
             <div class="text-body2">- All features from bandstr pro</div>
             <div class="text-body2">- Inherited while a band member has pro</div>
           </q-card-section>
           <q-card-actions align="right">
-            <q-chip v-if="effectivePlan === 'plus'" color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
+            <q-chip v-if="effectivePlan === 'plus'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
           </q-card-actions>
         </q-card>
       </div>
@@ -109,26 +109,26 @@
           </q-card-section>
           <q-separator />
           <q-card-section>
-            <div class="text-caption text-grey-7 q-mb-xs">Limits</div>
-            <div class="text-body2">Setlist songs: {{ formatLimit(plan.limits.setlistSongs) }}</div>
-            <div class="text-body2">Members: {{ formatLimit(plan.limits.members) }}</div>
-            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">Includes</div>
+            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
+            <div class="text-body2">{{ t('billingPage.setlistSongsDynamic', { value: formatLimit(plan.limits.setlistSongs) }) }}</div>
+            <div class="text-body2">{{ t('billingPage.membersDynamic', { value: formatLimit(plan.limits.members) }) }}</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
             <div v-for="feature in plan.features" :key="feature" class="text-body2">- {{ feature }}</div>
           </q-card-section>
           <q-card-actions align="right" class="q-gutter-sm">
-            <q-chip v-if="effectivePlan === 'pro'" color="primary" text-color="white" size="sm" icon="check" label="Current plan" />
+            <q-chip v-if="effectivePlan === 'pro'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
             <template v-else>
               <template v-if="isWebOnly">
                 <div class="column items-end q-gutter-xs">
-                  <q-chip dense color="grey-7" text-color="white" icon="smartphone" label="App only" />
+                  <q-chip dense color="grey-7" text-color="white" icon="smartphone" :label="t('billingPage.appOnly')" />
                   <div class="text-caption text-grey-6 text-right" style="font-size: 11px">
-                    Subscriptions can only be managed in the app using the corresponding app stores.
+                    {{ t('billingPage.appOnlyHint') }}
                   </div>
                 </div>
               </template>
               <template v-else>
-                <q-btn color="primary" size="sm" label="Choose monthly" :loading="loadingCheckout && selectedInterval === 'monthly'" @click="startCheckout('monthly')" />
-                <q-btn color="primary" size="sm" outline label="Choose yearly" :loading="loadingCheckout && selectedInterval === 'yearly'" @click="startCheckout('yearly')" />
+                <q-btn color="primary" size="sm" :label="t('billingPage.chooseMonthly')" :loading="loadingCheckout && selectedInterval === 'monthly'" @click="startCheckout('monthly')" />
+                <q-btn color="primary" size="sm" outline :label="t('billingPage.chooseYearly')" :loading="loadingCheckout && selectedInterval === 'yearly'" @click="startCheckout('yearly')" />
               </template>
             </template>
           </q-card-actions>
@@ -144,6 +144,7 @@ import { Notify } from 'quasar'
 import { useRoute } from 'vue-router'
 import { apiJson } from '../boot/api'
 import { useAuthStore } from '../stores/auth'
+import { useI18n } from '../composables/useI18n'
 import {
   initializePlayBilling,
   isAndroidNative,
@@ -187,6 +188,7 @@ type Plan = {
 
 const authStore = useAuthStore()
 const route = useRoute()
+const { t } = useI18n()
 
 const plans = ref<Plan[]>([])
 const effectivePlan = ref<EffectivePlan>('free')
@@ -227,14 +229,14 @@ const currentPlanLabel = computed(() => {
 
 const statusLabel = computed(() => {
   const map: Record<SubscriptionStatus, string> = {
-    none: 'No active subscription',
-    active: 'Active',
-    canceled: 'Canceled',
-    past_due: 'Past due',
-    trialing: 'Trialing',
-    grace_period: 'Grace period — payment retry in progress',
-    on_hold: 'On hold — update payment in Google Play',
-    paused: 'Paused',
+    none: t('billingPage.subscriptionStatusNone'),
+    active: t('billingPage.subscriptionStatusActive'),
+    canceled: t('billingPage.subscriptionStatusCanceled'),
+    past_due: t('billingPage.subscriptionStatusPastDue'),
+    trialing: t('billingPage.subscriptionStatusTrialing'),
+    grace_period: t('billingPage.subscriptionStatusGracePeriod'),
+    on_hold: t('billingPage.subscriptionStatusOnHold'),
+    paused: t('billingPage.subscriptionStatusPaused'),
   }
   return map[subscriptionStatus.value]
 })
@@ -243,13 +245,13 @@ const providerHint = computed(() => {
   const p = subscriptionProvider.value
   const s = subscriptionStatus.value
   if (p === 'google_play' && (s === 'active' || s === 'grace_period' || s === 'trialing')) {
-    return 'Your subscription is managed through Google Play. Tap "Manage subscription" to change or cancel.'
+    return t('billingPage.providerHintGoogle')
   }
   if (p === 'app_store' && (s === 'active' || s === 'grace_period' || s === 'trialing')) {
-    return 'Your subscription is managed through the App Store. Tap "Manage subscription" to change or cancel.'
+    return t('billingPage.providerHintApple')
   }
   if (p === 'google_play' && s === 'on_hold') {
-    return 'Your subscription is on hold. Update your payment method in Google Play to restore access.'
+    return t('billingPage.providerHintOnHoldGoogle')
   }
   return null
 })
@@ -257,18 +259,18 @@ const providerHint = computed(() => {
 const renewalLabel = computed(() => {
   if (!currentPeriodEnd.value) return null
   const dateLabel = new Date(currentPeriodEnd.value).toLocaleDateString()
-  if (cancelAtPeriodEnd.value) return `Cancels at period end (${dateLabel})`
-  return `Renews on ${dateLabel}`
+  if (cancelAtPeriodEnd.value) return t('billingPage.cancelsAtPeriodEnd', { date: dateLabel })
+  return t('billingPage.renewsOn', { date: dateLabel })
 })
 
 const subscriptionIntervalLabel = computed(() => {
-  if (subscriptionInterval.value === 'monthly') return 'Monthly'
-  if (subscriptionInterval.value === 'yearly') return 'Yearly'
+  if (subscriptionInterval.value === 'monthly') return t('billingPage.monthly')
+  if (subscriptionInterval.value === 'yearly') return t('billingPage.yearly')
   return null
 })
 
 function formatLimit(value: number | null) {
-  return value === null ? 'Unlimited' : String(value)
+  return value === null ? t('billingPage.unlimited') : String(value)
 }
 
 function formatPlanPrice(plan: Plan) {
@@ -280,9 +282,9 @@ function formatPlanPrice(plan: Plan) {
     const yearlyPrice = playProducts.value.yearly?.offers[0]?.formattedPrice
     if (monthlyPrice || yearlyPrice) {
       const parts: string[] = []
-      if (monthlyPrice) parts.push(`${monthlyPrice}/month`)
-      if (yearlyPrice) parts.push(`${yearlyPrice}/year`)
-      return parts.join(' or ')
+      if (monthlyPrice) parts.push(t('billingPage.pricePerMonth', { price: monthlyPrice }))
+      if (yearlyPrice) parts.push(t('billingPage.pricePerYear', { price: yearlyPrice }))
+      return parts.join(` ${t('billingPage.or')} `)
     }
   }
 
@@ -292,15 +294,15 @@ function formatPlanPrice(plan: Plan) {
     const yearlyPrice = appStoreProducts.value.yearly?.offers[0]?.formattedPrice
     if (monthlyPrice || yearlyPrice) {
       const parts: string[] = []
-      if (monthlyPrice) parts.push(`${monthlyPrice}/month`)
-      if (yearlyPrice) parts.push(`${yearlyPrice}/year`)
-      return parts.join(' or ')
+      if (monthlyPrice) parts.push(t('billingPage.pricePerMonth', { price: monthlyPrice }))
+      if (yearlyPrice) parts.push(t('billingPage.pricePerYear', { price: yearlyPrice }))
+      return parts.join(` ${t('billingPage.or')} `)
     }
   }
 
   const monthly = plan.prices.monthly ?? 0
   const yearly = plan.prices.yearly ?? 0
-  return `${monthly} ${plan.prices.currency}/month or ${yearly} ${plan.prices.currency}/year`
+  return `${monthly} ${plan.prices.currency}/${t('billingPage.monthLower')} ${t('billingPage.or')} ${yearly} ${plan.prices.currency}/${t('billingPage.yearLower')}`
 }
 
 async function loadBilling() {
@@ -351,7 +353,7 @@ async function loadBilling() {
   } catch (error) {
     Notify.create({
       type: 'negative',
-      message: error instanceof Error ? error.message : 'Failed to load billing data',
+      message: error instanceof Error ? error.message : t('billingPage.failedLoadBillingData'),
     })
   }
 }
@@ -375,7 +377,7 @@ async function loadPlayProducts() {
   } catch (error) {
     Notify.create({
       type: 'warning',
-      message: error instanceof Error ? error.message : 'Google Play Billing unavailable. Falling back to web checkout.',
+      message: error instanceof Error ? error.message : t('billingPage.googlePlayUnavailableFallbackWeb'),
     })
   }
 }
@@ -399,7 +401,7 @@ async function loadAppStoreProducts() {
   } catch (error) {
     Notify.create({
       type: 'warning',
-      message: error instanceof Error ? error.message : 'Apple In-App Purchases unavailable. Falling back to web checkout.',
+      message: error instanceof Error ? error.message : t('billingPage.appleUnavailableFallbackWeb'),
     })
   }
 }
@@ -410,7 +412,7 @@ async function startCheckout(interval: BillingInterval) {
   try {
     if (isAndroidNative() && playReady.value) {
       const product = playProducts.value[interval]
-      if (!product) throw new Error(`Google Play product missing for ${interval}`)
+      if (!product) throw new Error(t('billingPage.googlePlayProductMissing', { interval }))
 
       const offer = product.offers[0]
       const purchase = await purchasePlaySubscription(product.productId, offer?.offerToken)
@@ -423,13 +425,13 @@ async function startCheckout(interval: BillingInterval) {
           interval,
         }),
       })
-      Notify.create({ type: 'positive', message: 'Subscription activated via Google Play.' })
+      Notify.create({ type: 'positive', message: t('billingPage.subscriptionActivatedGooglePlay') })
       await loadBilling()
       return
     }
     if (isIosNative() && appStoreReady.value) {
       const product = appStoreProducts.value[interval]
-      if (!product) throw new Error(`Apple product missing for ${interval}`)
+      if (!product) throw new Error(t('billingPage.appleProductMissing', { interval }))
 
       const purchase = await purchaseAppStoreSubscription(product.productId)
       await apiJson('/billing/apple/activate', {
@@ -441,7 +443,7 @@ async function startCheckout(interval: BillingInterval) {
           interval,
         }),
       })
-      Notify.create({ type: 'positive', message: 'Subscription activated via Apple In-App Purchase.' })
+      Notify.create({ type: 'positive', message: t('billingPage.subscriptionActivatedApple') })
       await loadBilling()
       return
     }
@@ -454,9 +456,9 @@ async function startCheckout(interval: BillingInterval) {
       window.location.href = data.url
       return
     }
-    throw new Error('Checkout URL missing')
+    throw new Error(t('billingPage.checkoutUrlMissing'))
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Failed to create checkout session'
+    const msg = error instanceof Error ? error.message : t('billingPage.failedCreateCheckoutSession')
     if (msg.includes('already have an active')) {
       Notify.create({ type: 'warning', message: msg })
     } else {
@@ -486,7 +488,11 @@ async function openPortal() {
           const { openAppStoreSubscriptions } = await import('../plugins/appStoreBilling')
           await openAppStoreSubscriptions()
         } else {
-          throw new Error(`Manage your subscription in ${provider === 'google_play' ? 'Google Play' : 'the App Store'}.`)
+          throw new Error(
+            t('billingPage.manageSubscriptionInProvider', {
+              provider: provider === 'google_play' ? t('billingPage.googlePlay') : t('billingPage.appStore'),
+            }),
+          )
         }
       }
       return
@@ -498,11 +504,11 @@ async function openPortal() {
       window.location.href = data.url
       return
     }
-    throw new Error('Portal URL missing')
+    throw new Error(t('billingPage.portalUrlMissing'))
   } catch (error) {
     Notify.create({
       type: 'negative',
-      message: error instanceof Error ? error.message : 'Failed to open billing portal',
+      message: error instanceof Error ? error.message : t('billingPage.failedOpenBillingPortal'),
     })
   } finally {
     loadingPortal.value = false
@@ -515,7 +521,7 @@ async function restorePurchases() {
     if (isAndroidNative() && playReady.value) {
       const result = await restorePlaySubscriptions()
       if (!result.purchases || result.purchases.length === 0) {
-        Notify.create({ type: 'info', message: 'No purchases found to restore.' })
+        Notify.create({ type: 'info', message: t('billingPage.noPurchasesToRestore') })
         return
       }
       const purchase = result.purchases[0]
@@ -527,7 +533,7 @@ async function restorePurchases() {
           purchaseToken: purchase.purchaseToken,
         }),
       })
-      Notify.create({ type: 'positive', message: 'Subscription restored successfully.' })
+      Notify.create({ type: 'positive', message: t('billingPage.subscriptionRestoredSuccessfully') })
       await loadBilling()
       return
     }
@@ -535,7 +541,7 @@ async function restorePurchases() {
     if (isIosNative() && appStoreReady.value) {
       const result = await restoreAppStoreSubscriptions()
       if (!result.purchases || result.purchases.length === 0) {
-        Notify.create({ type: 'info', message: 'No purchases found to restore.' })
+        Notify.create({ type: 'info', message: t('billingPage.noPurchasesToRestore') })
         return
       }
       const purchase = result.purchases[0]
@@ -548,16 +554,16 @@ async function restorePurchases() {
           transactionId: purchase.orderId ?? undefined,
         }),
       })
-      Notify.create({ type: 'positive', message: 'Subscription restored successfully.' })
+      Notify.create({ type: 'positive', message: t('billingPage.subscriptionRestoredSuccessfully') })
       await loadBilling()
       return
     }
 
-    Notify.create({ type: 'info', message: 'Restore is only available on Android and iOS.' })
+    Notify.create({ type: 'info', message: t('billingPage.restoreOnlyAndroidIos') })
   } catch (error) {
     Notify.create({
       type: 'negative',
-      message: error instanceof Error ? error.message : 'Failed to restore purchases',
+      message: error instanceof Error ? error.message : t('billingPage.failedRestorePurchases'),
     })
   } finally {
     loadingRestore.value = false
@@ -566,9 +572,9 @@ async function restorePurchases() {
 
 onMounted(() => {
   if (route.query.checkout === 'success') {
-    Notify.create({ type: 'positive', message: 'Checkout completed. Refreshing billing status.' })
+    Notify.create({ type: 'positive', message: t('billingPage.checkoutCompletedRefreshing') })
   } else if (route.query.checkout === 'cancel') {
-    Notify.create({ type: 'warning', message: 'Checkout was canceled.' })
+    Notify.create({ type: 'warning', message: t('billingPage.checkoutCanceled') })
   }
   loadBilling()
 })

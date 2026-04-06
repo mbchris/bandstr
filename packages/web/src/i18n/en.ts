@@ -293,6 +293,7 @@ export default {
     jsonHint: 'A JSON array of event objects is supported. Existing records are preserved.',
     importJsonSuccess: 'Successfully imported {count} calendar entries!',
     failedJsonImport: 'Failed to import calendar.',
+    exportFailed: 'Export failed.',
     removeConfirm: 'Are you sure you want to remove this member?',
     failedAdd: 'Failed to add user.',
     failedUpdate: 'Failed to update user.',

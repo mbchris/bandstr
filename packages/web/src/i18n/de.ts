@@ -294,6 +294,7 @@ export default {
     jsonHint: 'Ein JSON-Array von Event-Objekten wird unterstützt. Bestehende Einträge bleiben erhalten.',
     importJsonSuccess: '{count} Kalendereinträge erfolgreich importiert!',
     failedJsonImport: 'Kalenderimport fehlgeschlagen.',
+    exportFailed: 'Export fehlgeschlagen.',
     removeConfirm: 'Bist du sicher, dass du dieses Mitglied entfernen möchtest?',
     failedAdd: 'Benutzer konnte nicht hinzugefügt werden.',
     failedUpdate: 'Benutzer konnte nicht aktualisiert werden.',
