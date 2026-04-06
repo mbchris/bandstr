@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -13,59 +13,50 @@ print_header() {
   echo
 }
 
+print_menu() {
+  echo "Please select a task to run:"
+  echo
+  echo "  1) Build Production Image (./do build)"
+  echo "  2) Build APK (./do build-apk production --no-install)"
+  echo "  3) Create APK Bundle (./do create-apk-bundle)"
+  echo "  4) Deploy to Play Console (./do deploy-play-console)"
+  echo "  9) Install APK on local device (using ADB)"
+  echo "  6) Quit"
+  echo
+}
+
+run_command() {
+  local num="$1"
+  case "$num" in
+    1) echo "Running: ./do build";                              ./do build ;;
+    2) echo "Running: ./do build-apk production --no-install"; ./do build-apk production --no-install ;;
+    3) echo "Running: ./do create-apk-bundle";                 ./do create-apk-bundle ;;
+    4) echo "Running: ./do deploy-play-console";               ./do deploy-play-console ;;
+    9) echo "Running: ./do deploy-apk production";             ./do deploy-apk production ;;
+    6) echo "Exiting."; exit 0 ;;
+    *) echo "Invalid option: $num"; return 1 ;;
+  esac
+}
+
 while true; do
   print_header
-  echo "Please select a task to run:"
-  
-  options=(
-    "Build Production Image (./do build)"
-    "Build APK (./do build-apk production --no-install)"
-    "Deploy APK (./do deploy-apk production)"
-    "Create APK Bundle (./do create-apk-bundle)"
-    "Deploy to Play Console (./do deploy-play-console)"
-    "Quit"
-  )
+  print_menu
+  read -rp "Enter your choice (e.g. 1 or 2,4,5): " REPLY
 
-  PS3="Enter your choice (1-${#options[@]}): "
-  select opt in "${options[@]}"; do
-    case "$REPLY" in
-      1)
-        echo "Running: ./do build"
-        ./do build
-        read -p "Press Enter to continue..."
-        break
-        ;;
-      2)
-        echo "Running: ./do build-apk production --no-install"
-        ./do build-apk production --no-install
-        read -p "Press Enter to continue..."
-        break
-        ;;
-      3)
-        echo "Running: ./do deploy-apk production"
-        ./do deploy-apk production
-        read -p "Press Enter to continue..."
-        break
-        ;;
-      4)
-        echo "Running: ./do create-apk-bundle"
-        ./do create-apk-bundle
-        read -p "Press Enter to continue..."
-        break
-        ;;
-      5)
-        echo "Running: ./do deploy-play-console"
-        ./do deploy-play-console
-        read -p "Press Enter to continue..."
-        break
-        ;;
-      6)
-        echo "Exiting."
-        exit 0
-        ;;
-      *)
-        echo "Invalid option. Please try again."
-        ;;
-    esac
+  IFS=',' read -ra selections <<< "$REPLY"
+
+  had_error=0
+  for sel in "${selections[@]}"; do
+    sel="${sel// /}"
+    if ! run_command "$sel"; then
+      had_error=1
+      echo
+      read -rp "Press Enter to return to main menu..."
+      break
+    fi
   done
+
+  if [[ "$had_error" -eq 0 ]]; then
+    read -rp "Press Enter to continue..."
+  fi
 done

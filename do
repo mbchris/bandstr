@@ -1167,9 +1167,9 @@ bump_android_version() {
     exit 1
   fi
 
-  local major="${BASH_REMATCH[1]}"
-  local minor="${BASH_REMATCH[2]}"
-  local patch="${BASH_REMATCH[3]}"
+  local major=$((10#${BASH_REMATCH[1]}))
+  local minor=$((10#${BASH_REMATCH[2]}))
+  local patch=$((10#${BASH_REMATCH[3]}))
 
   case "$android_version_bump" in
     major)
