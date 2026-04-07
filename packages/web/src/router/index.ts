@@ -76,6 +76,16 @@ export default route(function (/* { store, ssrContext } */) {
       }
     }
 
+    if (to.meta.requiresBand && !auth.activeBand) {
+      return {
+        path: '/bands/manage',
+        query: {
+          needBand: '1',
+          redirect: to.fullPath,
+        },
+      }
+    }
+
     if (to.meta.requiresAuth && to.path === '/' && localStorage.getItem('bandstr-dashboard-seen') !== '1') {
       localStorage.setItem('bandstr-dashboard-seen', '1')
       return { path: '/dashboard' }

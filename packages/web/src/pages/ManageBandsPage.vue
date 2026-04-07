@@ -1,6 +1,10 @@
 <template>
   <q-page padding>
     <div style="max-width: 1100px; margin: 0 auto">
+      <q-banner v-if="showSelectBandHint" rounded class="bg-warning text-dark q-mb-md">
+        Please create or join a band first. Home, Voting, Setlist, and Calendar are available once a band is active.
+      </q-banner>
+
       <div class="row items-center q-gutter-sm q-mb-lg">
         <q-icon name="groups" size="30px" color="primary" />
         <div class="text-h5 text-weight-bold">Manage Bands</div>
@@ -195,7 +199,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { copyToClipboard, useQuasar } from 'quasar'
 import { apiJson } from '../boot/api'
 import { useAuthStore, type BandMembership } from '../stores/auth'
@@ -216,6 +220,7 @@ type InviteCode = {
 
 const $q = useQuasar()
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const bandStore = useBandStore()
 
@@ -233,6 +238,7 @@ const inviteCodes = ref<InviteCode[]>([])
 const selectedInviteCode = ref('')
 const qrImageUrl = ref('')
 const APP_INVITE_BASE_URL = 'org.capacitor.bandstr://localhost/#/dashboard'
+const showSelectBandHint = computed(() => route.query.needBand === '1')
 
 const canCreateBand = computed(() => {
   if (authStore.bands.length === 0) return true

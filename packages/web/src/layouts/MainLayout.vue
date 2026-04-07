@@ -158,6 +158,7 @@ const activeBandId = computed({
 })
 
 const activeBandRole = computed(() => authStore.activeBand?.role ?? 'none')
+const hasActiveBand = computed(() => Boolean(authStore.activeBand))
 const effectivePlanLabel = computed(() => {
   const p = authStore.effectivePlan
   if (p === 'pro') return 'bandstr pro'
@@ -186,6 +187,10 @@ const isAdmin = computed(() => {
 })
 
 const navLinks = computed(() => {
+  if (!hasActiveBand.value) {
+    return []
+  }
+
   const links = [
     { label: t('nav.home'), to: '/', iconLight: homeBl, iconDark: homeWh, iconActive: homeWh },
     { label: t('nav.voting'), to: '/voting', iconLight: votingBl, iconDark: votingWh, iconActive: votingWh },
@@ -203,7 +208,7 @@ const navLinks = computed(() => {
 })
 
 const isBillingRoute = computed(() => route.path.startsWith('/billing'))
-const showTopNav = computed(() => route.path !== '/dashboard' && !isBillingRoute.value)
+const showTopNav = computed(() => hasActiveBand.value && route.path !== '/dashboard' && !isBillingRoute.value)
 const routerViewKey = computed(() => `${route.fullPath}::band-${authStore.activeBandId ?? 'none'}`)
 
 function isActiveRoute(path: string) {
