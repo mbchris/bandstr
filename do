@@ -1024,11 +1024,22 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
     echo "  local.properties: $(tr -d '\r' < "$android_local_props")"
   fi
 
-  JAVA_HOME="$gradle_java_home" \
-  ANDROID_HOME="$gradle_android_home" \
-  ANDROID_SDK_ROOT="$gradle_android_home" \
-  GRADLE_USER_HOME="$gradle_user_home" \
-  corepack pnpm --filter @bandstr/web run build:android
+  if [[ "$is_windows_shell" == "1" ]] && command -v cmd.exe >/dev/null 2>&1; then
+    # In Git Bash with MSYS path-conversion disabled, invoking corepack directly can
+    # resolve to an invalid path like C:\c\Program Files\...\corepack.js.
+    # Running through cmd.exe avoids that translation issue.
+    JAVA_HOME="$gradle_java_home" \
+    ANDROID_HOME="$gradle_android_home" \
+    ANDROID_SDK_ROOT="$gradle_android_home" \
+    GRADLE_USER_HOME="$gradle_user_home" \
+    cmd.exe /d /s /c "corepack pnpm --filter @bandstr/web run build:android"
+  else
+    JAVA_HOME="$gradle_java_home" \
+    ANDROID_HOME="$gradle_android_home" \
+    ANDROID_SDK_ROOT="$gradle_android_home" \
+    GRADLE_USER_HOME="$gradle_user_home" \
+    corepack pnpm --filter @bandstr/web run build:android
+  fi
 
   local release_apk="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release.apk"
   local release_unsigned_apk="packages/web/src-capacitor/android/app/build/outputs/apk/release/app-release-unsigned.apk"
