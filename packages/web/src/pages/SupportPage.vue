@@ -31,15 +31,6 @@
             autocomplete="email"
           />
 
-          <q-file
-            v-model="screenshotFile"
-            outlined
-            dense
-            clearable
-            accept="image/*"
-            label="Screenshot (optional)"
-          />
-
           <q-input
             v-model="message"
             outlined
@@ -86,7 +77,6 @@ type SupportType = 'bug' | 'feature' | 'comment'
 const kind = ref<SupportType>('bug')
 const message = ref('')
 const email = ref('')
-const screenshotFile = ref<File | null>(null)
 const submitting = ref(false)
 const buildId = ref((process.env.GIT_REV ?? 'dev').trim() || 'dev')
 const environment = ref((process.env.NODE_ENV ?? 'development').trim() || 'development')
@@ -109,15 +99,6 @@ const tagPreview = computed(() => {
 })
 
 const messageRule = (value: string) => value.trim().length >= 10 || 'Please provide at least 10 characters'
-
-async function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = () => reject(new Error('Failed to read screenshot'))
-    reader.readAsDataURL(file)
-  })
-}
 
 async function loadConfig() {
   const response = await api('/support/config', { method: 'GET' })
@@ -143,8 +124,6 @@ async function submit() {
 
   submitting.value = true
   try {
-    const screenshotDataUrl = screenshotFile.value ? await fileToDataUrl(screenshotFile.value) : undefined
-
     const response = await api('/support/tickets', {
       method: 'POST',
       headers: {
@@ -156,7 +135,6 @@ async function submit() {
         type: kind.value,
         message: trimmedMessage,
         email: email.value.trim(),
-        screenshotDataUrl,
       }),
     })
 
@@ -173,7 +151,6 @@ async function submit() {
     }
     message.value = ''
     email.value = ''
-    screenshotFile.value = null
   } catch (error: unknown) {
     Notify.create({
       type: 'negative',
