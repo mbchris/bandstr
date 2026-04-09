@@ -234,12 +234,51 @@ public class PlayBillingPlugin extends Plugin implements com.android.billingclie
       return;
     }
 
+    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) {
+      resolveWithExistingSubscriptionPurchase(
+        "Purchase already owned, but no active subscription purchase was found"
+      );
+      return;
+    }
+
+    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+      resolveWithExistingSubscriptionPurchase("Purchase result did not include a purchase token");
+      return;
+    }
+
     if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
       pendingPurchaseCall.reject("Purchase canceled by user");
     } else {
       pendingPurchaseCall.reject("Purchase failed: " + billingResult.getDebugMessage());
     }
     pendingPurchaseCall = null;
+  }
+
+  private void resolveWithExistingSubscriptionPurchase(String fallbackError) {
+    billingClient.queryPurchasesAsync(
+      QueryPurchasesParams.newBuilder()
+        .setProductType(BillingClient.ProductType.SUBS)
+        .build(),
+      new PurchasesResponseListener() {
+        @Override
+        public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> purchases) {
+          if (pendingPurchaseCall == null) return;
+
+          if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && !purchases.isEmpty()) {
+            Purchase purchase = purchases.get(0);
+            acknowledgeIfNeeded(purchase);
+            JSObject ret = new JSObject();
+            ret.put("purchase", toPurchaseObject(purchase));
+            pendingPurchaseCall.resolve(ret);
+          } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+            pendingPurchaseCall.reject(fallbackError);
+          } else {
+            pendingPurchaseCall.reject("Failed to query existing purchases: " + billingResult.getDebugMessage());
+          }
+          pendingPurchaseCall = null;
+        }
+      }
+    );
   }
 
   private void acknowledgeIfNeeded(Purchase purchase) {
