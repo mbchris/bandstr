@@ -257,6 +257,8 @@ export default {
     masterSetlist: 'Master Setlist',
     addSongTitle: 'Add New Song to Master Setlist',
     addGigSongTitle: 'Add Master Songs to Gig Setlist',
+    tags: 'Tags',
+    filterTags: 'Filter tags...',
     selectSongs: 'Select songs...',
     selectAll: 'Select All',
     selectNone: 'Select None',

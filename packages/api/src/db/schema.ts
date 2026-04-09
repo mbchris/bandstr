@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 
 // ─── Multi-tenancy core ──────────────────────────────────────────────────────
 
@@ -218,6 +218,7 @@ export const songs = pgTable(
     youtubeUrl: text('youtube_url'),
     thumbnailUrl: text('thumbnail_url'),
     lengthMs: integer('length_ms'),
+    tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
     notes: text('notes'),
     type: text('type').notNull().default('song'), // 'song' | 'pause' | 'tuning'
     pitch: integer('pitch').notNull().default(0), // -5 to +5

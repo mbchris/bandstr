@@ -18,6 +18,7 @@ export type Song = {
   youtubeUrl?: string | null
   thumbnailUrl?: string | null
   lengthMs?: number | null
+  tags: string[]
   notes?: string | null
   type: 'song' | 'pause' | 'tuning'
   pitch: number
