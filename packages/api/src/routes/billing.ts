@@ -253,7 +253,8 @@ billing.post(
       return c.json({ ok: true })
     } catch (error) {
       console.error('[billing.google-play.activate] failed', error)
-      return c.json({ error: 'Purchase verification failed' }, 400)
+      const reason = error instanceof Error ? error.message : 'Unknown verification error'
+      return c.json({ error: `Purchase verification failed: ${reason}` }, 400)
     }
   },
 )
@@ -284,7 +285,8 @@ billing.post(
       return c.json({ ok: true })
     } catch (error) {
       console.error('[billing.google-play.restore] failed', error)
-      return c.json({ error: 'Restore failed' }, 400)
+      const reason = error instanceof Error ? error.message : 'Unknown restore error'
+      return c.json({ error: `Restore failed: ${reason}` }, 400)
     }
   },
 )
