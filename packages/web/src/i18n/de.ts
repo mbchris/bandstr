@@ -258,6 +258,8 @@ export default {
     masterSetlist: 'Master-Setlist',
     addSongTitle: 'Neuen Song zur Master-Setlist hinzufügen',
     addGigSongTitle: 'Songs zur Gig-Setlist hinzufügen',
+    tags: 'Tags',
+    filterTags: 'Tags filtern...',
     selectSongs: 'Songs auswählen...',
     selectAll: 'Alle auswählen',
     selectNone: 'Keine auswählen',

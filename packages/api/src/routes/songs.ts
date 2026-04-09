@@ -11,6 +11,20 @@ import { bandHasProPlan } from '../lib/entitlements.js'
 
 export const songs = new Hono<TenantEnv>()
 const FREE_SETLIST_LIMIT = 15
+const MAX_TAG_COUNT = 20
+const MAX_TAG_LENGTH = 40
+
+function normalizeTags(raw: unknown): string[] | undefined {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) return []
+  const normalized = raw
+    .filter((item): item is string => typeof item === 'string')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, MAX_TAG_COUNT)
+    .map((tag) => tag.slice(0, MAX_TAG_LENGTH))
+  return Array.from(new Set(normalized))
+}
 
 async function setlistSongCountForBand(bandId: number, excludeSongId?: number) {
   const conditions = [
@@ -81,6 +95,7 @@ const createSongSchema = z.object({
   spotifyUrl: z.string().url().optional(),
   youtubeUrl: z.string().url().optional(),
   lengthMs: z.number().int().min(0).optional(),
+  tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAG_COUNT).default([]),
   notes: z.string().optional(),
   type: z.enum(['song', 'pause', 'tuning']).default('song'),
   pitch: z.number().int().min(-5).max(5).default(0),
@@ -129,6 +144,7 @@ songs.post('/', zValidator('json', createSongSchema), async (c) => {
       youtubeUrl: body.youtubeUrl,
       thumbnailUrl: meta.thumbnail,
       lengthMs: body.lengthMs ?? meta.durationMs,
+      tags: body.tags,
       notes: body.notes,
       type: body.type,
       pitch: body.pitch,
@@ -197,6 +213,7 @@ songs.put('/:id', async (c) => {
       youtubeUrl: body.youtubeUrl ?? existing.youtubeUrl,
       thumbnailUrl,
       lengthMs: body.lengthMs ?? lengthMs,
+      tags: normalizeTags(body.tags) ?? existing.tags,
       notes: body.notes ?? existing.notes,
       type: body.type ?? existing.type,
       pitch: body.pitch ?? existing.pitch,
@@ -213,8 +230,6 @@ songs.put('/:id', async (c) => {
 // DELETE /songs/:id
 songs.delete('/:id', async (c) => {
   const bandId = c.get('bandId')
-  const bandRole = c.get('bandRole')
-  const userId = c.get('user').id
   const id = Number(c.req.param('id'))
 
   const [existing] = await db
@@ -224,11 +239,6 @@ songs.delete('/:id', async (c) => {
     .limit(1)
 
   if (!existing) return c.json({ error: 'Not found' }, 404)
-
-  const canDelete = ['owner', 'admin'].includes(bandRole) || existing.addedBy === userId
-  if (!canDelete) {
-    return c.json({ error: 'Forbidden' }, 403)
-  }
 
   await db.delete(votesTable).where(and(eq(votesTable.songId, id), eq(votesTable.bandId, bandId)))
   await db.delete(songsTable).where(and(eq(songsTable.id, id), eq(songsTable.bandId, bandId)))

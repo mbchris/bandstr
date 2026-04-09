@@ -31,6 +31,20 @@
               <template #prepend><q-icon name="search" /></template>
             </q-input>
             <q-select v-model="selectedGigId" :options="gigOptions" emit-value map-options dense outlined style="width: 200px" />
+            <q-select
+              v-if="!selectedGigId"
+              v-model="selectedTagFilters"
+              :options="availableTagOptions"
+              multiple
+              use-input
+              use-chips
+              hide-dropdown-icon
+              new-value-mode="add-unique"
+              outlined
+              dense
+              style="min-width: 260px"
+              :label="t('setlist.filterTags')"
+            />
           </div>
           <div class="text-caption text-grey-7 q-mb-md">
             Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
@@ -42,7 +56,6 @@
               :key="getItemKey(item)"
               class="q-pa-sm"
               :class="{
-                'bg-blue-1': item.isPinned,
                 'border-dashed': item.type !== 'song',
                 'dragging-item': draggingIndex === index,
               }"
@@ -59,7 +72,16 @@
                   <q-btn flat round dense icon="keyboard_arrow_up" size="sm" @click="moveItem(index, -1)" />
                   <q-btn flat round dense icon="keyboard_arrow_down" size="sm" @click="moveItem(index, 1)" />
                   <span class="text-caption text-grey">{{ index + 1 }}</span>
-                  <q-btn flat round dense :icon="item.isPinned ? 'lock' : 'lock_open'" :color="item.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(item)" />
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    :icon="item.isPinned ? 'lock' : 'lock_open'"
+                    :color="item.isPinned ? 'primary' : 'grey'"
+                    :class="{ 'pinned-lock-btn': item.isPinned }"
+                    size="sm"
+                    @click="togglePin(item)"
+                  />
                 </div>
               </q-item-section>
 
@@ -91,6 +113,19 @@
                     </q-icon>
                   </q-item-label>
                   <q-item-label caption>{{ item.artist }}</q-item-label>
+                  <div v-if="item.tags?.length" class="row q-gutter-xs q-mt-xs">
+                    <q-chip
+                      v-for="tag in item.tags"
+                      :key="`${item.id}-tag-${tag}`"
+                      dense
+                      square
+                      size="sm"
+                      color="grey-3"
+                      text-color="grey-9"
+                    >
+                      {{ tag }}
+                    </q-chip>
+                  </div>
                   <div class="row q-gutter-xs q-mt-xs">
                     <a v-if="item.spotifyUrl" :href="item.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
                     <a v-if="item.youtubeUrl" :href="item.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
@@ -124,7 +159,7 @@
                 <div class="row q-gutter-xs">
                   <q-btn v-if="canModifySong(item)" flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
                   <q-btn
-                    v-if="!selectedGigId && canModifySong(item)"
+                    v-if="!selectedGigId"
                     flat
                     round
                     dense
@@ -136,7 +171,7 @@
                     <q-tooltip>{{ t('common.delete') }}</q-tooltip>
                   </q-btn>
                   <q-btn
-                    v-if="item.type === 'song' && canModifySong(item) && !selectedGigId"
+                    v-if="item.type === 'song' && !selectedGigId"
                     flat
                     round
                     dense
@@ -148,7 +183,7 @@
                     <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
                   </q-btn>
                   <q-btn
-                    v-else-if="item.type === 'song' && canModifySong(item) && selectedGigId"
+                    v-else-if="item.type === 'song' && selectedGigId"
                     flat
                     round
                     dense
@@ -159,7 +194,7 @@
                   >
                     <q-tooltip>Remove from Gig Setlist</q-tooltip>
                   </q-btn>
-                  <q-btn v-else-if="canModifySong(item)" flat round dense icon="close" color="red" size="sm" @click="removeFromSetlist(item)" />
+                  <q-btn v-else flat round dense icon="close" color="red" size="sm" @click="removeFromSetlist(item)" />
                 </div>
               </q-item-section>
             </q-item>
@@ -206,6 +241,18 @@
             <q-input v-model="addSongForm.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
             <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
+          <q-select
+            v-model="addSongForm.tags"
+            :options="availableTagOptions"
+            multiple
+            use-input
+            use-chips
+            hide-dropdown-icon
+            new-value-mode="add-unique"
+            outlined
+            dense
+            :label="t('setlist.tags')"
+          />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -306,6 +353,18 @@
             <q-input v-model="editingItemPersonalNote" :label="t('setlist.personalNotes')" :hint="t('setlist.personalNotesHint')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
             <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
+          <q-select
+            v-model="editingItem.tags"
+            :options="availableTagOptions"
+            multiple
+            use-input
+            use-chips
+            hide-dropdown-icon
+            new-value-mode="add-unique"
+            outlined
+            dense
+            :label="t('setlist.tags')"
+          />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />
@@ -348,6 +407,7 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 
 const searchQuery = ref('')
+const selectedTagFilters = ref<string[]>([])
 const draggingIndex = ref<number | null>(null)
 
 // Gig selection
@@ -378,7 +438,18 @@ const filteredSongs = computed(() => {
 
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    list = list.filter((s) => s.title.toLowerCase().includes(q) || (s.artist && s.artist.toLowerCase().includes(q)))
+    list = list.filter((s) => {
+      const tagMatch = (s.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
+      return s.title.toLowerCase().includes(q) || (s.artist && s.artist.toLowerCase().includes(q)) || tagMatch
+    })
+  }
+
+  if (!selectedGigId.value && selectedTagFilters.value.length) {
+    const selectedLower = selectedTagFilters.value.map((tag) => tag.toLowerCase())
+    list = list.filter((s) => {
+      const songTags = (s.tags ?? []).map((tag) => tag.toLowerCase())
+      return selectedLower.every((selected) => songTags.includes(selected))
+    })
   }
 
   list.sort((a, b) => {
@@ -404,6 +475,17 @@ const songCount = computed(() => activeSongs.value.filter((s) => s.type === 'son
 const masterSetlistSongCount = computed(() =>
   songsStore.songs.filter((s) => s.isSetlist && s.type === 'song').length,
 )
+const availableTagOptions = computed(() => {
+  const uniqueTags = new Set<string>()
+  for (const song of songsStore.songs) {
+    if (!song.isSetlist || song.type !== 'song') continue
+    for (const tag of song.tags ?? []) {
+      const normalized = tag.trim()
+      if (normalized) uniqueTags.add(normalized)
+    }
+  }
+  return Array.from(uniqueTags).sort((a, b) => a.localeCompare(b))
+})
 const atSetlistLimit = computed(() => authStore.isFreePlan && masterSetlistSongCount.value >= FREE_SETLIST_LIMIT)
 const totalDurationMs = computed(() =>
   activeSongs.value
@@ -461,6 +543,7 @@ async function refreshAll() {
 }
 
 watch(selectedGigId, (newVal) => {
+  selectedTagFilters.value = []
   if (newVal) fetchGigSongs(newVal)
 })
 
@@ -537,7 +620,6 @@ async function togglePin(item: Song) {
 }
 
 async function removeFromSetlist(item: Song) {
-  if (!canModifySong(item)) return
   $q.dialog({
     title: t('common.delete'),
     message: t('setlist.removeConfirm', { title: item.title }),
@@ -578,6 +660,7 @@ const addSongForm = ref({
   artist: '',
   spotifyUrl: '',
   youtubeUrl: '',
+  tags: [] as string[],
   notes: '',
   lengthMs: null as number | null,
   pitch: 0,
@@ -590,7 +673,7 @@ function openAddSongModal() {
   if (selectedGigId.value) {
     showAddGigSongModal.value = true
   } else {
-    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', notes: '', lengthMs: null, pitch: 0 }
+    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', tags: [], notes: '', lengthMs: null, pitch: 0 }
     addSongLengthInput.value = ''
     addSongLookupError.value = ''
     showAddSongModal.value = true
@@ -598,7 +681,6 @@ function openAddSongModal() {
 }
 
 async function deleteSong(item: Song) {
-  if (!canModifySong(item)) return
   $q
     .dialog({
       title: t('common.delete'),
@@ -625,6 +707,7 @@ async function submitAddSong() {
       spotifyUrl: addSongForm.value.spotifyUrl || undefined,
       youtubeUrl: addSongForm.value.youtubeUrl || undefined,
       lengthMs: parsedLengthMs ?? addSongForm.value.lengthMs ?? undefined,
+      tags: normalizeTagList(addSongForm.value.tags),
       pitch: addSongForm.value.pitch ?? 0,
       notes: addSongForm.value.notes || undefined,
       position: filteredSongs.value.length,
@@ -717,7 +800,7 @@ const isLookingUp = ref(false)
 const lookupError = ref('')
 
 function openEditModal(item: Song) {
-  editingItem.value = { ...item }
+  editingItem.value = { ...item, tags: [...(item.tags ?? [])] }
   editingSongLengthInput.value = formatLength(item.lengthMs ?? null)
   editingItemPersonalNote.value = getPersonalNote(item.id)
   showEditModal.value = true
@@ -754,6 +837,7 @@ async function saveItemEdit() {
       spotifyUrl: editingItem.value.spotifyUrl,
       youtubeUrl: editingItem.value.youtubeUrl,
       lengthMs: parsedLengthMs ?? editingItem.value.lengthMs,
+      tags: normalizeTagList(editingItem.value.tags),
       pitch: editingItem.value.pitch,
       notes: editingItem.value.notes,
     } as any)
@@ -780,6 +864,7 @@ function handleExport() {
           Title: item.title,
           Artist: item.artist,
           Length: item.lengthMs ? formatDuration(item.lengthMs) : '',
+          Tags: (item.tags ?? []).join(', '),
           Pitch: item.pitch !== 0 ? (item.pitch > 0 ? '+' : '') + item.pitch : '',
           Notes: item.notes || '',
           'Personal Note': getPersonalNote(item.id),
@@ -827,6 +912,15 @@ function normalizeEditingSongLengthInput() {
   if (ms !== null) editingSongLengthInput.value = formatLength(ms)
 }
 
+function normalizeTagList(rawTags: unknown): string[] {
+  if (!Array.isArray(rawTags)) return []
+  const tags = rawTags
+    .filter((tag): tag is string => typeof tag === 'string')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+  return Array.from(new Set(tags))
+}
+
 onMounted(() => {
   songsStore.fetchSongs()
   fetchGigs()
@@ -863,5 +957,10 @@ onMounted(() => {
   opacity: 0.92;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35) inset;
   background: rgba(59, 130, 246, 0.08);
+}
+
+.pinned-lock-btn {
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.35) inset;
+  background: rgba(25, 118, 210, 0.1);
 }
 </style>
