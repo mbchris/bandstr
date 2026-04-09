@@ -81,7 +81,9 @@ async function fetchSubscriptionV2(
   purchaseToken: string,
   accessToken: string,
 ): Promise<SubscriptionPurchaseV2> {
-  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptionsv2/tokens/${purchaseToken}`
+  const encodedPackageName = encodeURIComponent(packageName)
+  const encodedPurchaseToken = encodeURIComponent(purchaseToken)
+  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodedPackageName}/purchases/subscriptionsv2/tokens/${encodedPurchaseToken}`
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
   if (!resp.ok) {
     const text = await resp.text()
@@ -96,7 +98,10 @@ async function acknowledgeSubscription(
   purchaseToken: string,
   accessToken: string,
 ): Promise<void> {
-  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptions/${subscriptionId}/tokens/${purchaseToken}:acknowledge`
+  const encodedPackageName = encodeURIComponent(packageName)
+  const encodedSubscriptionId = encodeURIComponent(subscriptionId)
+  const encodedPurchaseToken = encodeURIComponent(purchaseToken)
+  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodedPackageName}/purchases/subscriptions/${encodedSubscriptionId}/tokens/${encodedPurchaseToken}:acknowledge`
   const resp = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -143,6 +148,14 @@ function normalizeSubscription(sub: SubscriptionPurchaseV2, purchaseToken: strin
     cancelAtPeriodEnd: !autoRenew,
     providerRef: purchaseToken,
   }
+}
+
+function resolveSubscriptionId(sub: SubscriptionPurchaseV2, fallbackProductId?: string): string | null {
+  const lineItemProductId = sub.lineItems?.[0]?.productId?.trim()
+  if (lineItemProductId) return lineItemProductId
+
+  const fallback = fallbackProductId?.trim()
+  return fallback ? fallback : null
 }
 
 // ─── RTDN / Pub/Sub notification schemas ─────────────────────────────────────
@@ -216,11 +229,13 @@ class GooglePlayProvider implements SubscriptionProvider {
     const accessToken = await fetchAccessToken(clientEmail, privateKey)
     const sub = await fetchSubscriptionV2(packageName, purchaseToken, accessToken)
 
+    const acknowledgementSubscriptionId = resolveSubscriptionId(sub, productId)
     if (
       sub.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE' &&
-      sub.acknowledgementState !== 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED'
+      sub.acknowledgementState !== 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED' &&
+      acknowledgementSubscriptionId
     ) {
-      await acknowledgeSubscription(packageName, productId, purchaseToken, accessToken)
+      await acknowledgeSubscription(packageName, acknowledgementSubscriptionId, purchaseToken, accessToken)
     }
 
     return normalizeSubscription(sub, purchaseToken)
@@ -242,8 +257,9 @@ class GooglePlayProvider implements SubscriptionProvider {
     }
 
     // Re-acknowledge if somehow pending (shouldn't happen on restore but be safe)
-    if (sub.acknowledgementState !== 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED') {
-      await acknowledgeSubscription(packageName, productId, purchaseToken, accessToken)
+    const acknowledgementSubscriptionId = resolveSubscriptionId(sub, productId)
+    if (sub.acknowledgementState !== 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED' && acknowledgementSubscriptionId) {
+      await acknowledgeSubscription(packageName, acknowledgementSubscriptionId, purchaseToken, accessToken)
     }
 
     return normalizeSubscription(sub, purchaseToken)

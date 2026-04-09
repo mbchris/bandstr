@@ -58,9 +58,6 @@
                     <q-item-label caption class="text-primary text-weight-medium">{{ effectivePlanLabel }}</q-item-label>
                   </q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup @click="router.push('/bands/manage')">
-                  <q-item-section>{{ t('nav.manageBands') }}</q-item-section>
-                </q-item>
                 <q-separator />
                 <q-item clickable v-close-popup @click="goSupport">
                   <q-item-section>{{ t('nav.support') }}</q-item-section>
