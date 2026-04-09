@@ -416,15 +416,29 @@ async function startCheckout(interval: BillingInterval) {
 
       const offer = product.offers[0]
       const purchase = await purchasePlaySubscription(product.productId, offer?.offerToken)
-      await apiJson('/billing/google-play/activate', {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: product.productId,
-          purchaseToken: purchase.purchase.purchaseToken,
-          orderId: purchase.purchase.orderId ?? undefined,
-          interval,
-        }),
-      })
+      try {
+        await apiJson('/billing/google-play/activate', {
+          method: 'POST',
+          body: JSON.stringify({
+            productId: product.productId,
+            purchaseToken: purchase.purchase.purchaseToken,
+            orderId: purchase.purchase.orderId ?? undefined,
+            interval,
+          }),
+        })
+      } catch (activateError) {
+        // Some Google Play purchases can be valid in Play but fail immediate activation due to
+        // brief propagation delays. Try restore once with the same purchase token.
+        await apiJson('/billing/google-play/restore', {
+          method: 'POST',
+          body: JSON.stringify({
+            productId: product.productId,
+            purchaseToken: purchase.purchase.purchaseToken,
+          }),
+        }).catch(() => {
+          throw activateError
+        })
+      }
       Notify.create({ type: 'positive', message: t('billingPage.subscriptionActivatedGooglePlay') })
       await loadBilling()
       return
