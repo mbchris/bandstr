@@ -15,6 +15,6 @@
 ## Notes
 
 - Email/password auth, reset and verification are provided by Better Auth endpoints under `/api/auth/*`.
-- Delivery of auth emails is wired through `AUTH_EMAIL_WEBHOOK_URL` (with console fallback in development).
+- Delivery of auth emails prefers SMTP (`AUTH_EMAIL_SMTP_*`), falls back to `AUTH_EMAIL_WEBHOOK_URL`, then console logging in development.
 - Account deletion keeps using the guarded `/api/account` endpoint to preserve band ownership constraints.
 
