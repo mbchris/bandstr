@@ -20,6 +20,7 @@ import { db } from './db/index.js'
 import { sessions } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 import { readFileSync } from 'node:fs'
+import { resolveBuildIdFromEnvironment } from './lib/build-id.js'
 
 const app = new Hono()
 type AuthRequest = Parameters<typeof auth.handler>[0]
@@ -80,9 +81,8 @@ app.use(
 )
 
 function resolveVersion(): string {
-  const envVersion = (process.env.GIT_REV ?? process.env.SOURCE_COMMIT ?? '').trim()
-  const normalized = envVersion.toLowerCase()
-  if (envVersion && normalized !== 'unknown' && normalized !== 'dev') {
+  const envVersion = resolveBuildIdFromEnvironment()
+  if (envVersion) {
     return envVersion
   }
 
@@ -93,7 +93,7 @@ function resolveVersion(): string {
     // Fall back to default if file is missing.
   }
 
-  return envVersion || 'dev'
+  return 'dev'
 }
 
 // Health check

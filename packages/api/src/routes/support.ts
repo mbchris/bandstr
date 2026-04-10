@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
+import { resolveBuildIdFromEnvironment } from '../lib/build-id.js'
 
 export const support = new Hono<AuthEnv>()
 
@@ -24,7 +25,7 @@ type RepoConfig = {
 }
 
 function getBuildId(): string {
-  return (process.env.GIT_REV ?? process.env.SOURCE_COMMIT ?? 'dev').trim() || 'dev'
+  return resolveBuildIdFromEnvironment() || 'dev'
 }
 
 function getRuntimeEnv(): string {

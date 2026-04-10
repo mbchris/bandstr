@@ -16,9 +16,10 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Markdown from '../components/Markdown.vue'
+import { fetchRuntimeBuildId, resolveBuildIdFromEnv } from '../composables/buildInfo'
 
 const router = useRouter()
-const gitRev = ref((process.env.GIT_REV ?? 'unknown').trim() || 'unknown')
+const gitRev = ref(resolveBuildIdFromEnv('unknown'))
 
 function goBack() {
   if (window.history.length > 1) {
@@ -29,18 +30,8 @@ function goBack() {
 }
 
 onMounted(async () => {
-  try {
-    const base = (process.env.API_URL ?? '').replace(/\/+$/, '').replace(/\/api$/, '')
-    const response = await fetch(`${base}/api/health`)
-    if (!response.ok) return
-    const payload = (await response.json()) as { version?: string }
-    const runtimeRev = (payload.version ?? '').trim()
-    if (runtimeRev) {
-      gitRev.value = runtimeRev
-    }
-  } catch {
-    // Keep build-time fallback when runtime version cannot be fetched.
-  }
+  const runtimeRev = await fetchRuntimeBuildId()
+  if (runtimeRev) gitRev.value = runtimeRev
 })
 
 const gdprMarkdown = `

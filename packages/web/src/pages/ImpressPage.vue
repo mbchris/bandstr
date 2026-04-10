@@ -16,18 +16,23 @@
           @click="goToPrivacy"
         />
       </div>
-      <div class="impress-rev q-mt-md text-caption text-grey-5">Build: {{ gitRev }}</div>
+      <div class="impress-rev q-mt-md text-caption text-grey-5">
+        Build: {{ gitRev }} | App Version: {{ appVersion }}
+      </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { Capacitor } from '@capacitor/core'
 import { useRouter } from 'vue-router'
 import Markdown from '../components/Markdown.vue'
+import { fetchRuntimeBuildId, resolveBuildIdFromEnv } from '../composables/buildInfo'
 
 const router = useRouter()
-const gitRev = ref((process.env.GIT_REV ?? 'unknown').trim() || 'unknown')
+const gitRev = ref(resolveBuildIdFromEnv('unknown'))
+const appVersion = ref(Capacitor.isNativePlatform() ? (process.env.APP_VERSION ?? 'unknown').trim() || 'unknown' : 'web')
 
 function goBack() {
   void router.push('/')
@@ -38,18 +43,8 @@ function goToPrivacy() {
 }
 
 onMounted(async () => {
-  try {
-    const base = (process.env.API_URL ?? '').replace(/\/+$/, '').replace(/\/api$/, '')
-    const response = await fetch(`${base}/api/health`)
-    if (!response.ok) return
-    const payload = (await response.json()) as { version?: string }
-    const runtimeRev = (payload.version ?? '').trim()
-    if (runtimeRev) {
-      gitRev.value = runtimeRev
-    }
-  } catch {
-    // Keep build-time fallback when runtime version cannot be fetched.
-  }
+  const runtimeRev = await fetchRuntimeBuildId()
+  if (runtimeRev) gitRev.value = runtimeRev
 })
 
 const impressMarkdown = `

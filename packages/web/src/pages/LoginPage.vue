@@ -231,6 +231,7 @@ const signupName = ref('')
 const signupEmail = ref('')
 const signupPassword = ref('')
 const forgotEmail = ref('')
+const PENDING_SIGNUP_NAME_KEY_PREFIX = 'bandstr-pending-signup-name:'
 
 const modeOptions = computed(() => [
   { label: t('login.modeEmailSignIn'), value: 'signin' },
@@ -361,6 +362,36 @@ async function postAuth(path: string, body: Record<string, unknown>) {
   return payload
 }
 
+function pendingSignupNameStorageKey(email: string): string {
+  return `${PENDING_SIGNUP_NAME_KEY_PREFIX}${email.trim().toLowerCase()}`
+}
+
+function rememberPendingSignupName(email: string, name: string) {
+  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedName = name.trim()
+  if (!normalizedEmail || !normalizedName) return
+  localStorage.setItem(pendingSignupNameStorageKey(normalizedEmail), normalizedName)
+}
+
+function takePendingSignupName(email: string): string {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return ''
+  const key = pendingSignupNameStorageKey(normalizedEmail)
+  const value = (localStorage.getItem(key) ?? '').trim()
+  localStorage.removeItem(key)
+  return value
+}
+
+async function ensureUserDisplayName(expectedName: string) {
+  const normalizedExpected = expectedName.trim()
+  if (!normalizedExpected || !authStore.user) return
+  const currentName = authStore.user.name?.trim() ?? ''
+  if (currentName === normalizedExpected) return
+
+  await postAuth('/update-user', { name: normalizedExpected })
+  await authStore.loadSession()
+}
+
 async function signInWithEmail() {
   error.value = null
   info.value = null
@@ -378,6 +409,10 @@ async function signInWithEmail() {
     if (!authStore.isAuthenticated) {
       throw new Error(t('login.signInNoSession'))
     }
+    const pendingName = takePendingSignupName(signinEmail.value)
+    if (pendingName) {
+      await ensureUserDisplayName(pendingName)
+    }
     await router.replace({ path: redirectPath })
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t('login.loginFailed')
@@ -391,9 +426,11 @@ async function signUpWithEmail() {
   info.value = null
   loadingEmailSignUp.value = true
   try {
+    const desiredName = signupName.value.trim()
+    const desiredEmail = signupEmail.value.trim()
     const payload = await postAuth('/sign-up/email', {
-      name: signupName.value.trim(),
-      email: signupEmail.value.trim(),
+      name: desiredName,
+      email: desiredEmail,
       password: signupPassword.value,
       callbackURL: `${window.location.origin}/login?verified=1`,
     })
@@ -401,10 +438,13 @@ async function signUpWithEmail() {
     if (typeof payload.token === 'string' && payload.token) {
       authStore.setToken(payload.token)
       await authStore.loadSession()
+      await ensureUserDisplayName(desiredName)
+      takePendingSignupName(desiredEmail)
       await router.replace({ path: redirectPath })
       return
     }
 
+    rememberPendingSignupName(desiredEmail, desiredName)
     info.value = t('login.accountCreatedVerify')
     authMode.value = 'signin'
   } catch (e: unknown) {
