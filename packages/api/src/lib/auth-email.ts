@@ -47,25 +47,35 @@ function parsePort(value: string | undefined, fallback: number): number {
   return parsed
 }
 
+function env(...keys: string[]): string {
+  for (const key of keys) {
+    const value = (process.env[key] ?? '').trim()
+    if (value) return value
+  }
+  return ''
+}
+
 function toSmtpConfig(): SmtpConfig | null {
-  const host = (process.env.AUTH_EMAIL_SMTP_HOST ?? '').trim()
+  const host = env('AUTH_EMAIL_SMTP_HOST', 'SMTP_SERVER')
   if (!host) return null
 
-  const user = (process.env.AUTH_EMAIL_SMTP_USER ?? '').trim()
-  const password = (process.env.AUTH_EMAIL_SMTP_PASSWORD ?? '').trim()
+  const user = env('AUTH_EMAIL_SMTP_USER', 'SMTP_USER')
+  const password = env('AUTH_EMAIL_SMTP_PASSWORD', 'SMTP_PASSWORD')
 
   if (!user || !password) {
-    throw new Error('Auth email SMTP is configured but AUTH_EMAIL_SMTP_USER or AUTH_EMAIL_SMTP_PASSWORD is missing')
+    throw new Error(
+      'Auth email SMTP is configured but AUTH_EMAIL_SMTP_USER/SMTP_USER or AUTH_EMAIL_SMTP_PASSWORD/SMTP_PASSWORD is missing',
+    )
   }
 
-  const fromName = (process.env.AUTH_EMAIL_SMTP_FROM_NAME ?? 'bandstr').trim() || 'bandstr'
-  const fromEmail = (process.env.AUTH_EMAIL_SMTP_FROM_EMAIL ?? user).trim()
-  const serverName = (process.env.AUTH_EMAIL_SMTP_SERVER_NAME ?? host).trim() || host
+  const fromName = env('AUTH_EMAIL_SMTP_FROM_NAME') || 'bandstr'
+  const fromEmail = env('AUTH_EMAIL_SMTP_FROM_EMAIL', 'SMTP_FROM_ADDRESS') || user
+  const serverName = env('AUTH_EMAIL_SMTP_SERVER_NAME', 'SMTP_SERVER_NAME') || host
 
   return {
     host,
-    port: parsePort(process.env.AUTH_EMAIL_SMTP_PORT, 587),
-    startTls: parseBoolean(process.env.AUTH_EMAIL_SMTP_STARTTLS, true),
+    port: parsePort(env('AUTH_EMAIL_SMTP_PORT', 'SMTP_PORT'), 587),
+    startTls: parseBoolean(env('AUTH_EMAIL_SMTP_STARTTLS', 'SMTP_STARTTLS'), true),
     user,
     password,
     serverName,
