@@ -27,7 +27,8 @@ type SmtpConfig = {
   startTls: boolean
   user: string
   password: string
-  serverName: string
+  clientName: string
+  tlsServerName: string
   fromName: string
   fromEmail: string
 }
@@ -70,7 +71,8 @@ function toSmtpConfig(): SmtpConfig | null {
 
   const fromName = env('AUTH_EMAIL_SMTP_FROM_NAME') || 'bandstr'
   const fromEmail = env('AUTH_EMAIL_SMTP_FROM_EMAIL', 'SMTP_FROM_ADDRESS') || user
-  const serverName = env('AUTH_EMAIL_SMTP_SERVER_NAME', 'SMTP_SERVER_NAME') || host
+  const clientName = env('AUTH_EMAIL_SMTP_SERVER_NAME', 'SMTP_SERVER_NAME') || 'localhost'
+  const tlsServerName = env('AUTH_EMAIL_SMTP_TLS_SERVER_NAME', 'SMTP_TLS_SERVER_NAME') || host
 
   return {
     host,
@@ -78,14 +80,22 @@ function toSmtpConfig(): SmtpConfig | null {
     startTls: parseBoolean(env('AUTH_EMAIL_SMTP_STARTTLS', 'SMTP_STARTTLS'), true),
     user,
     password,
-    serverName,
+    clientName,
+    tlsServerName,
     fromName,
     fromEmail,
   }
 }
 
 function toSmtpTransporterKey(config: SmtpConfig): string {
-  return [config.host, String(config.port), String(config.startTls), config.user, config.serverName].join('|')
+  return [
+    config.host,
+    String(config.port),
+    String(config.startTls),
+    config.user,
+    config.clientName,
+    config.tlsServerName,
+  ].join('|')
 }
 
 function getSmtpTransporter(config: SmtpConfig): Transporter<SentMessageInfo> {
@@ -103,9 +113,9 @@ function getSmtpTransporter(config: SmtpConfig): Transporter<SentMessageInfo> {
       user: config.user,
       pass: config.password,
     },
-    name: config.serverName,
+    name: config.clientName,
     tls: {
-      servername: config.serverName,
+      servername: config.tlsServerName,
     },
   })
   smtpTransporterKey = key
