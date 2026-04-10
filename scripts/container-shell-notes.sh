@@ -53,6 +53,11 @@ Useful commands:
 - Admin CLI help
   /app/bandstr-cli help
 
+- Auth mail delivery test (SMTP/webhook/console fallback)
+  /app/bandstr-mail-test help
+  /app/bandstr-mail-test send --to "you@example.com"
+  /app/bandstr-mail-test send --to "you@example.com" --kind reset-password --link "https://example.com/reset?token=test"
+
 - List users / bands
   /app/bandstr-cli list-users
   /app/bandstr-cli list-bands

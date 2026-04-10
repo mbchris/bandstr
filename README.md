@@ -26,11 +26,14 @@ Key files:
 - `.env` / `.env.local` / `.env.production` are used by `./do` and compose profile workflows
 
 Self-registration mail delivery:
-- Better Auth account emails (verification, password reset, change-email confirmation) are sent via `AUTH_EMAIL_WEBHOOK_URL`.
-- Optional auth header for that webhook: `AUTH_EMAIL_WEBHOOK_BEARER_TOKEN`.
-- If no webhook URL is set, emails are logged to the API server output (dev-friendly fallback).
-- There is no built-in SMTP sender in this repo right now; configure a webhook target that forwards to your mail provider.
-- If registration mails are not received, first verify that `AUTH_EMAIL_WEBHOOK_URL` is set and reachable from the API runtime.
+- Better Auth account emails (verification, password reset, change-email confirmation) are sent via SMTP when `AUTH_EMAIL_SMTP_HOST` is configured.
+- SMTP settings:
+  - `AUTH_EMAIL_SMTP_HOST`, `AUTH_EMAIL_SMTP_PORT`, `AUTH_EMAIL_SMTP_STARTTLS`
+  - `AUTH_EMAIL_SMTP_USER`, `AUTH_EMAIL_SMTP_PASSWORD`
+  - Optional server-name override: `AUTH_EMAIL_SMTP_SERVER_NAME`
+  - Optional sender identity: `AUTH_EMAIL_SMTP_FROM_NAME`, `AUTH_EMAIL_SMTP_FROM_EMAIL`
+- If SMTP is not configured, the API falls back to `AUTH_EMAIL_WEBHOOK_URL` (+ optional `AUTH_EMAIL_WEBHOOK_BEARER_TOKEN`).
+- If neither SMTP nor webhook is configured, emails are logged to the API output (dev-friendly fallback).
 
 Support-to-GitHub integration:
 - `SUPPORT_GITHUB_ISSUES_URL` defines the target issue list URL (default: `https://github.com/prj120/bandstr/issues`).
@@ -224,6 +227,11 @@ docker exec -it "$APP_CONTAINER" sh -lc 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1
 
 # user subscription override (affects owner/admin band inheritance)
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true'
+
+# auth mail delivery test (SMTP/webhook/console fallback)
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-mail-test help'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-mail-test send --to "you@example.com"'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-mail-test send --to "you@example.com" --kind reset-password --link "https://example.com/reset?token=test"'
 ```
 
 ## Google Play Billing Setup Scripts

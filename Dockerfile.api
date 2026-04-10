@@ -23,6 +23,10 @@ RUN pnpm install --filter @bandstr/api --filter @bandstr/shared --frozen-lockfil
 # Copy full repository context (including .git when available)
 COPY . .
 
+# Normalize shell scripts to LF in case the host checkout uses CRLF.
+RUN sed -i 's/\r$//' scripts/bandstr-mail-test.sh scripts/container-shell-notes.sh && \
+  chmod +x scripts/bandstr-mail-test.sh scripts/container-shell-notes.sh
+
 # Build shared first, then API
 RUN cd packages/api && pnpm run build
 RUN rev="${SOURCE_COMMIT:-}"; \
@@ -69,6 +73,7 @@ COPY --from=build /app/packages/api/dist/ packages/api/dist/
 # Runtime migrations for drizzle migrator
 COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
 COPY --from=build /app/packages/shared/ packages/shared/
+COPY --from=build /app/scripts/bandstr-mail-test.sh /app/bandstr-mail-test
 COPY --from=build /app/do /app/do
 
 # Runtime config
@@ -85,7 +90,7 @@ LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 
 # Interactive shell notes (shown on docker exec -it <container> sh)
 COPY scripts/container-shell-notes.sh /etc/bandstr_shell_rc
-RUN chmod +x /app/do
+RUN chmod +x /app/bandstr-mail-test /app/do
 
 EXPOSE 3001
 
