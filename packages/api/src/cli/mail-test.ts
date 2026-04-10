@@ -47,7 +47,7 @@ function parseKind(value: string | null): AuthEmailKind {
 }
 
 function getConfiguredTransportName(): string {
-  if ((process.env.AUTH_EMAIL_SMTP_HOST ?? '').trim()) return 'smtp'
+  if ((process.env.AUTH_EMAIL_SMTP_HOST ?? process.env.SMTP_SERVER ?? '').trim()) return 'smtp'
   if ((process.env.AUTH_EMAIL_WEBHOOK_URL ?? '').trim()) return 'webhook'
   return 'console-log-fallback'
 }
