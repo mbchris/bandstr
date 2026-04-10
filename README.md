@@ -30,9 +30,10 @@ Self-registration mail delivery:
 - SMTP settings:
   - `AUTH_EMAIL_SMTP_HOST`, `AUTH_EMAIL_SMTP_PORT`, `AUTH_EMAIL_SMTP_STARTTLS`
   - `AUTH_EMAIL_SMTP_USER`, `AUTH_EMAIL_SMTP_PASSWORD`
-  - Optional server-name override: `AUTH_EMAIL_SMTP_SERVER_NAME`
+  - Optional HELO/EHLO client name: `AUTH_EMAIL_SMTP_SERVER_NAME`
+  - Optional TLS cert/SNI name override: `AUTH_EMAIL_SMTP_TLS_SERVER_NAME` (defaults to SMTP host)
   - Optional sender identity: `AUTH_EMAIL_SMTP_FROM_NAME`, `AUTH_EMAIL_SMTP_FROM_EMAIL`
-- Alias names are also supported: `SMTP_SERVER`, `SMTP_PORT`, `SMTP_STARTTLS`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SERVER_NAME`, `SMTP_FROM_ADDRESS`.
+- Alias names are also supported: `SMTP_SERVER`, `SMTP_PORT`, `SMTP_STARTTLS`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SERVER_NAME`, `SMTP_TLS_SERVER_NAME`, `SMTP_FROM_ADDRESS`.
 - If SMTP is not configured, the API falls back to `AUTH_EMAIL_WEBHOOK_URL` (+ optional `AUTH_EMAIL_WEBHOOK_BEARER_TOKEN`).
 - If neither SMTP nor webhook is configured, emails are logged to the API output (dev-friendly fallback).
 
