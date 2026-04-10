@@ -226,6 +226,46 @@ docker exec -it "$APP_CONTAINER" sh -lc 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true'
 ```
 
+## Google Play Billing Setup Scripts
+
+Use these scripts to create, assign, and verify Google Cloud + Play Console setup for RTDN and subscriptions:
+
+```bash
+# 1) Create/assign GCP resources (Pub/Sub topic, IAM binding, push subscription)
+GCP_PROJECT_ID="your-project-id" \
+API_BASE_URL="https://your-api.example" \
+GPLAY_RTDN_TOKEN="replace-with-secret" \
+bash ./scripts/gplay-rtdn-setup.sh
+
+# 2) Verify GCP setup end-to-end
+GCP_PROJECT_ID="your-project-id" \
+API_BASE_URL="https://your-api.example" \
+GPLAY_RTDN_TOKEN="replace-with-secret" \
+bash ./scripts/gplay-rtdn-verify.sh
+
+# 3) Print exact Play Console manual assignment checklist
+GCP_PROJECT_ID="your-project-id" \
+GPLAY_PACKAGE_NAME="de.trmusic.bandstr" \
+GPLAY_SERVICE_ACCOUNT_EMAIL="service-account@your-project.iam.gserviceaccount.com" \
+bash ./scripts/gplay-play-console-checklist.sh
+
+# 4) Probe Google Play Developer API permissions with a real purchase token
+GPLAY_PACKAGE_NAME="de.trmusic.bandstr" \
+GPLAY_TEST_PURCHASE_TOKEN="replace-with-token" \
+GPLAY_SERVICE_ACCOUNT_JSON="$(cat service-account.json)" \
+bash ./scripts/gplay-api-permission-probe.sh
+
+# 5) Probe permissions without a real purchase token (dummy-token check)
+GPLAY_PACKAGE_NAME="de.trmusic.bandstr" \
+GPLAY_SERVICE_ACCOUNT_JSON="$(cat service-account.json)" \
+bash ./scripts/gplay-api-permission-probe-no-token.sh
+```
+
+Notes:
+- `gplay-play-console-checklist.sh` exists because Play Console user/app permission assignment is not fully exposed via `gcloud`.
+- `gplay-api-permission-probe.sh` is the fastest check for `401 permissionDenied` on `subscriptionsv2`.
+- `gplay-api-permission-probe-no-token.sh` validates auth/permissions path without needing a purchase token. It expects a `400/404` with a dummy token as success.
+
 ## Repo Layout
 
 ```text
