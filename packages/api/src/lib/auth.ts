@@ -55,6 +55,16 @@ function htmlLink(url: string, label: string): string {
   return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
 }
 
+function normalizeUserName(input: unknown): string {
+  if (typeof input !== 'string') return ''
+  return input.trim()
+}
+
+function fallbackNameFromEmail(email: string): string {
+  const localPart = email.split('@')[0]?.trim()
+  return localPart || 'User'
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -74,6 +84,43 @@ export const auth = betterAuth({
   basePath: AUTH_BASE_PATH,
 
   trustedOrigins: getTrustedOrigins(),
+
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user, context) => {
+          const requestBody = context && typeof context === 'object' && 'body' in context
+            ? (context as { body?: unknown }).body
+            : undefined
+          const requestedName = requestBody && typeof requestBody === 'object' && 'name' in requestBody
+            ? normalizeUserName((requestBody as { name?: unknown }).name)
+            : ''
+          const normalizedName = normalizeUserName(user.name)
+          const finalName = requestedName || normalizedName || fallbackNameFromEmail(user.email)
+          return {
+            data: {
+              ...user,
+              name: finalName,
+            },
+          }
+        },
+      },
+      update: {
+        before: async (user) => {
+          if (!('name' in user)) {
+            return { data: user }
+          }
+          const normalizedName = normalizeUserName(user.name)
+          return {
+            data: {
+              ...user,
+              name: normalizedName || user.name,
+            },
+          }
+        },
+      },
+    },
+  },
 
   socialProviders: {
     google: {

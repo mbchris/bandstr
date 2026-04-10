@@ -43,6 +43,7 @@
 
           <div class="text-caption text-grey-6">
             Build: <strong>{{ buildId }}</strong> |
+            App Version: <strong>{{ appVersion }}</strong> |
             Environment: <strong>{{ environment }}</strong>
           </div>
 
@@ -70,15 +71,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Notify } from 'quasar'
+import { Capacitor } from '@capacitor/core'
 import { api } from '../boot/api'
+import { fetchRuntimeBuildId, resolveBuildIdFromEnv } from '../composables/buildInfo'
 
 type SupportType = 'bug' | 'feature' | 'comment'
+
+function isUsableBuildId(value: string): boolean {
+  const normalized = value.trim().toLowerCase()
+  return Boolean(normalized) && normalized !== 'unknown' && normalized !== 'dev'
+}
 
 const kind = ref<SupportType>('bug')
 const message = ref('')
 const email = ref('')
 const submitting = ref(false)
-const buildId = ref((process.env.GIT_REV ?? 'dev').trim() || 'dev')
+const buildId = ref(resolveBuildIdFromEnv('dev'))
+const appVersion = ref(Capacitor.isNativePlatform() ? (process.env.APP_VERSION ?? 'unknown').trim() || 'unknown' : 'web')
 const environment = ref((process.env.NODE_ENV ?? 'development').trim() || 'development')
 const lastSubmission = ref<{
   type: SupportType
@@ -108,7 +117,7 @@ async function loadConfig() {
     environment?: string
     githubEnabled?: boolean
   }
-  if (payload.buildId) buildId.value = payload.buildId
+  if (payload.buildId && isUsableBuildId(payload.buildId)) buildId.value = payload.buildId
   if (payload.environment) environment.value = payload.environment
   if (payload.githubEnabled === false) {
     Notify.create({
@@ -116,6 +125,11 @@ async function loadConfig() {
       message: 'Support backend is not configured with GitHub token yet.',
     })
   }
+}
+
+async function loadRuntimeBuildId() {
+  const runtimeRev = await fetchRuntimeBuildId()
+  if (runtimeRev) buildId.value = runtimeRev
 }
 
 async function submit() {
@@ -162,7 +176,7 @@ async function submit() {
 }
 
 onMounted(async () => {
-  await loadConfig()
+  await Promise.all([loadConfig(), loadRuntimeBuildId()])
 })
 
 function prettyType(value: SupportType): string {

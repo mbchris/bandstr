@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const repoRoot = path.resolve(__dirname, '../..')
+const androidGradleFile = path.resolve(__dirname, 'src-capacitor/android/app/build.gradle')
 
 function stripWrappingQuotes(value: string): string {
   if (
@@ -58,13 +59,30 @@ function getEnvValue(key: string): string {
 
 function readGitRev(): string {
   const configuredGitRev = getEnvValue('GIT_REV').trim()
-  const normalized = configuredGitRev.toLowerCase()
-  if (configuredGitRev && normalized !== 'unknown' && normalized !== 'dev') {
+  const normalizedGitRev = configuredGitRev.toLowerCase()
+  if (configuredGitRev && normalizedGitRev !== 'unknown' && normalizedGitRev !== 'dev') {
     return configuredGitRev
   }
 
+  const sourceCommit = getEnvValue('SOURCE_COMMIT').trim()
+  const normalizedSourceCommit = sourceCommit.toLowerCase()
+  if (sourceCommit && normalizedSourceCommit !== 'unknown' && normalizedSourceCommit !== 'dev') {
+    return sourceCommit.slice(0, 8)
+  }
+
   try {
-    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    return execSync('git rev-parse --short=8 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
+function readAndroidVersionName(): string {
+  if (!existsSync(androidGradleFile)) return 'unknown'
+  try {
+    const content = readFileSync(androidGradleFile, 'utf8')
+    const match = content.match(/versionName\s+"([^"]+)"/)
+    return match?.[1]?.trim() || 'unknown'
   } catch {
     return 'unknown'
   }
@@ -74,6 +92,7 @@ export default configure(function (/* ctx */) {
   const rawApiUrl = getEnvValue('API_URL').trim()
   const debugMode = getEnvValue('DEBUG_MODE').trim().toLowerCase() === 'true'
   const gitRev = readGitRev()
+  const appVersion = readAndroidVersionName()
   const mobileCallbackUrl = getEnvValue('MOBILE_CALLBACK_URL').trim() || 'org.capacitor.bandstr://localhost/login'
   const apiTarget =
     process.env.API_TARGET ||
@@ -104,6 +123,8 @@ export default configure(function (/* ctx */) {
         API_URL: apiUrl,
         DEBUG_MODE: String(debugMode),
         GIT_REV: gitRev,
+        SOURCE_COMMIT: gitRev,
+        APP_VERSION: appVersion,
         MOBILE_CALLBACK_URL: mobileCallbackUrl,
       },
     },

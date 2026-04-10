@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly API_URL?: string
   readonly DEBUG_MODE?: string
   readonly GIT_REV?: string
+  readonly SOURCE_COMMIT?: string
+  readonly APP_VERSION?: string
   readonly MOBILE_CALLBACK_URL?: string
 }
 
