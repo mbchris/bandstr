@@ -14,10 +14,12 @@
             </div>
             <p class="text-body2 text-grey-2 q-mb-lg auth-lead">
               Manage your setlists, song votings, calendar entries and keep track of who is bringing the drinks. Bandstr brings the structure you need for focussing on jamming instead of having endless messenger conversations!
-              rebum.
             </p>
             <p>
             More music. Less chaos. Bandstr!
+            </p>
+            <p>
+            Please login with your account or create a new one to create or join a band and invite your friends. It's free! 
             </p>
             <router-view />
           </div>
