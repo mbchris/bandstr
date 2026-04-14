@@ -29,12 +29,13 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="row items-center q-gutter-sm q-mb-md">
+            <div class="row items-center q-gutter-sm q-mb-sm">
               <q-badge v-if="nextRehearsal.myAttendance === 'present'" color="positive" icon="check_circle" :label="t('home.attendanceConfirmed')" />
               <q-badge v-else-if="nextRehearsal.myAttendance === 'absent'" color="negative" icon="event_busy" :label="t('home.attendanceAbsent')" />
               <q-badge v-else color="grey-7" icon="help_outline" :label="t('home.attendanceUnset')" />
+            </div>
 
-              <q-space />
+            <div class="row items-center q-gutter-sm q-mb-md">
               <q-btn
                 flat
                 dense
@@ -62,6 +63,24 @@
                 :loading="attendanceLoading"
                 @click="setAttendance('reset')"
               />
+            </div>
+
+            <div v-if="nextRehearsal.memberAttendance?.length" class="option1-vote-row q-mb-md">
+              <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
+                <q-avatar
+                  v-for="(member, i) in nextRehearsal.memberAttendance"
+                  :key="`attendance-${member.userId}`"
+                  size="24px"
+                  class="stack-avatar"
+                  :style="attendanceAvatarStyle(member.status, i)"
+                  color="grey-7"
+                  text-color="white"
+                >
+                  <img v-if="member.image" :src="member.image" />
+                  <span v-else>{{ getNameInitial(member.userName) }}</span>
+                </q-avatar>
+                <q-tooltip>{{ attendanceNamesLabel }}</q-tooltip>
+              </div>
             </div>
 
             <div v-if="bierwart" class="row items-center q-gutter-md cursor-pointer q-pa-sm rounded-borders" @click="openBierwartModal">
@@ -291,6 +310,20 @@ const bierwart = computed(() => {
   return visibleMembers.value[idx]
 })
 
+const attendanceNamesLabel = computed(() => {
+  const rows = nextRehearsal.value?.memberAttendance ?? []
+  if (!rows.length) return ''
+  return rows.map((row: any) => {
+    const status =
+      row.status === 'present'
+        ? t('home.attendanceConfirmed')
+        : row.status === 'absent'
+          ? t('home.attendanceAbsent')
+          : t('home.attendanceUnset')
+    return `${row.userName}: ${status}`
+  }).join(' | ')
+})
+
 async function loadData() {
   try {
     rehearsalData.value = await apiJson<RehearsalData>('/rehearsals/next')
@@ -364,8 +397,22 @@ async function setAttendance(status: 'present' | 'absent' | 'reset') {
 }
 
 function goToSetlist(songTitle?: string) {
-  const query = songTitle ? { q: songTitle } : {}
+  const query = songTitle ? { q: songTitle, list: 'user' } : { list: 'user' }
   router.push({ path: '/setlist', query })
+}
+
+function getNameInitial(name: string) {
+  const trimmed = (name || '').trim()
+  return trimmed ? trimmed.charAt(0).toUpperCase() : '?'
+}
+
+function attendanceAvatarStyle(status: 'present' | 'absent' | 'open', index: number) {
+  const borderColor = status === 'present' ? '#10b981' : status === 'absent' ? '#ef4444' : '#9ca3af'
+  return {
+    marginLeft: index === 0 ? '0px' : '-8px',
+    border: `2px solid ${borderColor}`,
+    boxSizing: 'border-box',
+  }
 }
 
 const showRehearsalEdit = ref(false)
@@ -445,6 +492,26 @@ async function confirmBierwart(member: any) {
 .gig-entry {
   background: rgba(148, 163, 184, 0.12);
   border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.option1-vote-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-stack {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+}
+
+.stack-avatar {
+  transition: transform 0.15s ease;
+}
+
+.stack-avatar:hover {
+  transform: translateY(-1px);
 }
 
 :global(body.body--dark) .gig-entry {
