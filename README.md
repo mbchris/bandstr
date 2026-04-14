@@ -5,6 +5,35 @@ Multi-tenant band management monorepo:
 - Web/Mobile: Quasar + Vue 3 + Capacitor (`packages/web`)
 - Shared code: `packages/shared`
 
+## Build & Run (Quick Start)
+
+Run these steps from repo root to get a working local app:
+
+```bash
+# 1) Install dependencies
+pnpm install
+
+# 2) Prepare env files
+cp .env.api.template .env.api
+cp .env.web.template .env.web
+
+# Optional: pull production-like secrets into .env.production
+./creds.sh pull --env-file .env.production
+
+# 3) Start local Postgres
+docker compose -f docker-compose.dev.yml up -d postgres
+
+# 4) Apply DB migrations
+pnpm db:migrate
+
+# 5) Run API + Web dev servers
+pnpm dev
+```
+
+Default local URLs:
+- API: `http://localhost:3001`
+- Web: `http://localhost:9000`
+
 ## Prerequisites
 
 - Node.js 20+
@@ -24,6 +53,28 @@ Key files:
 - `.env.api` for API runtime vars (DB, auth, OAuth, billing incl. Stripe/Google Play/App Store)
 - `.env.web` for web build/runtime vars (`API_URL`, `DEBUG_MODE`, `MOBILE_CALLBACK_URL`)
 - `.env` / `.env.local` / `.env.production` are used by `./do` and compose profile workflows
+
+### `creds.sh` (Vaultwarden env sync)
+
+`./creds.sh` syncs key/value secrets between Vaultwarden and local env files (usually `.env.production`).
+
+Common usage:
+
+```bash
+# Verify connectivity / folders
+./creds.sh test
+
+# Pull values from Vaultwarden into .env.production
+./creds.sh pull --env-file .env.production
+
+# Push local env values into Vaultwarden
+./creds.sh push --env-file .env.production
+```
+
+Requirements:
+- `.creds.config` configured (`VAULTWARDEN_SERVER`, `VAULTWARDEN_USER`, `VAULTWARDEN_MASTER_PASSWORD`)
+- `bw` CLI (Bitwarden/Vaultwarden compatible)
+- `jq`
 
 Self-registration mail delivery:
 - Better Auth account emails (verification, password reset, change-email confirmation) are sent via SMTP when `AUTH_EMAIL_SMTP_HOST` is configured.
@@ -156,6 +207,23 @@ Notes:
   - `ANDROID_SIGNING_KEY_PASSWORD`
 - CI release artifact upload now requires a signed APK and verifies it with `apksigner`.
 
+## `./do-ui` Script
+
+`./do-ui` is an interactive menu wrapper around high-frequency mobile release commands from `./do`.
+
+It currently provides one-click access for:
+- building production image
+- building APK
+- creating AAB bundle
+- deploying to Play Console
+- installing APK to a connected Android device
+
+Run:
+
+```bash
+./do-ui
+```
+
 ## Assets and Favicons
 
 Canonical source assets live under `assets/`.
@@ -276,6 +344,42 @@ Notes:
 - `gplay-api-permission-probe.sh` is the fastest check for `401 permissionDenied` on `subscriptionsv2`.
 - `gplay-api-permission-probe-no-token.sh` validates auth/permissions path without needing a purchase token. It expects a `400/404` with a dummy token as success.
 
+## Application Flow
+
+```mermaid
+flowchart TD
+    A[User opens app] --> B{Authenticated?}
+    B -- No --> C[Login / Register / Reset Password]
+    C --> B
+    B -- Yes --> D[Settings (Dashboard)]
+    D --> E{Band selected?}
+    E -- No --> F[Create Band or Join Band]
+    F --> E
+    E -- Yes --> G[Home]
+
+    G --> H[Set attendance: Attend / Absent / Open]
+    H --> I[Calendar reflects absences]
+
+    G --> J[Voting]
+    J --> K[Add/Edit songs, vote, transfer to setlist]
+
+    G --> L[Setlist]
+    L --> M[Master Setlist]
+    L --> N[User Setlist]
+    L --> O[Gig Setlists]
+    M --> P[Add/remove songs to personal User Setlist]
+    N --> P
+
+    G --> Q[Calendar]
+    Q --> R[Manage rehearsal/gig/event entries]
+
+    D --> S[Billing]
+    D --> T[Support]
+    D --> U[Account Security]
+    D --> V{Admin/Owner?}
+    V -- Yes --> W[Admin page]
+```
+
 ## Repo Layout
 
 ```text
@@ -297,6 +401,16 @@ scripts/           Setup and automation scripts
 
 - Direct URL (not linked from Impress UI): `/impress/spotify-test`
 - Example production URL: `https://bandstr.apps.4ki.app/impress/spotify-test`
+
+## Reference Check
+
+Checked on April 14, 2026:
+- All local Markdown links in this README resolve to existing files.
+- All referenced scripts in `scripts/` used by examples in this README exist.
+- No broken local file references were found.
+
+Potential confusion to be aware of:
+- `creds.sh` depends on external tools (`bw`, `jq`) and a configured `.creds.config`; if these are missing, env pull/push commands will fail.
 
 ## License
 

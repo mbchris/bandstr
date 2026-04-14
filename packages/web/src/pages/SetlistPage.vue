@@ -8,6 +8,15 @@
             <div class="row q-gutter-sm items-center">
               <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="pause_circle" @click="openSpecialModal('pause')" />
               <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="tune" @click="openSpecialModal('tuning')" />
+              <q-btn
+                v-if="selectedSetlistMode === 'user' && !selectedGigId"
+                flat
+                round
+                icon="playlist_add"
+                @click="openAddToUserSetlistModal"
+              >
+                <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
+              </q-btn>
               <q-btn flat round icon="download" @click="handleExport" />
               <q-btn
                 v-if="selectedSetlistMode === 'master' || selectedGigId"
@@ -32,18 +41,16 @@
               <template #prepend><q-icon name="search" /></template>
             </q-input>
             <q-select
-              v-model="selectedSetlistMode"
-              :options="setlistModeOptions"
+              v-model="selectedListOption"
+              :options="listOptions"
               emit-value
               map-options
               dense
               outlined
-              style="width: 220px"
-              :disable="Boolean(selectedGigId)"
+              style="min-width: 280px"
             />
-            <q-select v-model="selectedGigId" :options="gigOptions" emit-value map-options dense outlined style="width: 200px" />
             <q-select
-              v-if="!selectedGigId"
+              v-if="!selectedGigId && selectedSetlistMode === 'master'"
               v-model="selectedTagFilters"
               :options="availableTagOptions"
               multiple
@@ -356,6 +363,41 @@
       </q-card>
     </q-dialog>
 
+    <!-- Add Songs to User Setlist Dialog -->
+    <q-dialog v-model="showAddUserSetlistModal">
+      <q-card style="min-width: 450px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('setlist.addToUserSetlist') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section>
+          <q-select
+            v-model="selectedUserSetlistSongIds"
+            :options="availableUserSetlistSongOptions"
+            emit-value
+            map-options
+            multiple
+            use-input
+            input-debounce="0"
+            use-chips
+            outlined
+            dense
+            :label="t('setlist.selectSongs')"
+            option-label="label"
+            option-value="value"
+          />
+          <div class="row q-gutter-sm q-mt-sm">
+            <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedUserSetlistSongIds = availableUserSetlistSongOptions.map(o => o.value)" />
+            <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedUserSetlistSongIds = []" />
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" :disable="!selectedUserSetlistSongIds.length" @click="submitAddUserSetlistSongs" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Note Viewer Dialog -->
     <q-dialog v-model="showNoteModal">
       <q-card style="min-width: 400px">
@@ -494,6 +536,7 @@ const searchQuery = ref('')
 const selectedTagFilters = ref<string[]>([])
 const draggingIndex = ref<number | null>(null)
 const selectedSetlistMode = ref<'master' | 'user'>('master')
+const selectedListOption = ref<string>('master')
 
 // Gig selection
 const selectedGigId = ref<number | null>(null)
@@ -502,19 +545,15 @@ const gigSongs = ref<Song[]>([])
 const userSetlistSongs = ref<Song[]>([])
 const personalNotes = ref<any[]>([])
 
-const setlistModeOptions = computed(() => [
+const listOptions = computed(() => [
   { label: t('setlist.masterSetlist'), value: 'master' },
   { label: t('setlist.userSetlist'), value: 'user' },
-])
-
-const gigOptions = computed(() => [
-  { label: t('setlist.masterSetlist'), value: null },
   ...gigs.value.map((g) => {
     let dateStr = ''
     if (g.startTime) {
       try { dateStr = new Date(g.startTime).toISOString().split('T')[0] } catch {}
     }
-    return { label: dateStr ? `${dateStr} ${g.title}` : g.title, value: g.id }
+    return { label: dateStr ? `${dateStr} ${g.title}` : g.title, value: `gig:${g.id}` }
   }),
 ])
 
@@ -604,6 +643,9 @@ const masterSongOptions = computed(() =>
     .filter((s) => s.type === 'song' && s.isSetlist)
     .map((s) => ({ label: `${s.title} - ${s.artist}`, value: s.id }))
 )
+const availableUserSetlistSongOptions = computed(() =>
+  masterSongOptions.value.filter((opt) => !userSetlistSongIds.value.has(opt.value)),
+)
 
 function getPersonalNote(songId: number) {
   const note = personalNotes.value.find((n: any) => n.songId === songId)
@@ -656,11 +698,24 @@ async function refreshAll() {
   await Promise.all(promises)
 }
 
-watch(selectedGigId, (newVal) => {
+watch(selectedListOption, (newVal) => {
   selectedTagFilters.value = []
-  if (newVal) {
+  if (newVal === 'user') {
+    selectedSetlistMode.value = 'user'
+    selectedGigId.value = null
+    return
+  }
+  if (newVal === 'master') {
     selectedSetlistMode.value = 'master'
-    fetchGigSongs(newVal)
+    selectedGigId.value = null
+    return
+  }
+
+  if (newVal.startsWith('gig:')) {
+    selectedSetlistMode.value = 'master'
+    const id = Number(newVal.slice(4))
+    selectedGigId.value = Number.isFinite(id) && id > 0 ? id : null
+    if (selectedGigId.value) fetchGigSongs(selectedGigId.value)
   }
 })
 
@@ -897,6 +952,8 @@ function onAddSpotifyPaste() {
 // Add master songs to gig setlist
 const showAddGigSongModal = ref(false)
 const selectedMasterSongIds = ref<number[]>([])
+const showAddUserSetlistModal = ref(false)
+const selectedUserSetlistSongIds = ref<number[]>([])
 
 async function submitAddGigSong() {
   isSaving.value = true
@@ -912,6 +969,30 @@ async function submitAddGigSong() {
     if (selectedGigId.value) await fetchGigSongs(selectedGigId.value)
   } catch (e: any) { $q.notify({ message: t('setlist.failedAdd'), color: 'negative' }) }
   finally { isSaving.value = false }
+}
+
+function openAddToUserSetlistModal() {
+  selectedUserSetlistSongIds.value = []
+  showAddUserSetlistModal.value = true
+}
+
+async function submitAddUserSetlistSongs() {
+  isSaving.value = true
+  try {
+    for (let i = 0; i < selectedUserSetlistSongIds.value.length; i++) {
+      await apiJson('/songs/user-setlist', {
+        method: 'POST',
+        body: JSON.stringify({ songId: selectedUserSetlistSongIds.value[i], position: userSetlistSongs.value.length + i }),
+      })
+    }
+    showAddUserSetlistModal.value = false
+    selectedUserSetlistSongIds.value = []
+    await fetchUserSetlistSongs()
+  } catch {
+    $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
 }
 
 // Special element (pause/tuning)
@@ -1073,6 +1154,10 @@ function normalizeTagList(rawTags: unknown): string[] {
 
 onMounted(() => {
   if (typeof route.query.q === 'string') searchQuery.value = route.query.q
+  if (typeof route.query.list === 'string') {
+    const raw = route.query.list
+    if (raw === 'master' || raw === 'user' || raw.startsWith('gig:')) selectedListOption.value = raw
+  }
   songsStore.fetchSongs()
   fetchGigs()
   fetchUserSetlistSongs()

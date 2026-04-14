@@ -58,6 +58,7 @@ rehearsals.get('/next', async (c) => {
     .select({
       id: calendarEvents.id,
       title: calendarEvents.title,
+      userId: calendarEvents.userId,
       userName: users.name,
     })
     .from(calendarEvents)
@@ -103,12 +104,53 @@ rehearsals.get('/next', async (c) => {
     )
     .limit(1)
 
+  const members = await db
+    .select({
+      userId: users.id,
+      userName: users.name,
+      image: users.image,
+    })
+    .from(bandMembers)
+    .innerJoin(users, eq(bandMembers.userId, users.id))
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.isHidden, false)))
+
+  const attendanceRows = await db
+    .select({
+      userId: rehearsalAttendance.userId,
+      status: rehearsalAttendance.status,
+    })
+    .from(rehearsalAttendance)
+    .where(
+      and(
+        eq(rehearsalAttendance.bandId, bandId),
+        eq(rehearsalAttendance.rehearsalId, nextRehearsal.id),
+      ),
+    )
+
+  const statusByUser = new Map<string, 'present' | 'absent'>()
+  for (const row of attendanceRows) {
+    if (row.status === 'present' || row.status === 'absent') {
+      statusByUser.set(row.userId, row.status)
+    }
+  }
+  for (const row of unavailabilities) {
+    if (row.userId) statusByUser.set(row.userId, 'absent')
+  }
+
+  const memberAttendance = members.map((member) => ({
+    userId: member.userId,
+    userName: member.userName,
+    image: member.image,
+    status: statusByUser.get(member.userId) ?? 'open',
+  }))
+
   return c.json({
     nextRehearsal: {
       ...nextRehearsal,
       songs: rehearsalSongData,
       unavailabilities,
       myAttendance: attendance?.status ?? null,
+      memberAttendance,
     },
     upcomingGigs,
   })
