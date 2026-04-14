@@ -26,6 +26,8 @@ export type Song = {
   position: number
   isPinned: boolean
   addedBy?: string | null
+  userSetlistPosition?: number
+  userSetlistPinned?: boolean
   createdAt: string
   // Computed from API
   voteCount: number

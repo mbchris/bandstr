@@ -6,10 +6,11 @@
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
             <div class="row q-gutter-sm items-center">
-              <q-btn flat round icon="pause_circle" @click="openSpecialModal('pause')" />
-              <q-btn flat round icon="tune" @click="openSpecialModal('tuning')" />
+              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="pause_circle" @click="openSpecialModal('pause')" />
+              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="tune" @click="openSpecialModal('tuning')" />
               <q-btn flat round icon="download" @click="handleExport" />
               <q-btn
+                v-if="selectedSetlistMode === 'master' || selectedGigId"
                 round
                 :color="atSetlistLimit ? 'grey' : 'primary'"
                 icon="add"
@@ -30,6 +31,16 @@
             <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
               <template #prepend><q-icon name="search" /></template>
             </q-input>
+            <q-select
+              v-model="selectedSetlistMode"
+              :options="setlistModeOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+              style="width: 220px"
+              :disable="Boolean(selectedGigId)"
+            />
             <q-select v-model="selectedGigId" :options="gigOptions" emit-value map-options dense outlined style="width: 200px" />
             <q-select
               v-if="!selectedGigId"
@@ -76,9 +87,9 @@
                     flat
                     round
                     dense
-                    :icon="item.isPinned ? 'lock' : 'lock_open'"
-                    :color="item.isPinned ? 'primary' : 'grey'"
-                    :class="{ 'pinned-lock-btn': item.isPinned }"
+                    :icon="isPinnedItem(item) ? 'lock' : 'lock_open'"
+                    :color="isPinnedItem(item) ? 'primary' : 'grey'"
+                    :class="{ 'pinned-lock-btn': isPinnedItem(item) }"
                     size="sm"
                     @click="togglePin(item)"
                   />
@@ -105,9 +116,14 @@
                 <template v-if="item.type === 'song'">
                   <q-item-label class="text-weight-bold">
                     {{ item.title }}
-                    <q-icon v-if="item.notes" name="info" color="grey" size="xs" class="cursor-pointer q-ml-xs">
-                      <q-tooltip>{{ item.notes }}</q-tooltip>
-                    </q-icon>
+                    <q-icon
+                      v-if="item.notes"
+                      name="info"
+                      color="grey"
+                      size="xs"
+                      class="cursor-pointer q-ml-xs"
+                      @click="showNote(t('setlist.notes') + ': ' + item.title, item.notes)"
+                    />
                     <q-icon v-if="getPersonalNote(item.id)" name="person" color="primary" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(t('setlist.personalNotes') + ': ' + item.title, getPersonalNote(item.id))">
                       <q-tooltip>{{ t('setlist.personalNotes') }}</q-tooltip>
                     </q-icon>
@@ -159,7 +175,7 @@
                 <div class="row q-gutter-xs">
                   <q-btn v-if="canModifySong(item)" flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
                   <q-btn
-                    v-if="!selectedGigId"
+                    v-if="!selectedGigId && selectedSetlistMode === 'master'"
                     flat
                     round
                     dense
@@ -171,7 +187,7 @@
                     <q-tooltip>{{ t('common.delete') }}</q-tooltip>
                   </q-btn>
                   <q-btn
-                    v-if="item.type === 'song' && !selectedGigId"
+                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
                     flat
                     round
                     dense
@@ -194,7 +210,40 @@
                   >
                     <q-tooltip>Remove from Gig Setlist</q-tooltip>
                   </q-btn>
-                  <q-btn v-else flat round dense icon="close" color="red" size="sm" @click="removeFromSetlist(item)" />
+                  <q-btn
+                    v-else-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'user'"
+                    flat
+                    round
+                    dense
+                    icon="playlist_remove"
+                    color="red"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  >
+                    <q-tooltip>{{ t('setlist.removeFromUserSetlist') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
+                    flat
+                    round
+                    dense
+                    :icon="isInUserSetlist(item.id) ? 'playlist_add_check' : 'playlist_add'"
+                    color="primary"
+                    size="sm"
+                    @click="toggleUserSetlist(item)"
+                  >
+                    <q-tooltip>{{ isInUserSetlist(item.id) ? t('setlist.removeFromUserSetlist') : t('setlist.addToUserSetlist') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="item.type !== 'song' && !selectedGigId"
+                    flat
+                    round
+                    dense
+                    icon="close"
+                    color="red"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  />
                 </div>
               </q-item-section>
             </q-item>
@@ -238,7 +287,18 @@
             <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
           <div class="row items-center q-gutter-sm">
-            <q-input v-model="addSongForm.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
+            <q-input
+              v-model="addSongForm.notes"
+              :label="t('setlist.notes')"
+              :hint="t('setlist.markdownHint')"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :input-style="{ minHeight: '140px' }"
+              :disable="authStore.isFreePlan"
+              class="col"
+            />
             <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
           <q-select
@@ -346,11 +406,33 @@
             </div>
           </template>
           <div class="row items-center q-gutter-sm">
-            <q-input v-model="editingItem.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
+            <q-input
+              v-model="editingItem.notes"
+              :label="t('setlist.notes')"
+              :hint="t('setlist.markdownHint')"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :input-style="{ minHeight: '160px' }"
+              :disable="authStore.isFreePlan"
+              class="col"
+            />
             <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
           <div class="row items-center q-gutter-sm">
-            <q-input v-model="editingItemPersonalNote" :label="t('setlist.personalNotes')" :hint="t('setlist.personalNotesHint')" type="textarea" outlined dense autogrow :disable="authStore.isFreePlan" class="col" />
+            <q-input
+              v-model="editingItemPersonalNote"
+              :label="t('setlist.personalNotes')"
+              :hint="`${t('setlist.personalNotesHint')} ${t('setlist.markdownHint')}`"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :input-style="{ minHeight: '200px' }"
+              :disable="authStore.isFreePlan"
+              class="col"
+            />
             <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
           </div>
           <q-select
@@ -395,6 +477,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRoute } from 'vue-router'
 import { useSongsStore, type Song } from '../stores/songs'
 import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
@@ -402,6 +485,7 @@ import Markdown from '../components/Markdown.vue'
 import { useI18n } from '../composables/useI18n'
 
 const $q = useQuasar()
+const route = useRoute()
 const songsStore = useSongsStore()
 const authStore = useAuthStore()
 const { t } = useI18n()
@@ -409,12 +493,19 @@ const { t } = useI18n()
 const searchQuery = ref('')
 const selectedTagFilters = ref<string[]>([])
 const draggingIndex = ref<number | null>(null)
+const selectedSetlistMode = ref<'master' | 'user'>('master')
 
 // Gig selection
 const selectedGigId = ref<number | null>(null)
 const gigs = ref<any[]>([])
 const gigSongs = ref<Song[]>([])
+const userSetlistSongs = ref<Song[]>([])
 const personalNotes = ref<any[]>([])
+
+const setlistModeOptions = computed(() => [
+  { label: t('setlist.masterSetlist'), value: 'master' },
+  { label: t('setlist.userSetlist'), value: 'user' },
+])
 
 const gigOptions = computed(() => [
   { label: t('setlist.masterSetlist'), value: null },
@@ -430,6 +521,7 @@ const gigOptions = computed(() => [
 // Active song list depends on gig selection
 const activeSongs = computed(() => {
   if (selectedGigId.value) return gigSongs.value
+  if (selectedSetlistMode.value === 'user') return userSetlistSongs.value
   return songsStore.songs.filter((s) => s.isSetlist)
 })
 
@@ -453,9 +545,11 @@ const filteredSongs = computed(() => {
   }
 
   list.sort((a, b) => {
-    if (a.isPinned && !b.isPinned) return -1
-    if (!a.isPinned && b.isPinned) return 1
-    return a.position - b.position
+    const aPinned = isPinnedItem(a)
+    const bPinned = isPinnedItem(b)
+    if (aPinned && !bPinned) return -1
+    if (!aPinned && bPinned) return 1
+    return getItemPosition(a) - getItemPosition(b)
   })
 
   return list
@@ -466,6 +560,7 @@ function getItemKey(item: Song) {
     const gigSongId = (item as Song & { gigSongId?: number }).gigSongId
     return `gig-${gigSongId ?? item.id}`
   }
+  if (selectedSetlistMode.value === 'user') return `user-${item.id}`
   return `song-${item.id}`
 }
 
@@ -475,6 +570,7 @@ const songCount = computed(() => activeSongs.value.filter((s) => s.type === 'son
 const masterSetlistSongCount = computed(() =>
   songsStore.songs.filter((s) => s.isSetlist && s.type === 'song').length,
 )
+const userSetlistSongIds = computed(() => new Set(userSetlistSongs.value.map((s) => s.id)))
 const availableTagOptions = computed(() => {
   const uniqueTags = new Set<string>()
   for (const song of songsStore.songs) {
@@ -514,6 +610,20 @@ function getPersonalNote(songId: number) {
   return note ? note.content : ''
 }
 
+function getItemPosition(item: Song) {
+  if (!selectedGigId.value && selectedSetlistMode.value === 'user') return item.userSetlistPosition ?? item.position
+  return item.position
+}
+
+function isPinnedItem(item: Song) {
+  if (!selectedGigId.value && selectedSetlistMode.value === 'user') return Boolean(item.userSetlistPinned)
+  return Boolean(item.isPinned)
+}
+
+function isInUserSetlist(songId: number) {
+  return userSetlistSongIds.value.has(songId)
+}
+
 function getYouTubeId(url: string | null | undefined) {
   if (!url) return null
   let match = url.match(/v=([a-zA-Z0-9_-]+)/)
@@ -532,19 +642,26 @@ async function fetchGigSongs(gigId: number) {
   try { gigSongs.value = await apiJson<Song[]>(`/gigs/${gigId}/songs`) } catch { gigSongs.value = [] }
 }
 
+async function fetchUserSetlistSongs() {
+  try { userSetlistSongs.value = await apiJson<Song[]>('/songs/user-setlist') } catch { userSetlistSongs.value = [] }
+}
+
 async function fetchPersonalNotes() {
   try { personalNotes.value = await apiJson<any[]>('/songs/notes') } catch { personalNotes.value = [] }
 }
 
 async function refreshAll() {
-  const promises: Promise<void>[] = [songsStore.fetchSongs(), fetchPersonalNotes()]
+  const promises: Promise<void>[] = [songsStore.fetchSongs(), fetchPersonalNotes(), fetchUserSetlistSongs()]
   if (selectedGigId.value) promises.push(fetchGigSongs(selectedGigId.value))
   await Promise.all(promises)
 }
 
 watch(selectedGigId, (newVal) => {
   selectedTagFilters.value = []
-  if (newVal) fetchGigSongs(newVal)
+  if (newVal) {
+    selectedSetlistMode.value = 'master'
+    fetchGigSongs(newVal)
+  }
 })
 
 // Reorder
@@ -558,19 +675,26 @@ async function reorderItems(items: Song[]) {
     }
   }
 
-  const updates = items.map((itm, idx) => ({
-    id: selectedGigId.value ? (itm as Song & { gigSongId: number }).gigSongId : itm.id,
-    position: idx,
-  }))
-
   try {
     if (selectedGigId.value) {
+      const updates = items.map((itm, idx) => ({
+        id: (itm as Song & { gigSongId: number }).gigSongId,
+        position: idx,
+      }))
       await apiJson(`/gigs/${selectedGigId.value}/songs/reorder`, {
         method: 'POST',
         body: JSON.stringify({ order: updates }),
       })
       await fetchGigSongs(selectedGigId.value)
+    } else if (selectedSetlistMode.value === 'user') {
+      const updates = items.map((itm, idx) => ({ songId: itm.id, position: idx }))
+      await apiJson('/songs/user-setlist/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ order: updates }),
+      })
+      await fetchUserSetlistSongs()
     } else {
+      const updates = items.map((itm, idx) => ({ id: itm.id, position: idx }))
       await songsStore.reorderSongs(updates)
     }
   } catch {
@@ -614,7 +738,14 @@ async function moveItem(index: number, direction: -1 | 1) {
 
 async function togglePin(item: Song) {
   try {
-    await songsStore.updateSong(item.id, { isPinned: !item.isPinned } as any)
+    if (selectedSetlistMode.value === 'user' && !selectedGigId.value) {
+      await apiJson(`/songs/user-setlist/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ isPinned: !isPinnedItem(item) }),
+      })
+    } else {
+      await songsStore.updateSong(item.id, { isPinned: !item.isPinned } as any)
+    }
     await refreshAll()
   } catch {}
 }
@@ -628,6 +759,9 @@ async function removeFromSetlist(item: Song) {
     try {
       if (item.type !== 'song') {
         await songsStore.deleteSong(item.id)
+      } else if (selectedSetlistMode.value === 'user' && !selectedGigId.value) {
+        await apiJson(`/songs/user-setlist/${item.id}`, { method: 'DELETE' })
+        await fetchUserSetlistSongs()
       } else if (selectedGigId.value) {
         await apiJson(`/gigs/${selectedGigId.value}/songs/${item.id}`, { method: 'DELETE' })
         await fetchGigSongs(selectedGigId.value)
@@ -639,6 +773,22 @@ async function removeFromSetlist(item: Song) {
       $q.notify({ message: t('setlist.failedRemove'), color: 'negative' })
     }
   })
+}
+
+async function toggleUserSetlist(item: Song) {
+  if (item.type !== 'song') return
+  try {
+    if (isInUserSetlist(item.id)) {
+      await apiJson(`/songs/user-setlist/${item.id}`, { method: 'DELETE' })
+      $q.notify({ message: t('setlist.removedFromUserSetlist'), color: 'positive' })
+    } else {
+      await apiJson('/songs/user-setlist', { method: 'POST', body: JSON.stringify({ songId: item.id }) })
+      $q.notify({ message: t('setlist.addedToUserSetlist'), color: 'positive' })
+    }
+    await fetchUserSetlistSongs()
+  } catch {
+    $q.notify({ message: t('setlist.failedSave'), color: 'negative' })
+  }
 }
 
 // Note viewer
@@ -922,8 +1072,10 @@ function normalizeTagList(rawTags: unknown): string[] {
 }
 
 onMounted(() => {
+  if (typeof route.query.q === 'string') searchQuery.value = route.query.q
   songsStore.fetchSongs()
   fetchGigs()
+  fetchUserSetlistSongs()
   fetchPersonalNotes()
 })
 </script>

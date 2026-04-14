@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, and, asc, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { songs as songsTable, votes as votesTable, personalNotes } from '../db/schema.js'
+import { songs as songsTable, votes as votesTable, personalNotes, userSetlistSongs } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
 import { fetchSpotifyEnrichedMetadata } from '../lib/spotify.js'
@@ -267,6 +267,162 @@ songs.post(
   },
 )
 
+const userSetlistSongSchema = z.object({
+  songId: z.number().int().positive(),
+  position: z.number().int().min(0).optional(),
+  isPinned: z.boolean().optional(),
+})
+
+// GET /songs/user-setlist
+songs.get('/user-setlist', async (c) => {
+  const bandId = c.get('bandId')
+  const userId = c.get('user').id
+
+  const rows = await db
+    .select({
+      id: songsTable.id,
+      bandId: songsTable.bandId,
+      title: songsTable.title,
+      artist: songsTable.artist,
+      spotifyUrl: songsTable.spotifyUrl,
+      youtubeUrl: songsTable.youtubeUrl,
+      thumbnailUrl: songsTable.thumbnailUrl,
+      lengthMs: songsTable.lengthMs,
+      tags: songsTable.tags,
+      notes: songsTable.notes,
+      type: songsTable.type,
+      pitch: songsTable.pitch,
+      isSetlist: songsTable.isSetlist,
+      position: songsTable.position,
+      isPinned: songsTable.isPinned,
+      addedBy: songsTable.addedBy,
+      createdAt: songsTable.createdAt,
+      userSetlistPosition: userSetlistSongs.position,
+      userSetlistPinned: userSetlistSongs.isPinned,
+    })
+    .from(userSetlistSongs)
+    .innerJoin(songsTable, eq(userSetlistSongs.songId, songsTable.id))
+    .where(and(eq(userSetlistSongs.bandId, bandId), eq(userSetlistSongs.userId, userId)))
+    .orderBy(asc(userSetlistSongs.position), asc(songsTable.id))
+
+  return c.json(rows)
+})
+
+// POST /songs/user-setlist
+songs.post('/user-setlist', zValidator('json', userSetlistSongSchema), async (c) => {
+  const bandId = c.get('bandId')
+  const userId = c.get('user').id
+  const body = c.req.valid('json')
+
+  const [song] = await db
+    .select({ id: songsTable.id, type: songsTable.type })
+    .from(songsTable)
+    .where(and(eq(songsTable.id, body.songId), eq(songsTable.bandId, bandId)))
+    .limit(1)
+
+  if (!song) return c.json({ error: 'Song not found' }, 404)
+  if (song.type !== 'song') return c.json({ error: 'Only songs can be added to personal setlist.' }, 400)
+
+  const [maxRow] = await db
+    .select({ maxPosition: sql<number>`coalesce(max(${userSetlistSongs.position}), -1)` })
+    .from(userSetlistSongs)
+    .where(and(eq(userSetlistSongs.bandId, bandId), eq(userSetlistSongs.userId, userId)))
+
+  const nextPosition = typeof body.position === 'number' ? body.position : Number(maxRow?.maxPosition ?? -1) + 1
+
+  await db
+    .insert(userSetlistSongs)
+    .values({
+      bandId,
+      userId,
+      songId: body.songId,
+      position: nextPosition,
+      isPinned: body.isPinned ?? false,
+    })
+    .onConflictDoUpdate({
+      target: [userSetlistSongs.bandId, userSetlistSongs.userId, userSetlistSongs.songId],
+      set: {
+        position: nextPosition,
+        isPinned: body.isPinned ?? false,
+      },
+    })
+
+  return c.json({ success: true }, 201)
+})
+
+// PUT /songs/user-setlist/:songId
+songs.put('/user-setlist/:songId', async (c) => {
+  const bandId = c.get('bandId')
+  const userId = c.get('user').id
+  const songId = Number(c.req.param('songId'))
+  if (!Number.isFinite(songId) || songId <= 0) return c.json({ error: 'Invalid song id' }, 400)
+  const payload = userSetlistSongSchema.partial().parse(await c.req.json())
+
+  await db
+    .update(userSetlistSongs)
+    .set({
+      position: payload.position,
+      isPinned: payload.isPinned,
+    })
+    .where(
+      and(
+        eq(userSetlistSongs.bandId, bandId),
+        eq(userSetlistSongs.userId, userId),
+        eq(userSetlistSongs.songId, songId),
+      ),
+    )
+
+  return c.json({ success: true })
+})
+
+// DELETE /songs/user-setlist/:songId
+songs.delete('/user-setlist/:songId', async (c) => {
+  const bandId = c.get('bandId')
+  const userId = c.get('user').id
+  const songId = Number(c.req.param('songId'))
+  if (!Number.isFinite(songId) || songId <= 0) return c.json({ error: 'Invalid song id' }, 400)
+
+  await db
+    .delete(userSetlistSongs)
+    .where(
+      and(
+        eq(userSetlistSongs.bandId, bandId),
+        eq(userSetlistSongs.userId, userId),
+        eq(userSetlistSongs.songId, songId),
+      ),
+    )
+
+  return c.json({ success: true })
+})
+
+// POST /songs/user-setlist/reorder
+songs.post(
+  '/user-setlist/reorder',
+  zValidator('json', z.object({ order: z.array(z.object({ songId: z.number(), position: z.number() })) })),
+  async (c) => {
+    const bandId = c.get('bandId')
+    const userId = c.get('user').id
+    const { order } = c.req.valid('json')
+
+    await Promise.all(
+      order.map(({ songId, position }) =>
+        db
+          .update(userSetlistSongs)
+          .set({ position })
+          .where(
+            and(
+              eq(userSetlistSongs.bandId, bandId),
+              eq(userSetlistSongs.userId, userId),
+              eq(userSetlistSongs.songId, songId),
+            ),
+          ),
+      ),
+    )
+
+    return c.json({ success: true })
+  },
+)
+
 // GET /songs/lookup?url=...
 songs.get('/lookup', async (c) => {
   const url = c.req.query('url')
@@ -291,10 +447,34 @@ songs.get('/lookup', async (c) => {
 songs.get('/notes', async (c) => {
   const bandId = c.get('bandId')
   const userId = c.get('user').id
-  const songId = Number(c.req.query('songId'))
-  if (!songId) return c.json({ error: 'songId is required' }, 400)
+  const songIdParam = c.req.query('songId')
+  const songId = songIdParam ? Number(songIdParam) : null
   const hasProPlan = await bandHasProPlan(bandId)
   if (!hasProPlan) return c.json({ error: 'Personal notes are available on pro plans only.' }, 403)
+
+  if (!songIdParam) {
+    const rows = await db
+      .select({
+        id: personalNotes.id,
+        songId: personalNotes.songId,
+        content: personalNotes.content,
+        createdAt: personalNotes.createdAt,
+        songTitle: songsTable.title,
+        songArtist: songsTable.artist,
+        spotifyUrl: songsTable.spotifyUrl,
+        youtubeUrl: songsTable.youtubeUrl,
+      })
+      .from(personalNotes)
+      .innerJoin(songsTable, eq(personalNotes.songId, songsTable.id))
+      .where(and(eq(personalNotes.userId, userId), eq(personalNotes.bandId, bandId)))
+      .orderBy(asc(songsTable.title))
+
+    return c.json(rows)
+  }
+
+  if (!Number.isFinite(songId) || !songId || songId <= 0) {
+    return c.json({ error: 'songId must be a positive number' }, 400)
+  }
 
   const [note] = await db
     .select()
