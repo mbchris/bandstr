@@ -305,6 +305,56 @@ export const personalNotes = pgTable(
   ],
 )
 
+// ─── Rehearsal attendance ────────────────────────────────────────────────────
+
+export const rehearsalAttendance = pgTable(
+  'rehearsal_attendance',
+  {
+    id: serial('id').primaryKey(),
+    bandId: integer('band_id')
+      .notNull()
+      .references(() => bands.id, { onDelete: 'cascade' }),
+    rehearsalId: integer('rehearsal_id')
+      .notNull()
+      .references(() => calendarEvents.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(), // 'present' | 'absent'
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('rehearsal_attendance_band_rehearsal_user_idx').on(t.bandId, t.rehearsalId, t.userId),
+    index('rehearsal_attendance_band_rehearsal_idx').on(t.bandId, t.rehearsalId),
+  ],
+)
+
+// ─── User setlist songs ──────────────────────────────────────────────────────
+
+export const userSetlistSongs = pgTable(
+  'user_setlist_songs',
+  {
+    id: serial('id').primaryKey(),
+    bandId: integer('band_id')
+      .notNull()
+      .references(() => bands.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    songId: integer('song_id')
+      .notNull()
+      .references(() => songs.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull().default(0),
+    isPinned: boolean('is_pinned').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('user_setlist_songs_band_user_song_idx').on(t.bandId, t.userId, t.songId),
+    index('user_setlist_songs_band_user_position_idx').on(t.bandId, t.userId, t.position),
+  ],
+)
+
 // ─── Rehearsal songs (junction) ──────────────────────────────────────────────
 
 export const rehearsalSongs = pgTable(
@@ -359,6 +409,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   bandMemberships: many(bandMembers),
   votes: many(votes),
   personalNotes: many(personalNotes),
+  rehearsalAttendance: many(rehearsalAttendance),
+  userSetlistSongs: many(userSetlistSongs),
 }))
 
 export const songsRelations = relations(songs, ({ one, many }) => ({
@@ -367,4 +419,5 @@ export const songsRelations = relations(songs, ({ one, many }) => ({
   personalNotes: many(personalNotes),
   gigSongs: many(gigSongs),
   rehearsalSongs: many(rehearsalSongs),
+  userSetlistSongs: many(userSetlistSongs),
 }))

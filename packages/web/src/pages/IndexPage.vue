@@ -29,6 +29,41 @@
 
             <q-separator class="q-my-md" />
 
+            <div class="row items-center q-gutter-sm q-mb-md">
+              <q-badge v-if="nextRehearsal.myAttendance === 'present'" color="positive" icon="check_circle" :label="t('home.attendanceConfirmed')" />
+              <q-badge v-else-if="nextRehearsal.myAttendance === 'absent'" color="negative" icon="event_busy" :label="t('home.attendanceAbsent')" />
+              <q-badge v-else color="grey-7" icon="help_outline" :label="t('home.attendanceUnset')" />
+
+              <q-space />
+              <q-btn
+                flat
+                dense
+                icon="check"
+                color="positive"
+                :label="t('home.confirmAttendance')"
+                :loading="attendanceLoading"
+                @click="setAttendance('present')"
+              />
+              <q-btn
+                flat
+                dense
+                icon="event_busy"
+                color="negative"
+                :label="t('home.markAbsent')"
+                :loading="attendanceLoading"
+                @click="setAttendance('absent')"
+              />
+              <q-btn
+                flat
+                dense
+                icon="restart_alt"
+                color="grey-8"
+                :label="t('home.resetAttendance')"
+                :loading="attendanceLoading"
+                @click="setAttendance('reset')"
+              />
+            </div>
+
             <div v-if="bierwart" class="row items-center q-gutter-md cursor-pointer q-pa-sm rounded-borders" @click="openBierwartModal">
               <q-avatar size="48px" color="orange-2">
                 <img v-if="bierwart.image" :src="bierwart.image" />
@@ -96,6 +131,34 @@
           </q-card-section>
 
           <q-card-section v-else class="text-center text-grey q-pa-lg">{{ t('home.noGigs') }}</q-card-section>
+        </q-card>
+      </div>
+    </div>
+
+    <div class="row q-col-gutter-lg q-mt-md" style="max-width: 1200px; margin: 0 auto">
+      <div class="col-12">
+        <q-card flat bordered>
+          <q-expansion-item
+            v-model="showPersonalNotesWidget"
+            icon="sticky_note_2"
+            :label="t('home.personalNotesWidgetTitle')"
+            :caption="t('home.personalNotesWidgetCaption', { count: personalNotes.length })"
+            expand-separator
+            dense-toggle
+          >
+            <q-card-section>
+              <div v-if="!personalNotes.length" class="text-grey-6">{{ t('home.personalNotesEmpty') }}</div>
+              <q-list v-else separator>
+                <q-item v-for="note in personalNotes" :key="note.id" clickable @click="goToSetlist(note.songTitle)">
+                  <q-item-section>
+                    <q-item-label class="text-weight-medium">{{ note.songTitle }} <span v-if="note.songArtist" class="text-grey-7">- {{ note.songArtist }}</span></q-item-label>
+                    <q-item-label caption><markdown-component :content="note.content" /></q-item-label>
+                  </q-item-section>
+                  <q-item-section side><q-icon name="open_in_new" color="primary" /></q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+          </q-expansion-item>
         </q-card>
       </div>
     </div>
@@ -184,6 +247,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useBandStore } from '../stores/band'
 import { apiJson } from '../boot/api'
@@ -192,6 +256,7 @@ import BeerRain from '../components/BeerRain.vue'
 import { useI18n } from '../composables/useI18n'
 
 const $q = useQuasar()
+const router = useRouter()
 const authStore = useAuthStore()
 const bandStore = useBandStore()
 const { t, dateLocale } = useI18n()
@@ -201,7 +266,10 @@ type RehearsalData = { nextRehearsal: any | null; upcomingGigs: any[] }
 const rehearsalData = ref<RehearsalData | null>(null)
 const saving = ref(false)
 const beerLoading = ref(false)
+const attendanceLoading = ref(false)
 const beerRainActive = ref(false)
+const personalNotes = ref<any[]>([])
+const showPersonalNotesWidget = ref(false)
 
 const isAdmin = computed(() => {
   const band = authStore.activeBand
@@ -229,7 +297,7 @@ async function loadData() {
   } catch {
     rehearsalData.value = null
   }
-  bandStore.fetchMembers()
+  await Promise.all([bandStore.fetchMembers(), fetchPersonalNotes()])
 }
 
 onMounted(loadData)
@@ -269,6 +337,35 @@ async function removeBeer() {
   } catch (e: any) {
     $q.notify({ message: e?.message || 'Failed to update beer count', color: 'negative' })
   } finally { beerLoading.value = false }
+}
+
+async function fetchPersonalNotes() {
+  try {
+    personalNotes.value = await apiJson<any[]>('/songs/notes')
+  } catch {
+    personalNotes.value = []
+  }
+}
+
+async function setAttendance(status: 'present' | 'absent' | 'reset') {
+  if (!nextRehearsal.value) return
+  attendanceLoading.value = true
+  try {
+    await apiJson(`/rehearsals/${nextRehearsal.value.id}/attendance`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    })
+    await loadData()
+  } catch (e: any) {
+    $q.notify({ message: e?.message || t('home.failedAttendance'), color: 'negative' })
+  } finally {
+    attendanceLoading.value = false
+  }
+}
+
+function goToSetlist(songTitle?: string) {
+  const query = songTitle ? { q: songTitle } : {}
+  router.push({ path: '/setlist', query })
 }
 
 const showRehearsalEdit = ref(false)
@@ -327,13 +424,20 @@ const showBierwartModal = ref(false)
 function openBierwartModal() { showBierwartModal.value = true }
 
 async function confirmBierwart(member: any) {
-  saving.value = true
-  try {
-    await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ bierwartOverrideId: member.id }) })
-    await loadData()
-    showBierwartModal.value = false
-  } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
-  finally { saving.value = false }
+  if (!nextRehearsal.value) return
+  $q.dialog({
+    title: t('common.confirm'),
+    message: `${t('home.confirmBierwartChange')} ${member.name}`,
+    cancel: true,
+  }).onOk(async () => {
+    saving.value = true
+    try {
+      await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ bierwartOverrideId: member.id }) })
+      await loadData()
+      showBierwartModal.value = false
+    } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
+    finally { saving.value = false }
+  })
 }
 </script>
 

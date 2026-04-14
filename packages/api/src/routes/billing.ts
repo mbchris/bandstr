@@ -19,6 +19,7 @@ import {
 } from '../lib/subscription/types.js'
 
 export const billing = new Hono<AuthEnv>()
+const ALLOW_INSECURE_APPLE_ACTIVATE = process.env.ALLOW_INSECURE_APPLE_ACTIVATE === 'true'
 
 type PlanId = 'free' | 'pro'
 
@@ -306,7 +307,20 @@ billing.post(
     }),
   ),
   async (c) => {
-    // TODO iter-11: replace with real App Store Server API verification
+    // Temporary compatibility path:
+    // This endpoint used to trust client-provided transaction identifiers and
+    // directly grant pro entitlement. That is insecure. Keep it disabled by
+    // default until proper App Store Server API verification is implemented.
+    if (!ALLOW_INSECURE_APPLE_ACTIVATE) {
+      return c.json(
+        {
+          error:
+            'Apple activation is currently disabled until server-side App Store verification is implemented.',
+        },
+        501,
+      )
+    }
+
     const userId = c.get('user').id
     const { productId, originalTransactionId, interval } = c.req.valid('json')
 

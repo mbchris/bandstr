@@ -1,7 +1,7 @@
 export default {
   // Navigation
   nav: {
-    dashboard: 'Dashboard',
+    dashboard: 'Einstellungen',
     home: 'Home',
     calendar: 'Kalender',
     setlist: 'Setlist',
@@ -109,6 +109,16 @@ export default {
     addNewGig: 'Neuen Auftritt hinzufügen',
     saveAll: 'Alle Änderungen speichern',
     noGigsScheduled: 'Keine Auftritte geplant. Füge einen hinzu!',
+    confirmAttendance: 'Ich bin dabei',
+    markAbsent: 'Ich bin abwesend',
+    resetAttendance: 'Zurücksetzen',
+    attendanceConfirmed: 'Teilnahme bestätigt',
+    attendanceAbsent: 'Als abwesend markiert',
+    attendanceUnset: 'Noch keine Rückmeldung',
+    failedAttendance: 'Teilnahme konnte nicht aktualisiert werden.',
+    personalNotesWidgetTitle: 'Meine persönlichen Song-Notizen',
+    personalNotesWidgetCaption: '{count} Notizen mit Song-Bezug',
+    personalNotesEmpty: 'Noch keine persönlichen Notizen vorhanden.',
   },
 
   // Rehearsal page
@@ -256,6 +266,12 @@ export default {
     personalNotesHint: 'Nur für dich sichtbar.',
     exportExcel: 'Als Excel exportieren',
     masterSetlist: 'Master-Setlist',
+    userSetlist: 'User-Setlist',
+    addToUserSetlist: 'Zur User-Setlist hinzufügen',
+    removeFromUserSetlist: 'Aus User-Setlist entfernen',
+    addedToUserSetlist: 'Zur User-Setlist hinzugefügt.',
+    removedFromUserSetlist: 'Aus User-Setlist entfernt.',
+    markdownHint: 'Markdown wird unterstützt.',
     addSongTitle: 'Neuen Song zur Master-Setlist hinzufügen',
     addGigSongTitle: 'Songs zur Gig-Setlist hinzufügen',
     tags: 'Tags',
@@ -326,7 +342,7 @@ export default {
 
   // Dashboard page
   dashboard: {
-    title: 'Dashboard',
+    title: 'Einstellungen',
     subtitle: 'Verwalte deine Bands, dein Konto, Abonnements und Einladungen.',
     loggedInAs: 'Eingeloggt als {identity}',
     manageBands: 'Bands verwalten',

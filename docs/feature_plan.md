@@ -252,3 +252,19 @@
 
 **Backlog:** [`docs/backlog/iter-14-support-page.md`](./backlog/iter-14-support-page.md)
 
+
+## Iteration 15 - User Feedback 
+
+**Goal:** Feedback from first users is considered.
+
+
+ - Changing the "Bierwart" no longer has the confirmation dialog - restore it.
+ - On the "Home" page where the next Rehearsal is shown, the users want to immediate confirm their attendance or mark their absence. Marking absences also adds an "absence" calenar entry.
+ - Confirmations / absences can be resetted by the users.
+ - "Dashboard" is renamed to "Settings" ("Einstellungen").
+ - Users cann add Songs to their personal "User Setlist" which is only visible to them
+ - Personal notes and global notes per Song have a bigger Input field that supports markdown.
+ - "Home" page has a widget at the and showing all personal notes and the linked songs. Can be expanded/reduced. Reduced by default. 
+
+
+
