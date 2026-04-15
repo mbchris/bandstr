@@ -12,7 +12,7 @@
                 v-if="selectedSetlistMode === 'user' && !selectedGigId"
                 flat
                 round
-                icon="playlist_add"
+                icon="add"
                 @click="openAddToUserSetlistModal"
               >
                 <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
@@ -330,27 +330,30 @@
 
     <!-- Add Master Songs to Gig Dialog -->
     <q-dialog v-model="showAddGigSongModal">
-      <q-card style="min-width: 450px">
+      <q-card class="song-picker-card">
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('setlist.addGigSongTitle') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
         </q-card-section>
-        <q-card-section>
-          <q-select
-            v-model="selectedMasterSongIds"
-            :options="masterSongOptions"
-            emit-value
-            map-options
-            multiple
-            use-input
-            input-debounce="0"
-            use-chips
-            outlined
-            dense
-            :label="t('setlist.selectSongs')"
-            option-label="label"
-            option-value="value"
-          />
+        <q-card-section class="song-picker-body">
+          <div class="song-picker-search">
+            <q-select
+              v-model="selectedMasterSongIds"
+              :options="masterSongOptions"
+              emit-value
+              map-options
+              multiple
+              use-input
+              input-debounce="0"
+              use-chips
+              outlined
+              dense
+              :label="t('setlist.selectSongs')"
+              option-label="label"
+              option-value="value"
+              popup-content-class="song-picker-options-popup"
+            />
+          </div>
           <div class="row q-gutter-sm q-mt-sm">
             <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedMasterSongIds = masterSongOptions.map(o => o.value)" />
             <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedMasterSongIds = []" />
@@ -365,27 +368,30 @@
 
     <!-- Add Songs to User Setlist Dialog -->
     <q-dialog v-model="showAddUserSetlistModal">
-      <q-card style="min-width: 450px">
+      <q-card class="song-picker-card">
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('setlist.addToUserSetlist') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
         </q-card-section>
-        <q-card-section>
-          <q-select
-            v-model="selectedUserSetlistSongIds"
-            :options="availableUserSetlistSongOptions"
-            emit-value
-            map-options
-            multiple
-            use-input
-            input-debounce="0"
-            use-chips
-            outlined
-            dense
-            :label="t('setlist.selectSongs')"
-            option-label="label"
-            option-value="value"
-          />
+        <q-card-section class="song-picker-body">
+          <div class="song-picker-search">
+            <q-select
+              v-model="selectedUserSetlistSongIds"
+              :options="availableUserSetlistSongOptions"
+              emit-value
+              map-options
+              multiple
+              use-input
+              input-debounce="0"
+              use-chips
+              outlined
+              dense
+              :label="t('setlist.selectSongs')"
+              option-label="label"
+              option-value="value"
+              popup-content-class="song-picker-options-popup"
+            />
+          </div>
           <div class="row q-gutter-sm q-mt-sm">
             <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedUserSetlistSongIds = availableUserSetlistSongOptions.map(o => o.value)" />
             <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedUserSetlistSongIds = []" />
@@ -1199,5 +1205,32 @@ onMounted(() => {
 .pinned-lock-btn {
   box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.35) inset;
   background: rgba(25, 118, 210, 0.1);
+}
+
+.song-picker-card {
+  min-width: 450px;
+  width: min(92vw, 720px);
+  max-height: min(82vh, 860px);
+  display: flex;
+  flex-direction: column;
+}
+
+.song-picker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.song-picker-search {
+  position: sticky;
+  top: 100px;
+  z-index: 5;
+  background: white;
+  padding-bottom: 6px;
+}
+
+:deep(.song-picker-options-popup) {
+  max-height: 55vh;
+  overflow-y: auto;
 }
 </style>
