@@ -2,6 +2,30 @@ import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 
+function writeTempCredentialsFile(repoRoot, jsonText) {
+  const tempCredsFile = path.join(repoRoot, '.tools', 'play-console-creds-temp.json');
+  fs.mkdirSync(path.join(repoRoot, '.tools'), { recursive: true });
+  fs.writeFileSync(tempCredsFile, jsonText, 'utf8');
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = tempCredsFile;
+  return tempCredsFile;
+}
+
+function tryParseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function decodeBase64Utf8(text) {
+  try {
+    return Buffer.from(text, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
 async function run() {
   const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1');
   const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
@@ -30,19 +54,35 @@ async function run() {
     process.exit(1);
   }
 
-  let tempCredsFile = null;
-
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64) {
-    const jsonStr = Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64, 'base64').toString('utf8');
-    tempCredsFile = path.join(REPO_ROOT, '.tools', 'play-console-creds-temp.json');
-    fs.mkdirSync(path.join(REPO_ROOT, '.tools'), { recursive: true });
-    fs.writeFileSync(tempCredsFile, jsonStr, 'utf8');
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = tempCredsFile;
+    const jsonStr = decodeBase64Utf8(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64);
+    if (!jsonStr || !tryParseJson(jsonStr)) {
+      throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64 is not valid base64-encoded JSON.');
+    }
+    writeTempCredentialsFile(REPO_ROOT, jsonStr);
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-    tempCredsFile = path.join(REPO_ROOT, '.tools', 'play-console-creds-temp.json');
-    fs.mkdirSync(path.join(REPO_ROOT, '.tools'), { recursive: true });
-    fs.writeFileSync(tempCredsFile, process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON, 'utf8');
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = tempCredsFile;
+    if (!tryParseJson(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)) {
+      throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON.');
+    }
+    writeTempCredentialsFile(REPO_ROOT, process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  } else if (process.env.GPLAY_SERVICE_ACCOUNT_JSON) {
+    if (!tryParseJson(process.env.GPLAY_SERVICE_ACCOUNT_JSON)) {
+      throw new Error('GPLAY_SERVICE_ACCOUNT_JSON is not valid JSON.');
+    }
+    writeTempCredentialsFile(REPO_ROOT, process.env.GPLAY_SERVICE_ACCOUNT_JSON);
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const raw = process.env.GOOGLE_APPLICATION_CREDENTIALS.trim();
+    if (!fs.existsSync(raw)) {
+      const maybeJson = tryParseJson(raw);
+      if (maybeJson) {
+        writeTempCredentialsFile(REPO_ROOT, raw);
+      } else {
+        const decoded = decodeBase64Utf8(raw);
+        if (decoded && tryParseJson(decoded)) {
+          writeTempCredentialsFile(REPO_ROOT, decoded);
+        }
+      }
+    }
   }
 
   if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !process.env.PLAY_CONSOLE_KEY_FILE) {

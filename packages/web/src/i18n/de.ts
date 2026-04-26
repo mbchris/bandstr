@@ -240,6 +240,7 @@ export default {
   setlist: {
     title: 'bandstr — Setlist',
     heading: 'Setlist',
+    addSetlistNote: 'Notiz zur Setlist hinzufügen',
     addPause: 'Pause einfügen',
     changeTuning: 'Stimmung wechseln',
     filterTitle: 'Titel oder Interpret filtern...',
@@ -274,6 +275,19 @@ export default {
     markdownHint: 'Markdown wird unterstützt.',
     addSongTitle: 'Neuen Song zur Master-Setlist hinzufügen',
     addGigSongTitle: 'Songs zur Gig-Setlist hinzufügen',
+    editGigSetlist: 'Gig-Setlist bearbeiten',
+    gigSetlistCurrent: 'Gig-Setlist (aktueller Entwurf)',
+    newGigSetlist: 'Neue Gig-Setlist',
+    defaultGigSetlistTitle: 'Neue Gig-Setlist',
+    linkCalendarGig: 'Verknüpfter Kalender-Gig',
+    unlinked: 'Nicht verknüpft',
+    deleteGigSetlistConfirm: 'Gig-Setlist \"{title}\" löschen?',
+    noteType: 'Notiztyp',
+    noteTypeSong: 'Song',
+    noteTypePause: 'Pause',
+    noteTypeTuning: 'Stimmungswechsel',
+    noteTypeCustom: 'Eigener Eintrag',
+    customNote: 'Eigene Notiz',
     tags: 'Tags',
     filterTags: 'Tags filtern...',
     selectSongs: 'Songs auswählen...',
@@ -554,4 +568,3 @@ export default {
     de: 'Deutsch',
   },
 } as const;
-

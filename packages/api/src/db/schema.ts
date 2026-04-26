@@ -220,7 +220,7 @@ export const songs = pgTable(
     lengthMs: integer('length_ms'),
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
     notes: text('notes'),
-    type: text('type').notNull().default('song'), // 'song' | 'pause' | 'tuning'
+    type: text('type').notNull().default('song'), // 'song' | 'pause' | 'tuning' | 'note'
     pitch: integer('pitch').notNull().default(0), // -5 to +5
     isSetlist: boolean('is_setlist').notNull().default(false),
     position: integer('position').notNull().default(0),
@@ -355,6 +355,25 @@ export const userSetlistSongs = pgTable(
   ],
 )
 
+// ─── Gig setlists ───────────────────────────────────────────────────────────
+
+export const gigSetlists = pgTable(
+  'gig_setlists',
+  {
+    id: serial('id').primaryKey(),
+    bandId: integer('band_id')
+      .notNull()
+      .references(() => bands.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    calendarEventId: integer('calendar_event_id').references(() => calendarEvents.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('gig_setlists_band_idx').on(t.bandId, t.createdAt),
+    uniqueIndex('gig_setlists_band_calendar_event_idx').on(t.bandId, t.calendarEventId),
+  ],
+)
+
 // ─── Rehearsal songs (junction) ──────────────────────────────────────────────
 
 export const rehearsalSongs = pgTable(
@@ -386,7 +405,7 @@ export const gigSongs = pgTable(
       .references(() => bands.id, { onDelete: 'cascade' }),
     gigId: integer('gig_id')
       .notNull()
-      .references(() => calendarEvents.id, { onDelete: 'cascade' }),
+      .references(() => gigSetlists.id, { onDelete: 'cascade' }),
     songId: integer('song_id')
       .notNull()
       .references(() => songs.id, { onDelete: 'cascade' }),
@@ -403,6 +422,7 @@ export const bandsRelations = relations(bands, ({ many }) => ({
   members: many(bandMembers),
   songs: many(songs),
   calendarEvents: many(calendarEvents),
+  gigSetlists: many(gigSetlists),
 }))
 
 export const usersRelations = relations(users, ({ many }) => ({

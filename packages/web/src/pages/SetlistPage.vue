@@ -6,8 +6,9 @@
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
             <div class="row q-gutter-sm items-center">
-              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="pause_circle" @click="openSpecialModal('pause')" />
-              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="tune" @click="openSpecialModal('tuning')" />
+              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="note_add" @click="openSpecialModal">
+                <q-tooltip>{{ t('setlist.addSetlistNote') }}</q-tooltip>
+              </q-btn>
               <q-btn
                 v-if="selectedSetlistMode === 'user' && !selectedGigId"
                 flat
@@ -21,13 +22,13 @@
               <q-btn
                 v-if="selectedSetlistMode === 'master' || selectedGigId"
                 round
-                :color="atSetlistLimit ? 'grey' : 'primary'"
+                :color="!selectedGigId && atSetlistLimit ? 'grey' : 'primary'"
                 icon="add"
                 class="round-add-btn"
-                :disable="atSetlistLimit"
+                :disable="!selectedGigId && atSetlistLimit"
                 @click="openAddSongModal"
               >
-                <q-tooltip v-if="atSetlistLimit">
+                <q-tooltip v-if="!selectedGigId && atSetlistLimit">
                   PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
                 </q-tooltip>
               </q-btn>
@@ -49,6 +50,14 @@
               outlined
               style="min-width: 280px"
             />
+            <q-btn
+              flat
+              dense
+              icon="add_circle"
+              color="primary"
+              :label="t('setlist.newGigSetlist')"
+              @click="createGigSetlist"
+            />
             <q-select
               v-if="!selectedGigId && selectedSetlistMode === 'master'"
               v-model="selectedTagFilters"
@@ -63,6 +72,28 @@
               style="min-width: 260px"
               :label="t('setlist.filterTags')"
             />
+          </div>
+          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-sm rounded-borders bg-widget-surface">
+            <div class="row q-col-gutter-sm items-end">
+              <div class="col-12 col-md-5">
+                <q-input v-model="selectedGigMeta.title" :label="t('common.title')" outlined dense />
+              </div>
+              <div class="col-12 col-md-5">
+                <q-select
+                  v-model="selectedGigMeta.calendarEventId"
+                  :options="calendarGigLinkOptions"
+                  emit-value
+                  map-options
+                  outlined
+                  dense
+                  :label="t('setlist.linkCalendarGig')"
+                />
+              </div>
+              <div class="col-12 col-md-2 row justify-end q-gutter-xs">
+                <q-btn flat dense color="primary" :label="t('common.save')" @click="saveGigMeta" />
+                <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
+              </div>
+            </div>
           </div>
           <div class="text-caption text-grey-7 q-mb-md">
             Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
@@ -175,6 +206,15 @@
                     <q-icon v-if="item.notes" name="info" color="orange" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
                   </q-item-label>
                 </template>
+
+                <!-- Generic note content -->
+                <template v-else>
+                  <q-item-label class="text-blue text-italic">
+                    <q-icon name="sticky_note_2" class="q-mr-xs" />
+                    {{ item.title }}
+                    <q-icon v-if="item.notes" name="info" color="blue" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
+                  </q-item-label>
+                </template>
               </q-item-section>
 
               <!-- Actions -->
@@ -206,7 +246,7 @@
                     <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
                   </q-btn>
                   <q-btn
-                    v-else-if="item.type === 'song' && selectedGigId"
+                    v-else-if="selectedGigId"
                     flat
                     round
                     dense
@@ -328,40 +368,63 @@
       </q-card>
     </q-dialog>
 
-    <!-- Add Master Songs to Gig Dialog -->
-    <q-dialog v-model="showAddGigSongModal">
-      <q-card class="song-picker-card">
+    <!-- Gig Setlist Builder Dialog -->
+    <q-dialog v-model="showGigBuilderModal" full-width>
+      <q-card class="gig-builder-card">
         <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('setlist.addGigSongTitle') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+          <div class="text-h6">{{ t('setlist.editGigSetlist') }}</div>
+          <q-space /><q-btn flat round dense icon="close" @click="cancelGigBuilder" />
         </q-card-section>
-        <q-card-section class="song-picker-body">
-          <div class="song-picker-search">
-            <q-select
-              v-model="selectedMasterSongIds"
-              :options="masterSongOptions"
-              emit-value
-              map-options
-              multiple
-              use-input
-              input-debounce="0"
-              use-chips
-              outlined
-              dense
-              :label="t('setlist.selectSongs')"
-              option-label="label"
-              option-value="value"
-              popup-content-class="song-picker-options-popup"
-            />
+        <q-card-section class="gig-builder-body">
+          <div class="gig-builder-target q-pa-sm rounded-borders bg-widget-surface">
+            <div class="text-subtitle2 text-weight-bold q-mb-sm">{{ t('setlist.gigSetlistCurrent') }}</div>
+            <q-list v-if="gigBuilderDraftItems.length" separator>
+              <q-item v-for="(item, index) in gigBuilderDraftItems" :key="`${item.id}-${index}`" dense>
+                <q-item-section side class="text-caption text-grey">{{ index + 1 }}</q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
+                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense icon="remove_circle" color="negative" @click="removeFromGigBuilder(item.id)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey text-italic">{{ t('setlist.noItems') }}</div>
           </div>
-          <div class="row q-gutter-sm q-mt-sm">
-            <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedMasterSongIds = masterSongOptions.map(o => o.value)" />
-            <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedMasterSongIds = []" />
+
+          <div class="gig-builder-source q-mt-md">
+            <div class="row q-gutter-sm items-center q-mb-sm">
+              <div class="text-subtitle2 text-weight-bold">{{ t('setlist.masterSetlist') }}</div>
+              <q-space />
+              <q-input
+                v-model="gigBuilderSearch"
+                dense
+                outlined
+                clearable
+                :placeholder="t('setlist.filterTitle')"
+                style="min-width: 240px"
+              >
+                <template #prepend><q-icon name="search" /></template>
+              </q-input>
+            </div>
+            <q-list v-if="filteredGigBuilderSourceItems.length" separator bordered class="rounded-borders">
+              <q-item v-for="item in filteredGigBuilderSourceItems" :key="`master-${item.id}`" dense>
+                <q-item-section>
+                  <q-item-label>{{ item.title }}</q-item-label>
+                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense icon="playlist_add" color="primary" @click="addToGigBuilder(item)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey text-italic text-center q-pa-md">{{ t('setlist.noItems') }}</div>
           </div>
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('setlist.addToGig')" :loading="isSaving" :disable="!selectedMasterSongIds.length" @click="submitAddGigSong" />
+          <q-btn flat :label="t('common.cancel')" @click="cancelGigBuilder" />
+          <q-btn color="primary" :label="t('common.ok')" :loading="isSaving" @click="confirmGigBuilder" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -503,13 +566,23 @@
       </q-card>
     </q-dialog>
 
-    <!-- Special Element (Pause/Tuning) Dialog -->
+    <!-- Setlist Note Dialog -->
     <q-dialog v-model="showSpecialModal">
       <q-card v-if="specialElementForm" style="min-width: 400px">
         <q-card-section>
-          <div class="text-h6">{{ specialElementForm.type === 'pause' ? t('setlist.addPause') : t('setlist.changeTuning') }}</div>
+          <div class="text-h6">{{ t('setlist.addSetlistNote') }}</div>
         </q-card-section>
         <q-card-section class="q-gutter-md">
+          <q-select
+            v-model="specialElementForm.noteType"
+            :options="specialNoteTypeOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            :label="t('setlist.noteType')"
+            @update:model-value="applySpecialTypePreset"
+          />
           <q-input v-model="specialElementForm.title" :label="t('common.title')" outlined dense autofocus />
           <q-input v-model="specialElementForm.notes" :label="t('voting.notes')" type="textarea" outlined dense autogrow />
         </q-card-section>
@@ -544,9 +617,34 @@ const draggingIndex = ref<number | null>(null)
 const selectedSetlistMode = ref<'master' | 'user'>('master')
 const selectedListOption = ref<string>('master')
 
+type GigSetlist = {
+  id: number
+  bandId: number
+  title: string
+  calendarEventId?: number | null
+  calendarEventTitle?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  isTentative?: boolean | null
+}
+
+type CalendarGigOption = {
+  id: number
+  title: string
+  startTime: string
+}
+
+type EditableGigMeta = {
+  id: number
+  title: string
+  calendarEventId: number | null
+}
+
 // Gig selection
 const selectedGigId = ref<number | null>(null)
-const gigs = ref<any[]>([])
+const gigs = ref<GigSetlist[]>([])
+const calendarGigs = ref<CalendarGigOption[]>([])
+const selectedGigMeta = ref<EditableGigMeta | null>(null)
 const gigSongs = ref<Song[]>([])
 const userSetlistSongs = ref<Song[]>([])
 const personalNotes = ref<any[]>([])
@@ -559,7 +657,17 @@ const listOptions = computed(() => [
     if (g.startTime) {
       try { dateStr = new Date(g.startTime).toISOString().split('T')[0] } catch {}
     }
-    return { label: dateStr ? `${dateStr} ${g.title}` : g.title, value: `gig:${g.id}` }
+    const calendarLabel = g.calendarEventTitle && g.calendarEventTitle !== g.title ? ` · ${g.calendarEventTitle}` : ''
+    return { label: dateStr ? `${dateStr} ${g.title}${calendarLabel}` : `${g.title}${calendarLabel}`, value: `gig:${g.id}` }
+  }),
+])
+
+const calendarGigLinkOptions = computed(() => [
+  { label: t('setlist.unlinked'), value: null },
+  ...calendarGigs.value.map((gig) => {
+    let dateStr = ''
+    try { dateStr = new Date(gig.startTime).toISOString().split('T')[0] } catch {}
+    return { label: dateStr ? `${dateStr} ${gig.title}` : gig.title, value: gig.id }
   }),
 ])
 
@@ -643,7 +751,13 @@ function canModifySong(item: Song) {
   return isAdmin.value || authStore.user?.id === item.addedBy
 }
 
-// Master songs for gig song picker
+const masterSetlistItems = computed(() =>
+  songsStore.songs
+    .filter((s) => s.isSetlist)
+    .sort((a, b) => a.position - b.position),
+)
+
+// Master songs for user setlist picker
 const masterSongOptions = computed(() =>
   songsStore.songs
     .filter((s) => s.type === 'song' && s.isSetlist)
@@ -683,7 +797,23 @@ function getYouTubeId(url: string | null | undefined) {
 
 // Data fetching
 async function fetchGigs() {
-  try { gigs.value = await apiJson<any[]>('/gigs') } catch { gigs.value = [] }
+  try { gigs.value = await apiJson<GigSetlist[]>('/gigs') } catch { gigs.value = [] }
+}
+
+async function fetchCalendarGigs() {
+  try {
+    const events = await apiJson<Array<{ id: number; title: string; type: string; startTime: string }>>('/calendar')
+    calendarGigs.value = events
+      .filter((event) => event.type === 'gig')
+      .map((event) => ({ id: event.id, title: event.title, startTime: event.startTime }))
+      .sort((a, b) => {
+        const left = new Date(a.startTime).getTime()
+        const right = new Date(b.startTime).getTime()
+        return left - right
+      })
+  } catch {
+    calendarGigs.value = []
+  }
 }
 
 async function fetchGigSongs(gigId: number) {
@@ -724,6 +854,79 @@ watch(selectedListOption, (newVal) => {
     if (selectedGigId.value) fetchGigSongs(selectedGigId.value)
   }
 })
+
+watch(selectedGigId, (gigId) => {
+  if (!gigId) {
+    selectedGigMeta.value = null
+    return
+  }
+  const gig = gigs.value.find((entry) => entry.id === gigId)
+  selectedGigMeta.value = gig
+    ? { id: gig.id, title: gig.title, calendarEventId: gig.calendarEventId ?? null }
+    : null
+})
+
+watch(gigs, () => {
+  if (!selectedGigId.value) return
+  const gig = gigs.value.find((entry) => entry.id === selectedGigId.value)
+  if (!gig) return
+  selectedGigMeta.value = { id: gig.id, title: gig.title, calendarEventId: gig.calendarEventId ?? null }
+})
+
+async function createGigSetlist() {
+  isSaving.value = true
+  try {
+    const created = await apiJson<{ id: number }>('/gigs', {
+      method: 'POST',
+      body: JSON.stringify({ title: t('setlist.defaultGigSetlistTitle') }),
+    })
+    await fetchGigs()
+    selectedListOption.value = `gig:${created.id}`
+  } catch {
+    $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function saveGigMeta() {
+  if (!selectedGigMeta.value) return
+  isSaving.value = true
+  try {
+    await apiJson(`/gigs/${selectedGigMeta.value.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: selectedGigMeta.value.title,
+        calendarEventId: selectedGigMeta.value.calendarEventId,
+      }),
+    })
+    await fetchGigs()
+  } catch {
+    $q.notify({ message: t('setlist.failedSave'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function deleteGigSetlist() {
+  if (!selectedGigMeta.value) return
+  $q.dialog({
+    title: t('common.delete'),
+    message: t('setlist.deleteGigSetlistConfirm', { title: selectedGigMeta.value.title }),
+    cancel: true,
+  }).onOk(async () => {
+    isSaving.value = true
+    try {
+      await apiJson(`/gigs/${selectedGigMeta.value!.id}`, { method: 'DELETE' })
+      await fetchGigs()
+      selectedListOption.value = 'master'
+    } catch {
+      $q.notify({ message: t('setlist.failedRemove'), color: 'negative' })
+    } finally {
+      isSaving.value = false
+    }
+  })
+}
 
 // Reorder
 async function reorderItems(items: Song[]) {
@@ -818,14 +1021,14 @@ async function removeFromSetlist(item: Song) {
     cancel: true,
   }).onOk(async () => {
     try {
-      if (item.type !== 'song') {
+      if (selectedGigId.value) {
+        await apiJson(`/gigs/${selectedGigId.value}/songs/${item.id}`, { method: 'DELETE' })
+        await fetchGigSongs(selectedGigId.value)
+      } else if (item.type !== 'song') {
         await songsStore.deleteSong(item.id)
       } else if (selectedSetlistMode.value === 'user' && !selectedGigId.value) {
         await apiJson(`/songs/user-setlist/${item.id}`, { method: 'DELETE' })
         await fetchUserSetlistSongs()
-      } else if (selectedGigId.value) {
-        await apiJson(`/gigs/${selectedGigId.value}/songs/${item.id}`, { method: 'DELETE' })
-        await fetchGigSongs(selectedGigId.value)
       } else {
         await songsStore.updateSong(item.id, { isSetlist: false } as any)
       }
@@ -882,7 +1085,7 @@ const isSaving = ref(false)
 
 function openAddSongModal() {
   if (selectedGigId.value) {
-    showAddGigSongModal.value = true
+    openGigBuilder()
   } else {
     addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', tags: [], notes: '', lengthMs: null, pitch: 0 }
     addSongLengthInput.value = ''
@@ -955,27 +1158,100 @@ function onAddSpotifyPaste() {
   setTimeout(() => lookupSpotifyForAdd(false), 100)
 }
 
-// Add master songs to gig setlist
-const showAddGigSongModal = ref(false)
-const selectedMasterSongIds = ref<number[]>([])
-const showAddUserSetlistModal = ref(false)
-const selectedUserSetlistSongIds = ref<number[]>([])
+// Gig setlist builder
+const showGigBuilderModal = ref(false)
+const gigBuilderSearch = ref('')
+const gigBuilderDraftItems = ref<Song[]>([])
 
-async function submitAddGigSong() {
+const filteredGigBuilderSourceItems = computed(() => {
+  const draftIds = new Set(gigBuilderDraftItems.value.map((s) => s.id))
+  const q = gigBuilderSearch.value.trim().toLowerCase()
+  return masterSetlistItems.value.filter((song) => {
+    if (draftIds.has(song.id)) return false
+    if (!q) return true
+    const inTags = (song.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
+    return song.title.toLowerCase().includes(q) || song.artist.toLowerCase().includes(q) || inTags
+  })
+})
+
+function formatGigBuilderType(type: Song['type']) {
+  if (type === 'song') return t('setlist.noteTypeSong')
+  if (type === 'pause') return t('setlist.noteTypePause')
+  if (type === 'tuning') return t('setlist.noteTypeTuning')
+  return t('setlist.noteTypeCustom')
+}
+
+function openGigBuilder() {
+  gigBuilderDraftItems.value = [...gigSongs.value].sort((a, b) => a.position - b.position)
+  gigBuilderSearch.value = ''
+  showGigBuilderModal.value = true
+}
+
+function addToGigBuilder(item: Song) {
+  if (gigBuilderDraftItems.value.some((existing) => existing.id === item.id)) return
+  gigBuilderDraftItems.value.push(item)
+}
+
+function removeFromGigBuilder(songId: number) {
+  gigBuilderDraftItems.value = gigBuilderDraftItems.value.filter((item) => item.id !== songId)
+}
+
+function cancelGigBuilder() {
+  showGigBuilderModal.value = false
+  gigBuilderSearch.value = ''
+  gigBuilderDraftItems.value = []
+}
+
+async function confirmGigBuilder() {
+  if (!selectedGigId.value) return
   isSaving.value = true
   try {
-    for (let i = 0; i < selectedMasterSongIds.value.length; i++) {
-      await apiJson(`/gigs/${selectedGigId.value}/songs`, {
+    const targetGigId = selectedGigId.value
+    const currentSongIds = Array.from(new Set(gigSongs.value.map((item) => item.id)))
+    const draftSongIds = gigBuilderDraftItems.value.map((item) => item.id)
+
+    for (const songId of currentSongIds.filter((id) => !draftSongIds.includes(id))) {
+      await apiJson(`/gigs/${targetGigId}/songs/${songId}`, { method: 'DELETE' })
+    }
+
+    for (const songId of draftSongIds.filter((id) => !currentSongIds.includes(id))) {
+      await apiJson(`/gigs/${targetGigId}/songs`, {
         method: 'POST',
-        body: JSON.stringify({ songId: selectedMasterSongIds.value[i], position: filteredSongs.value.length + i }),
+        body: JSON.stringify({ songId, position: draftSongIds.indexOf(songId) }),
       })
     }
-    showAddGigSongModal.value = false
-    selectedMasterSongIds.value = []
-    if (selectedGigId.value) await fetchGigSongs(selectedGigId.value)
-  } catch (e: any) { $q.notify({ message: t('setlist.failedAdd'), color: 'negative' }) }
-  finally { isSaving.value = false }
+
+    await fetchGigSongs(targetGigId)
+
+    const order = draftSongIds
+      .map((songId, index) => {
+        const row = gigSongs.value.find((item) => item.id === songId && typeof (item as Song & { gigSongId?: number }).gigSongId === 'number')
+        if (!row) return null
+        return {
+          id: (row as Song & { gigSongId: number }).gigSongId,
+          position: index,
+        }
+      })
+      .filter((entry): entry is { id: number; position: number } => Boolean(entry))
+
+    if (order.length) {
+      await apiJson(`/gigs/${targetGigId}/songs/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({ order }),
+      })
+      await fetchGigSongs(targetGigId)
+    }
+
+    cancelGigBuilder()
+  } catch {
+    $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
 }
+
+const showAddUserSetlistModal = ref(false)
+const selectedUserSetlistSongIds = ref<number[]>([])
 
 function openAddToUserSetlistModal() {
   selectedUserSetlistSongIds.value = []
@@ -1001,23 +1277,41 @@ async function submitAddUserSetlistSongs() {
   }
 }
 
-// Special element (pause/tuning)
+// Setlist note element
 const showSpecialModal = ref(false)
-const specialElementForm = ref<{ type: 'pause' | 'tuning'; title: string; notes: string } | null>(null)
+type SpecialNoteType = 'pause' | 'tuning' | 'custom'
+const specialElementForm = ref<{ noteType: SpecialNoteType; title: string; notes: string } | null>(null)
+const specialNoteTypeOptions = computed(() => [
+  { label: t('setlist.noteTypePause'), value: 'pause' },
+  { label: t('setlist.noteTypeTuning'), value: 'tuning' },
+  { label: t('setlist.noteTypeCustom'), value: 'custom' },
+])
 
-function openSpecialModal(type: 'pause' | 'tuning') {
-  specialElementForm.value = { type, title: type === 'pause' ? t('setlist.breakPause') : t('setlist.tuningChange'), notes: '' }
+function defaultNoteTitleForType(noteType: SpecialNoteType) {
+  if (noteType === 'pause') return t('setlist.breakPause')
+  if (noteType === 'tuning') return t('setlist.tuningChange')
+  return t('setlist.customNote')
+}
+
+function openSpecialModal() {
+  specialElementForm.value = { noteType: 'pause', title: defaultNoteTitleForType('pause'), notes: '' }
   showSpecialModal.value = true
+}
+
+function applySpecialTypePreset(noteType: SpecialNoteType) {
+  if (!specialElementForm.value) return
+  specialElementForm.value.title = defaultNoteTitleForType(noteType)
 }
 
 async function submitSpecialElement() {
   if (!specialElementForm.value) return
   isSaving.value = true
+  const noteType = specialElementForm.value.noteType
   try {
     await songsStore.createSong({
       title: specialElementForm.value.title,
       artist: 'Band',
-      type: specialElementForm.value.type,
+      type: noteType === 'custom' ? 'note' : noteType,
       notes: specialElementForm.value.notes,
       position: filteredSongs.value.length,
       isSetlist: true,
@@ -1166,6 +1460,7 @@ onMounted(() => {
   }
   songsStore.fetchSongs()
   fetchGigs()
+  fetchCalendarGigs()
   fetchUserSetlistSongs()
   fetchPersonalNotes()
 })
@@ -1205,6 +1500,42 @@ onMounted(() => {
 .pinned-lock-btn {
   box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.35) inset;
   background: rgba(25, 118, 210, 0.1);
+}
+
+.gig-builder-card {
+  width: min(95vw, 980px);
+  max-width: 980px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.gig-builder-body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.gig-builder-target {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.gig-builder-source {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .gig-builder-target {
+    max-height: 34vh;
+  }
+
+  .gig-builder-source {
+    max-height: 42vh;
+  }
 }
 
 .song-picker-card {
