@@ -97,7 +97,7 @@ const createSongSchema = z.object({
   lengthMs: z.number().int().min(0).optional(),
   tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAG_COUNT).default([]),
   notes: z.string().optional(),
-  type: z.enum(['song', 'pause', 'tuning']).default('song'),
+  type: z.enum(['song', 'pause', 'tuning', 'note']).default('song'),
   pitch: z.number().int().min(-5).max(5).default(0),
   isSetlist: z.boolean().default(false),
   position: z.number().int().default(0),

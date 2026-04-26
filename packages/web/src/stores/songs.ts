@@ -20,7 +20,7 @@ export type Song = {
   lengthMs?: number | null
   tags: string[]
   notes?: string | null
-  type: 'song' | 'pause' | 'tuning'
+  type: 'song' | 'pause' | 'tuning' | 'note'
   pitch: number
   isSetlist: boolean
   position: number

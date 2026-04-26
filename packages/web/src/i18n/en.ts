@@ -239,6 +239,7 @@ export default {
   setlist: {
     title: 'bandstr — Setlist',
     heading: 'Setlist',
+    addSetlistNote: 'Add Note to Setlist',
     addPause: 'Add Pause',
     changeTuning: 'Change Tuning',
     filterTitle: 'Filter title or artist...',
@@ -273,6 +274,19 @@ export default {
     markdownHint: 'Markdown supported.',
     addSongTitle: 'Add New Song to Master Setlist',
     addGigSongTitle: 'Add Master Songs to Gig Setlist',
+    editGigSetlist: 'Edit Gig Setlist',
+    gigSetlistCurrent: 'Gig Setlist (Current Draft)',
+    newGigSetlist: 'New Gig Setlist',
+    defaultGigSetlistTitle: 'New Gig Setlist',
+    linkCalendarGig: 'Linked Calendar Gig',
+    unlinked: 'Unlinked',
+    deleteGigSetlistConfirm: 'Delete gig setlist "{title}"?',
+    noteType: 'Note Type',
+    noteTypeSong: 'Song',
+    noteTypePause: 'Pause',
+    noteTypeTuning: 'Tuning Change',
+    noteTypeCustom: 'Custom Entry',
+    customNote: 'Custom Note',
     tags: 'Tags',
     filterTags: 'Filter tags...',
     selectSongs: 'Select songs...',
@@ -553,4 +567,3 @@ export default {
     de: 'Deutsch',
   },
 } as const;
-
