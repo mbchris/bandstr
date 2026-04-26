@@ -18,6 +18,10 @@ sign_apk_input_path=""
 upload_ios_input_path=""
 apk_api_url=""
 
+to_uppercase() {
+  printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
 is_profile_scoped_command() {
   case "$1" in
     build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios)
@@ -39,7 +43,7 @@ print_profile_summary() {
   if [[ "$profile_summary_enabled" == "1" ]]; then
     echo
     echo "########################################"
-    echo "PROFILE USED: ${env_profile^^}"
+    echo "PROFILE USED: $(to_uppercase "$env_profile")"
     if [[ "$status" == "0" ]]; then
       echo "RESULT: SUCCESS"
     else
@@ -430,16 +434,41 @@ to_windows_path() {
   if [[ "$input_path" =~ ^/([A-Za-z])/(.*)$ ]]; then
     local drive="${BASH_REMATCH[1]}"
     local rest="${BASH_REMATCH[2]}"
+    local drive_upper
+    drive_upper="$(to_uppercase "$drive")"
     rest="${rest//\//\\}"
-    printf '%s:\\%s\n' "${drive^^}" "$rest"
+    printf '%s:\\%s\n' "$drive_upper" "$rest"
     return 0
   fi
   printf '%s\n' "$input_path"
 }
 
-DB_COMPOSE=(docker compose -f docker-compose.dev.yml)
-APP_COMPOSE=(docker compose --profile dev)
-PROD_COMPOSE=(docker compose --profile prod)
+resolve_compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    printf 'docker compose\n'
+    return 0
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    printf 'docker-compose\n'
+    return 0
+  fi
+
+  echo "Error: Docker Compose is not available."
+  echo "Install Docker Compose plugin (docker compose) or docker-compose binary."
+  exit 1
+}
+
+COMPOSE_CMD_STR="$(resolve_compose_cmd)"
+if [[ "$COMPOSE_CMD_STR" == "docker compose" ]]; then
+  COMPOSE_CMD=(docker compose)
+else
+  COMPOSE_CMD=(docker-compose)
+fi
+
+DB_COMPOSE=("${COMPOSE_CMD[@]}" -f docker-compose.dev.yml)
+APP_COMPOSE=("${COMPOSE_CMD[@]}" --profile dev)
+PROD_COMPOSE=("${COMPOSE_CMD[@]}" --profile prod)
 COREPACK_NONINTERACTIVE='export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1;'
 
 ensure_db() {
@@ -915,9 +944,19 @@ build_android_apk() {
   local android_local_props="packages/web/src-capacitor/android/local.properties"
   local sdk_path="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
   local min_java_major=21
+  local max_java_major=23
 
   if [[ -z "$sdk_path" && -d "/c/Users/Chris/AppData/Local/Android/Sdk" ]]; then
     sdk_path="/c/Users/Chris/AppData/Local/Android/Sdk"
+  fi
+  if [[ -z "$sdk_path" && -d "$HOME/Library/Android/sdk" ]]; then
+    sdk_path="$HOME/Library/Android/sdk"
+  fi
+  if [[ -z "$sdk_path" && -d "$HOME/Library/Android/Sdk" ]]; then
+    sdk_path="$HOME/Library/Android/Sdk"
+  fi
+  if [[ -z "$sdk_path" && -d "$HOME/Android/Sdk" ]]; then
+    sdk_path="$HOME/Android/Sdk"
   fi
 
   if [[ -n "$sdk_path" ]]; then
@@ -926,6 +965,8 @@ build_android_apk() {
     if [[ -n "$sdk_path_win" ]]; then
       sdk_path="$sdk_path_win"
     fi
+    export ANDROID_HOME="$sdk_path"
+    export ANDROID_SDK_ROOT="$sdk_path"
     mkdir -p "$(dirname "$android_local_props")"
     # local.properties is a Java properties file: backslashes must be escaped.
     local sdk_props
@@ -937,14 +978,46 @@ build_android_apk() {
   if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
     current_java_major="$(get_java_major "$JAVA_HOME/bin/java" || true)"
   fi
+  if [[ -n "$current_java_major" && "$current_java_major" -gt "$max_java_major" ]]; then
+    # Gradle/AGP in this repo currently fails on very new JDKs (e.g. Java 25).
+    unset JAVA_HOME
+    current_java_major=""
+  fi
 
   if [[ -z "$current_java_major" || "$current_java_major" -lt "$min_java_major" ]]; then
     local android_studio_jbr="/c/Program Files/Android/Android Studio/jbr"
     if [[ -x "$android_studio_jbr/bin/java" ]]; then
       local jbr_java_major
       jbr_java_major="$(get_java_major "$android_studio_jbr/bin/java" || true)"
-      if [[ -n "$jbr_java_major" && "$jbr_java_major" -ge "$min_java_major" ]]; then
+      if [[ -n "$jbr_java_major" && "$jbr_java_major" -ge "$min_java_major" && "$jbr_java_major" -le "$max_java_major" ]]; then
         export JAVA_HOME="$android_studio_jbr"
+      fi
+    fi
+  fi
+
+  if [[ -z "${JAVA_HOME:-}" || ! -x "$JAVA_HOME/bin/java" ]]; then
+    local android_studio_jbr_macos="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+    if [[ -x "$android_studio_jbr_macos/bin/java" ]]; then
+      local jbr_macos_java_major
+      jbr_macos_java_major="$(get_java_major "$android_studio_jbr_macos/bin/java" || true)"
+      if [[ -n "$jbr_macos_java_major" && "$jbr_macos_java_major" -ge "$min_java_major" && "$jbr_macos_java_major" -le "$max_java_major" ]]; then
+        export JAVA_HOME="$android_studio_jbr_macos"
+      fi
+    fi
+  fi
+
+  if [[ -z "${JAVA_HOME:-}" || ! -x "$JAVA_HOME/bin/java" ]]; then
+    if [[ -x "/usr/libexec/java_home" ]]; then
+      local detected_java_home=""
+      detected_java_home="$(/usr/libexec/java_home -v "$min_java_major" 2>/dev/null || true)"
+      if [[ -z "$detected_java_home" ]]; then
+        detected_java_home="$(/usr/libexec/java_home -v 22 2>/dev/null || true)"
+      fi
+      if [[ -z "$detected_java_home" ]]; then
+        detected_java_home="$(/usr/libexec/java_home -v 23 2>/dev/null || true)"
+      fi
+      if [[ -n "$detected_java_home" && -x "$detected_java_home/bin/java" ]]; then
+        export JAVA_HOME="$detected_java_home"
       fi
     fi
   fi
@@ -957,10 +1030,10 @@ build_android_apk() {
   if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
     active_java_major="$(get_java_major "$JAVA_HOME/bin/java" || true)"
   fi
-  if [[ -z "$active_java_major" || "$active_java_major" -lt "$min_java_major" ]]; then
-    echo "Error: Android build requires Java $min_java_major+."
+  if [[ -z "$active_java_major" || "$active_java_major" -lt "$min_java_major" || "$active_java_major" -gt "$max_java_major" ]]; then
+    echo "Error: Android build requires Java $min_java_major-$max_java_major."
     echo "Current JAVA_HOME: ${JAVA_HOME:-<not set>}"
-    echo "Set JAVA_HOME to a Java $min_java_major+ runtime (Android Studio JBR 21 is recommended)."
+    echo "Set JAVA_HOME to a Java 21 runtime (Android Studio JBR 21 is recommended)."
     exit 1
   fi
 
@@ -1423,11 +1496,11 @@ case "$command" in
     ensure_db
     ensure_migrations_file
     run_migrations_if_needed
-    "${APP_COMPOSE[@]}" up
+    "${APP_COMPOSE[@]}" up dev
     ;;
   logs)
     echo "Viewing logs..."
-    "${APP_COMPOSE[@]}" logs -f
+    "${APP_COMPOSE[@]}" logs -f dev
     ;;
   stop)
     echo "Stopping containers..."

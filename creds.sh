@@ -12,11 +12,83 @@ log_step() {
 }
 
 bw_noinput() {
-  bw --nointeraction "$@" </dev/null
+  bw_retry --nointeraction "$@" </dev/null
 }
 
 bw_session() {
-  bw --nointeraction --session "$BW_SESSION" "$@"
+  local max_attempts=6
+  local attempt=1
+  local delay_seconds=1
+  local output=""
+  local rc=0
+
+  while true; do
+    if output="$(bw --nointeraction --session "$BW_SESSION" "$@" 2>&1)"; then
+      printf '%s' "$output"
+      return 0
+    fi
+
+    rc=$?
+
+    if [[ "$output" == *"Vault is locked."* ]]; then
+      if [[ "$attempt" -ge "$max_attempts" ]]; then
+        printf '%s\n' "$output" >&2
+        return "$rc"
+      fi
+      log_step "Vault session locked (attempt $attempt/$max_attempts), unlocking again..."
+      BW_SESSION="$(bw_noinput unlock --raw --passwordenv CREDS_BW_MASTER_PASSWORD)"
+      export BW_SESSION
+      attempt=$((attempt + 1))
+      continue
+    fi
+
+    if [[ "$output" == *"Bitwarden CLI\\data.json"* || "$output" == *"UNKNOWN: unknown error, open"* || "$output" == *"EPIPE: broken pipe"* ]]; then
+      if [[ "$attempt" -ge "$max_attempts" ]]; then
+        printf '%s\n' "$output" >&2
+        return "$rc"
+      fi
+      log_step "Bitwarden CLI transient error (attempt $attempt/$max_attempts), retrying in ${delay_seconds}s..."
+      sleep "$delay_seconds"
+      attempt=$((attempt + 1))
+      delay_seconds=$((delay_seconds * 2))
+      continue
+    fi
+
+    printf '%s\n' "$output" >&2
+    return "$rc"
+  done
+}
+
+bw_retry() {
+  local max_attempts=6
+  local attempt=1
+  local delay_seconds=1
+  local output=""
+  local rc=0
+
+  while true; do
+    if output="$(bw "$@" 2>&1)"; then
+      printf '%s' "$output"
+      return 0
+    fi
+
+    rc=$?
+
+    if [[ "$output" != *"Bitwarden CLI\\data.json"* && "$output" != *"UNKNOWN: unknown error, open"* && "$output" != *"EPIPE: broken pipe"* ]]; then
+      printf '%s\n' "$output" >&2
+      return "$rc"
+    fi
+
+    if [[ "$attempt" -ge "$max_attempts" ]]; then
+      printf '%s\n' "$output" >&2
+      return "$rc"
+    fi
+
+    log_step "Bitwarden CLI transient error (attempt $attempt/$max_attempts), retrying in ${delay_seconds}s..."
+    sleep "$delay_seconds"
+    attempt=$((attempt + 1))
+    delay_seconds=$((delay_seconds * 2))
+  done
 }
 
 cleanup() {
@@ -79,6 +151,7 @@ load_config() {
   VAULTWARDEN_USER="${VAULTWARDEN_USER:-}"
   VAULTWARDEN_MASTER_PASSWORD="${VAULTWARDEN_MASTER_PASSWORD:-}"
   VAULTWARDEN_ORGANIZATION_ID="${VAULTWARDEN_ORGANIZATION_ID:-}"
+  BITWARDENCLI_APPDATA_DIR="${BITWARDENCLI_APPDATA_DIR:-}"
 
   if [[ -z "${ENV_FILE}" ]]; then
     ENV_FILE="${VAULTWARDEN_ENV_GLOB:-.env.production}"
@@ -102,6 +175,10 @@ resolve_package_name_from_env() {
 bw_auth() {
   local status
   export CREDS_BW_MASTER_PASSWORD="$VAULTWARDEN_MASTER_PASSWORD"
+  if [[ -n "$BITWARDENCLI_APPDATA_DIR" ]]; then
+    mkdir -p "$BITWARDENCLI_APPDATA_DIR"
+    export BITWARDENCLI_APPDATA_DIR
+  fi
 
   log_step "Logging out any existing Bitwarden session"
   bw_noinput logout >/dev/null 2>&1 || true
@@ -135,7 +212,10 @@ find_folder_id() {
 ensure_folder_id() {
   local package_name="$1"
   local folder_id
-  folder_id="$(find_folder_id "$package_name")"
+  folder_id="$(find_folder_id "$package_name")" || {
+    echo "Failed to resolve folder '$package_name' from vault." >&2
+    exit 1
+  }
 
   if [[ -z "$folder_id" || "$folder_id" == "null" ]]; then
     local folder_template folder_payload
@@ -166,14 +246,18 @@ sync_push() {
   log_step "Loading existing items"
   items_json="$(list_items_json)"
 
-  declare -A processed_keys=()
+  local processed_keys=$'\n'
   local created=0
   local updated=0
+  local unchanged=0
   local skipped_empty=0
   local skipped_invalid=0
+  local item_template
+
+  item_template="$(bw_session get template item)"
 
   while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
-    local line line_trimmed key value existing_id item_template item_payload existing_item updated_item
+    local line line_trimmed key value existing_id existing_note item_payload existing_item updated_item
 
     line="${raw_line%$'\r'}"
     line_trimmed="$(trim "$line")"
@@ -196,10 +280,10 @@ sync_push() {
       continue
     fi
 
-    if [[ -v "processed_keys[$key]" ]]; then
+    if grep -Fxq -- "$key" <<< "$processed_keys"; then
       continue
     fi
-    processed_keys["$key"]=1
+    processed_keys="${processed_keys}${key}"$'\n'
 
     if [[ -z "$value" && "$OVERWRITE_EMPTY" -ne 1 ]]; then
       skipped_empty=$((skipped_empty + 1))
@@ -209,18 +293,21 @@ sync_push() {
     existing_id="$(
       echo "$items_json" | jq -r \
         --arg folderId "$folder_id" \
-        --arg name "$key" \
         --arg org "$VAULTWARDEN_ORGANIZATION_ID" \
+        --arg name "$key" \
         '
-          .[]
-          | select(.folderId == $folderId and .name == $name)
-          | select(($org == "") or (.organizationId == $org))
-          | .id
-        ' | head -n1
+          first(
+            .[]
+            | select(.folderId == $folderId)
+            | select(($org == "") or (.organizationId == $org))
+            | select(.name == $name)
+            | .id // ""
+          ) // ""
+        '
     )"
 
     if [[ -z "$existing_id" || "$existing_id" == "null" ]]; then
-      item_template="$(bw_session get template item)"
+      log_step "Creating key: $key"
       item_payload="$(
         echo "$item_template" | jq \
           --arg name "$key" \
@@ -239,6 +326,26 @@ sync_push() {
       echo "$item_payload" | bw encode | bw_session create item >/dev/null
       created=$((created + 1))
     else
+      existing_note="$(
+        echo "$items_json" | jq -r \
+          --arg folderId "$folder_id" \
+          --arg org "$VAULTWARDEN_ORGANIZATION_ID" \
+          --arg name "$key" \
+          '
+            first(
+              .[]
+              | select(.folderId == $folderId)
+              | select(($org == "") or (.organizationId == $org))
+              | select(.name == $name)
+              | .notes // ""
+            ) // ""
+          '
+      )"
+      if [[ "$existing_note" == "$value" ]]; then
+        unchanged=$((unchanged + 1))
+        continue
+      fi
+      log_step "Updating key: $key"
       existing_item="$(bw_session get item "$existing_id")"
       updated_item="$(echo "$existing_item" | jq --arg notes "$value" '.notes = $notes')"
       echo "$updated_item" | bw encode | bw_session edit item "$existing_id" >/dev/null
@@ -249,6 +356,7 @@ sync_push() {
   echo "Push complete."
   echo "Created: $created"
   echo "Updated: $updated"
+  echo "Unchanged: $unchanged"
   echo "Skipped empty values: $skipped_empty"
   echo "Skipped invalid lines: $skipped_invalid"
 }
