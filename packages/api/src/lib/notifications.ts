@@ -3,11 +3,14 @@ import { db } from '../db/index.js'
 import {
   bandMembers,
   pendingNotifications,
+  userPushDevices,
   userNotificationSettings,
   userNotifications,
 } from '../db/schema.js'
+import { sendPushToDevice } from './push-delivery.js'
 
 const NOTIFICATION_DEBOUNCE_MS = 20_000
+const bandFlushTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
 export type NotificationEventType = 'absence' | 'gig' | 'rehearsal' | 'song_suggestion'
 
@@ -80,6 +83,17 @@ export async function queueBandNotification(input: QueueNotificationInput) {
         updatedAt: now,
       },
     })
+
+  const existingTimer = bandFlushTimers.get(input.bandId)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+  }
+  const timer = setTimeout(() => {
+    void flushDueBandNotifications(input.bandId).finally(() => {
+      bandFlushTimers.delete(input.bandId)
+    })
+  }, NOTIFICATION_DEBOUNCE_MS + 500)
+  bandFlushTimers.set(input.bandId, timer)
 }
 
 export async function flushDueBandNotifications(bandId: number) {
@@ -143,6 +157,43 @@ export async function flushDueBandNotifications(bandId: number) {
 
   if (notificationsToInsert.length > 0) {
     await db.insert(userNotifications).values(notificationsToInsert)
+
+    const recipientUserIds = Array.from(new Set(notificationsToInsert.map((item) => item.userId)))
+    const pushDevices = await db
+      .select({
+        userId: userPushDevices.userId,
+        tokenType: userPushDevices.tokenType,
+        token: userPushDevices.token,
+      })
+      .from(userPushDevices)
+      .where(and(inArray(userPushDevices.userId, recipientUserIds), eq(userPushDevices.isEnabled, true)))
+
+    const devicesByUserId = new Map<string, Array<{ tokenType: string; token: string }>>()
+    for (const device of pushDevices) {
+      const list = devicesByUserId.get(device.userId) ?? []
+      list.push({ tokenType: device.tokenType, token: device.token })
+      devicesByUserId.set(device.userId, list)
+    }
+
+    await Promise.all(
+      notificationsToInsert.map(async (notification) => {
+        const devices = devicesByUserId.get(notification.userId) ?? []
+        if (devices.length === 0) return
+        await Promise.all(
+          devices.map(async (device) => {
+            const tokenType = device.tokenType === 'apns' ? 'apns' : 'fcm'
+            await sendPushToDevice({
+              tokenType,
+              token: device.token,
+              title: notification.title,
+              body: notification.message,
+              path: notification.linkPath,
+              query: notification.linkQuery ?? '',
+            })
+          }),
+        )
+      }),
+    )
   }
 
   await db.delete(pendingNotifications).where(inArray(pendingNotifications.id, dueRows.map((row) => row.id)))

@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { and, desc, eq, gt, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { userNotificationSettings, userNotifications } from '../db/schema.js'
+import { userNotificationSettings, userNotifications, userPushDevices } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
 import { flushDueBandNotifications } from '../lib/notifications.js'
@@ -15,6 +15,15 @@ const settingsUpdateSchema = z.object({
   notifyGig: z.boolean().optional(),
   notifyRehearsal: z.boolean().optional(),
   notifySongSuggestion: z.boolean().optional(),
+})
+const registerDeviceSchema = z.object({
+  platform: z.enum(['android', 'ios']),
+  tokenType: z.enum(['fcm', 'apns']),
+  token: z.string().min(10),
+})
+
+const unregisterDeviceSchema = z.object({
+  token: z.string().min(10),
 })
 
 function toSettingsResponse(row: typeof userNotificationSettings.$inferSelect | undefined, userId: string) {
@@ -84,6 +93,52 @@ notifications.put('/settings', requireAuth, zValidator('json', settingsUpdateSch
     .limit(1)
 
   return c.json(toSettingsResponse(row, userId))
+})
+
+notifications.post('/devices/register', requireAuth, zValidator('json', registerDeviceSchema), async (c) => {
+  const userId = c.get('user').id
+  const payload = c.req.valid('json')
+  const now = new Date()
+
+  await db
+    .insert(userPushDevices)
+    .values({
+      userId,
+      platform: payload.platform,
+      tokenType: payload.tokenType,
+      token: payload.token,
+      isEnabled: true,
+      lastSeenAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: userPushDevices.token,
+      set: {
+        userId,
+        platform: payload.platform,
+        tokenType: payload.tokenType,
+        isEnabled: true,
+        lastSeenAt: now,
+        updatedAt: now,
+      },
+    })
+
+  return c.json({ success: true })
+})
+
+notifications.post('/devices/unregister', requireAuth, zValidator('json', unregisterDeviceSchema), async (c) => {
+  const userId = c.get('user').id
+  const { token } = c.req.valid('json')
+
+  await db
+    .update(userPushDevices)
+    .set({
+      isEnabled: false,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(userPushDevices.userId, userId), eq(userPushDevices.token, token)))
+
+  return c.json({ success: true })
 })
 
 notifications.use('*', requireAuth, requireTenant)

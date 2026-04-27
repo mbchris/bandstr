@@ -17,6 +17,7 @@ deploy_play_console_aab_path=""
 sign_apk_input_path=""
 upload_ios_input_path=""
 apk_api_url=""
+push_setup_args=()
 
 to_uppercase() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
@@ -24,7 +25,7 @@ to_uppercase() {
 
 is_profile_scoped_command() {
   case "$1" in
-    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios)
+    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|push-setup)
       return 0
       ;;
     *)
@@ -168,6 +169,15 @@ Commands:
     Example:
       ./do keygen-apk --store-pass "<strong-password>"
 
+  push-setup [local|production] [--check] [--android-only|--ios-only]
+    Validate and configure native OS push notification setup.
+    - validates FCM/APNs env variables from the selected env profile
+    - can materialize Android google-services.json from:
+      - GOOGLE_SERVICES_JSON_PATH
+      - GOOGLE_SERVICES_JSON_BASE64
+    - runs Capacitor sync for Android/iOS (unless --check)
+    - prints where to get each required value (Firebase + Apple Developer)
+
   sync-assets local
     Sync assets from ./assets to app/public targets.
 
@@ -306,6 +316,19 @@ elif [[ "$command" == "sign-apk" ]]; then
 elif [[ "$command" == "upload-ios" ]]; then
   env_profile="local"
   upload_ios_input_path="${2:-}"
+elif [[ "$command" == "push-setup" ]]; then
+  second_arg="${2:-}"
+  if [[ "$second_arg" == "local" || "$second_arg" == "production" ]]; then
+    env_profile="$second_arg"
+    if [[ "$#" -ge 3 ]]; then
+      push_setup_args=("${@:3}")
+    fi
+  else
+    env_profile="local"
+    if [[ "$#" -ge 2 ]]; then
+      push_setup_args=("${@:2}")
+    fi
+  fi
 else
   env_profile="${2:-local}"
 fi
@@ -1548,6 +1571,10 @@ case "$command" in
       deploy_ios_device_id="$(get_env_value IOS_DEVICE_ID "$env_file" || true)"
     fi
     bash ./scripts/deploy-ios.sh "$env_profile" "$deploy_ios_device_id"
+    ;;
+  push-setup)
+    export_env_file "$env_file"
+    bash ./scripts/push-setup.sh "$env_profile" "${push_setup_args[@]}"
     ;;
   upload-ios)
     bash ./scripts/upload-ios-appstore.sh "$upload_ios_input_path"

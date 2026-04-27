@@ -423,6 +423,27 @@ export const userNotifications = pgTable(
   ],
 )
 
+export const userPushDevices = pgTable(
+  'user_push_devices',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    platform: text('platform').notNull(), // 'android' | 'ios'
+    tokenType: text('token_type').notNull(), // 'fcm' | 'apns'
+    token: text('token').notNull().unique(),
+    isEnabled: boolean('is_enabled').notNull().default(true),
+    lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('user_push_devices_user_idx').on(t.userId, t.isEnabled),
+    index('user_push_devices_token_type_idx').on(t.tokenType, t.isEnabled),
+  ],
+)
+
 // ─── User setlist songs ──────────────────────────────────────────────────────
 
 export const userSetlistSongs = pgTable(
@@ -526,6 +547,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userSetlistSongs: many(userSetlistSongs),
   rehearsalTimeProposals: many(rehearsalTimeProposals),
   userNotifications: many(userNotifications),
+  userPushDevices: many(userPushDevices),
 }))
 
 export const songsRelations = relations(songs, ({ one, many }) => ({
