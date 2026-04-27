@@ -54,6 +54,53 @@ Key files:
 - `.env.web` for web build/runtime vars (`API_URL`, `DEBUG_MODE`, `MOBILE_CALLBACK_URL`)
 - `.env` / `.env.local` / `.env.production` are used by `./do` and compose profile workflows
 
+### Native OS Push (FCM/APNs)
+
+For true background OS push notifications (Android + iOS), configure these API env vars:
+
+- Android/FCM:
+  - `FCM_PROJECT_ID`
+  - `FCM_SERVICE_ACCOUNT_JSON` (recommended)
+  - or `GOOGLE_APPLICATION_CREDENTIALS_JSON` / `GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64`
+  - or `FCM_SERVICE_ACCOUNT_EMAIL` + `FCM_SERVICE_ACCOUNT_PRIVATE_KEY`
+- iOS/APNs:
+  - `APNS_TEAM_ID`
+  - `APNS_KEY_ID`
+  - `APNS_PRIVATE_KEY`
+  - `APNS_BUNDLE_ID` (defaults to `org.capacitor.bandstr`)
+  - `APNS_USE_SANDBOX=true` for dev/TestFlight-like setups, `false` for production APNs
+
+Mobile project requirements:
+- Android:
+  - Place `google-services.json` at `packages/web/src-capacitor/android/app/google-services.json`
+  - Sync plugins: `pnpm --dir packages/web/src-capacitor exec npx cap sync android`
+- iOS:
+  - Enable **Push Notifications** capability in Xcode target
+  - Add `aps-environment` entitlement (`development` / `production`)
+  - Run `pnpm --dir packages/web/src-capacitor exec npx cap sync ios` (requires CocoaPods installed)
+
+Where to get these values/files:
+- `FCM_PROJECT_ID`: Firebase Console -> Project settings -> General -> Project ID
+- `FCM_SERVICE_ACCOUNT_JSON`: Firebase Console -> Project settings -> Service accounts -> Generate new private key
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64`: base64 of the same service account JSON (existing CI/deploy credential format is supported)
+- `google-services.json`: Firebase Console -> Project settings -> General -> Your apps -> Android app -> Download config file
+- `APNS_TEAM_ID`: Apple Developer -> Membership -> Team ID
+- `APNS_KEY_ID` + `APNS_PRIVATE_KEY`: Apple Developer -> Certificates, Identifiers & Profiles -> Keys -> create APNs key
+- `APNS_BUNDLE_ID`: Xcode target bundle identifier / Apple App ID
+
+Shortcut command:
+
+```bash
+./do push-setup local
+```
+
+This checks config, prints source guidance, optionally writes `google-services.json` from env helpers, and runs native `cap sync`.
+
+Service account IAM for FCM send:
+- Minimum permission needed: `firebasecloudmessaging.messages.create`
+- Recommended predefined role: `Firebase Cloud Messaging API Admin` (`roles/firebasecloudmessaging.admin`)
+- Ensure API is enabled on the project: `Firebase Cloud Messaging API`
+
 ### `creds.sh` (Vaultwarden env sync)
 
 `./creds.sh` syncs key/value secrets between Vaultwarden and local env files (usually `.env.production`).
@@ -179,6 +226,7 @@ The `./do` script wraps common Docker/dev tasks:
 ./do build-ios local
 ./do deploy-ios local [DEVICE_ID]
 ./do upload-ios [IPA_PATH]
+./do push-setup [local|production] [--check] [--android-only|--ios-only]
 ./do keygen-apk --store-pass "<strong-password>"
 ./do install-bundletool
 ./do --help
@@ -196,6 +244,7 @@ Notes:
 - `build-ios` and `deploy-ios` require macOS + Xcode.
 - `build-ios` exports an IPA by default (`--no-sign` creates archive only).
 - `upload-ios` uses App Store Connect API key auth (`APPSTORE_CONNECT_API_KEY_ID`, `APPSTORE_CONNECT_ISSUER_ID`).
+- `push-setup` validates FCM/APNs config, can write `google-services.json`, and runs `cap sync`.
 - `build-apk` and `create-apk-bundle` auto-increment Android `versionCode` on each run.
 - Both commands also create named artifacts: `<appName>-vc<versionCode>-b<buildId>.apk|.aab`.
 - `./do` reads `.env.local` first, then falls back to `.env` (or `.env.production` in production mode).

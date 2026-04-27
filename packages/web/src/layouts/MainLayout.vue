@@ -352,6 +352,7 @@ function startNotificationPolling() {
 async function handleLogout() {
   const { authClient } = await import('../boot/auth')
   const apiBase = (process.env.API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '')
+  const registeredPushToken = localStorage.getItem('bandstr-native-push-token')
   try {
     // Always attempt cookie-session sign out first.
     await authClient.signOut().catch(() => undefined)
@@ -380,6 +381,19 @@ async function handleLogout() {
       if (!revokeRes.ok && revokeRes.status !== 404) {
         throw new Error(`Token revocation failed (${revokeRes.status})`)
       }
+    }
+
+    if (registeredPushToken) {
+      await fetch(`${apiBase}/api/notifications/devices/unregister`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}),
+        },
+        credentials: authStore.token ? 'omit' : 'include',
+        body: JSON.stringify({ token: registeredPushToken }),
+      }).catch(() => undefined)
+      localStorage.removeItem('bandstr-native-push-token')
     }
   } catch {
     $q.notify({
