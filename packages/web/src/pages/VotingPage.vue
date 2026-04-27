@@ -89,8 +89,7 @@
                       color="primary"
                       text-color="white"
                     >
-                      <img v-if="member.image" :src="member.image" />
-                      <span v-else>{{ getNameInitial(member.name) }}</span>
+                      <span>{{ getInitials(member.name) }}</span>
                     </q-avatar>
                     <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
                     <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
@@ -236,8 +235,7 @@
                   class="details-avatar"
                   :style="detailsAvatarStyle(detailsSong, member.id)"
                 >
-                  <img v-if="member.image" :src="member.image" />
-                  <span v-else>{{ getNameInitial(member.name) }}</span>
+                  <span>{{ getInitials(member.name) }}</span>
                 </q-avatar>
               </q-item-section>
               <q-item-section>{{ member.name }}</q-item-section>
@@ -255,18 +253,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '../stores/auth'
 import { useSongsStore, type Song } from '../stores/songs'
 import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
+import { getInitials } from '../utils/initials'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
 const songsStore = useSongsStore()
 const bandStore = useBandStore()
+const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 
 const searchQuery = ref('')
@@ -335,10 +337,6 @@ function detailsAvatarStyle(song: Song | null, userId: string) {
   }
 }
 
-function getNameInitial(name?: string | null) {
-  return (name?.trim()?.charAt(0) || '?').toUpperCase()
-}
-
 function votedMembers(song: Song): BandMember[] {
   const votedIds = new Set(song.allVotes.map((entry) => entry.userId))
   return visibleMembers.value.filter((member) => votedIds.has(member.id))
@@ -384,6 +382,18 @@ async function selectOwnVote(score: number) {
 function openDetailsDialog(song: Song) {
   detailsSong.value = song
   showDetailsDialog.value = true
+}
+
+function openSongFromQuery() {
+  const rawSongId = route.query.songId
+  const songId = typeof rawSongId === 'string' ? Number(rawSongId) : NaN
+  if (!Number.isFinite(songId) || songId <= 0) return
+  const song = songsStore.songs.find((entry) => entry.id === songId)
+  if (!song) return
+  openDetailsDialog(song)
+  const nextQuery = { ...route.query }
+  delete nextQuery.songId
+  void router.replace({ path: route.path, query: nextQuery })
 }
 
 async function togglePin(song: Song) {
@@ -569,9 +579,17 @@ function handleExport() {
 }
 
 onMounted(() => {
-  songsStore.fetchSongs()
-  bandStore.fetchMembers()
+  void Promise.all([songsStore.fetchSongs(), bandStore.fetchMembers()]).then(() => {
+    openSongFromQuery()
+  })
 })
+
+watch(
+  () => songsStore.songs.length,
+  () => {
+    openSongFromQuery()
+  },
+)
 </script>
 
 <style scoped>

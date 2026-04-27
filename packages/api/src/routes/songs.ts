@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
 import { fetchSpotifyEnrichedMetadata } from '../lib/spotify.js'
 import { bandHasProPlan } from '../lib/entitlements.js'
+import { queueBandNotification } from '../lib/notifications.js'
 
 export const songs = new Hono<TenantEnv>()
 const FREE_SETLIST_LIMIT = 15
@@ -107,6 +108,7 @@ const createSongSchema = z.object({
 songs.post('/', zValidator('json', createSongSchema), async (c) => {
   const bandId = c.get('bandId')
   const userId = c.get('user').id
+  const userName = c.get('user').name
   const body = c.req.valid('json')
   const hasProPlan = await bandHasProPlan(bandId)
 
@@ -154,6 +156,19 @@ songs.post('/', zValidator('json', createSongSchema), async (c) => {
       addedBy: userId,
     })
     .returning()
+
+  if (song.type === 'song' && !song.isSetlist) {
+    await queueBandNotification({
+      bandId,
+      actorUserId: userId,
+      eventType: 'song_suggestion',
+      entityKey: `song:${song.id}`,
+      title: 'New song suggested',
+      message: `${userName} suggested "${song.title}" by ${song.artist}.`,
+      linkPath: '/voting',
+      linkQuery: `songId=${song.id}`,
+    })
+  }
 
   return c.json(song, 201)
 })

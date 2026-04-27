@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, and, gte, lte } from 'drizzle-orm'
+import { eq, and, asc, gte, lte } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { calendarEvents, rehearsalSongs, songs, users, bandMembers, rehearsalAttendance } from '../db/schema.js'
+import { calendarEvents, rehearsalSongs, songs, users, bandMembers, rehearsalAttendance, rehearsalTimeProposals } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
+import { queueBandNotification } from '../lib/notifications.js'
 
 export const rehearsals = new Hono<TenantEnv>()
 const ATTENDANCE_ABSENCE_MARKER_PREFIX = '[bandstr:rehearsal-absence]'
@@ -164,6 +165,7 @@ const attendanceSchema = z.object({
 rehearsals.put('/:id/attendance', zValidator('json', attendanceSchema), async (c) => {
   const bandId = c.get('bandId')
   const userId = c.get('user').id
+  const userName = c.get('user').name
   const rehearsalId = Number(c.req.param('id'))
   if (!Number.isFinite(rehearsalId) || rehearsalId <= 0) return c.json({ error: 'Invalid rehearsal id' }, 400)
   const { status } = c.req.valid('json')
@@ -240,7 +242,7 @@ rehearsals.put('/:id/attendance', zValidator('json', attendanceSchema), async (c
   }
 
   if (status === 'absent') {
-    await db.insert(calendarEvents).values({
+    const [absenceEvent] = await db.insert(calendarEvents).values({
       bandId,
       title: `Absence: ${rehearsal.title}`,
       description: absenceMarker,
@@ -249,8 +251,131 @@ rehearsals.put('/:id/attendance', zValidator('json', attendanceSchema), async (c
       type: 'unavailability',
       userId,
       isTentative: false,
+    }).returning({ id: calendarEvents.id })
+
+    await queueBandNotification({
+      bandId,
+      actorUserId: userId,
+      eventType: 'absence',
+      entityKey: `calendar:${absenceEvent.id}`,
+      title: 'New absence',
+      message: `${userName} marked an absence for "${rehearsal.title}".`,
+      linkPath: '/calendar',
+      linkQuery: `eventId=${absenceEvent.id}`,
     })
   }
 
   return c.json({ success: true })
+})
+
+const createProposalSchema = z.object({
+  proposedStartTime: z.string().datetime(),
+  proposedEndTime: z.string().datetime(),
+  comment: z.string().max(5000).optional(),
+})
+
+const decisionSchema = z.object({
+  decision: z.enum(['accepted', 'rejected']),
+  comment: z.string().max(5000).optional(),
+})
+
+rehearsals.get('/:id/time-proposals', async (c) => {
+  const bandId = c.get('bandId')
+  const rehearsalId = Number(c.req.param('id'))
+  if (!Number.isFinite(rehearsalId) || rehearsalId <= 0) return c.json({ error: 'Invalid rehearsal id' }, 400)
+
+  const rows = await db
+    .select({
+      id: rehearsalTimeProposals.id,
+      rehearsalId: rehearsalTimeProposals.rehearsalId,
+      proposerUserId: rehearsalTimeProposals.proposerUserId,
+      proposerName: users.name,
+      proposedStartTime: rehearsalTimeProposals.proposedStartTime,
+      proposedEndTime: rehearsalTimeProposals.proposedEndTime,
+      comment: rehearsalTimeProposals.comment,
+      status: rehearsalTimeProposals.status,
+      decidedByUserId: rehearsalTimeProposals.decidedByUserId,
+      decisionComment: rehearsalTimeProposals.decisionComment,
+      createdAt: rehearsalTimeProposals.createdAt,
+      updatedAt: rehearsalTimeProposals.updatedAt,
+    })
+    .from(rehearsalTimeProposals)
+    .leftJoin(users, eq(rehearsalTimeProposals.proposerUserId, users.id))
+    .where(and(eq(rehearsalTimeProposals.bandId, bandId), eq(rehearsalTimeProposals.rehearsalId, rehearsalId)))
+    .orderBy(asc(rehearsalTimeProposals.createdAt))
+
+  return c.json(rows)
+})
+
+rehearsals.post('/:id/time-proposals', zValidator('json', createProposalSchema), async (c) => {
+  const bandId = c.get('bandId')
+  const proposerUserId = c.get('user').id
+  const rehearsalId = Number(c.req.param('id'))
+  if (!Number.isFinite(rehearsalId) || rehearsalId <= 0) return c.json({ error: 'Invalid rehearsal id' }, 400)
+  const payload = c.req.valid('json')
+
+  const [rehearsal] = await db
+    .select({ id: calendarEvents.id, type: calendarEvents.type })
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.id, rehearsalId), eq(calendarEvents.bandId, bandId)))
+    .limit(1)
+
+  if (!rehearsal || rehearsal.type !== 'rehearsal') return c.json({ error: 'Rehearsal not found' }, 404)
+
+  const [created] = await db
+    .insert(rehearsalTimeProposals)
+    .values({
+      bandId,
+      rehearsalId,
+      proposerUserId,
+      proposedStartTime: new Date(payload.proposedStartTime),
+      proposedEndTime: new Date(payload.proposedEndTime),
+      comment: payload.comment ?? null,
+      status: 'pending',
+    })
+    .returning()
+
+  return c.json(created, 201)
+})
+
+rehearsals.post('/time-proposals/:proposalId/decision', zValidator('json', decisionSchema), async (c) => {
+  const bandId = c.get('bandId')
+  const deciderUserId = c.get('user').id
+  const proposalId = Number(c.req.param('proposalId'))
+  if (!Number.isFinite(proposalId) || proposalId <= 0) return c.json({ error: 'Invalid proposal id' }, 400)
+  const payload = c.req.valid('json')
+
+  const [proposal] = await db
+    .select()
+    .from(rehearsalTimeProposals)
+    .where(and(eq(rehearsalTimeProposals.id, proposalId), eq(rehearsalTimeProposals.bandId, bandId)))
+    .limit(1)
+
+  if (!proposal) return c.json({ error: 'Proposal not found' }, 404)
+  if (proposal.status !== 'pending') return c.json({ error: 'Proposal already decided' }, 400)
+
+  const now = new Date()
+
+  const [updated] = await db
+    .update(rehearsalTimeProposals)
+    .set({
+      status: payload.decision,
+      decidedByUserId: deciderUserId,
+      decisionComment: payload.comment ?? null,
+      updatedAt: now,
+    })
+    .where(eq(rehearsalTimeProposals.id, proposalId))
+    .returning()
+
+  if (payload.decision === 'accepted') {
+    await db
+      .update(calendarEvents)
+      .set({
+        startTime: proposal.proposedStartTime,
+        endTime: proposal.proposedEndTime,
+      })
+      .where(and(eq(calendarEvents.id, proposal.rehearsalId), eq(calendarEvents.bandId, bandId)))
+  }
+
+  return c.json(updated)
 })

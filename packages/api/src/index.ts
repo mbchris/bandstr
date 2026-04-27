@@ -15,6 +15,7 @@ import { admin } from './routes/admin.js'
 import { billing } from './routes/billing.js'
 import { spotify } from './routes/spotify.js'
 import { support } from './routes/support.js'
+import { notifications } from './routes/notifications.js'
 import { runMigrations } from './db/migrate.js'
 import { db } from './db/index.js'
 import { sessions } from './db/schema.js'
@@ -304,6 +305,7 @@ app.route('/api/admin', admin)
 app.route('/api/billing', billing)
 app.route('/api/spotify', spotify)
 app.route('/api/support', support)
+app.route('/api/notifications', notifications)
 
 const port = Number(process.env.PORT ?? 3001)
 
