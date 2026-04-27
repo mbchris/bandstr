@@ -165,6 +165,39 @@
             </q-card-section>
           </q-card>
 
+          <q-card flat bordered class="q-mb-lg">
+            <q-card-section>
+              <div class="text-h6">{{ t('dashboard.pushNotifications') }}</div>
+              <div class="text-caption text-grey-7 q-mb-md">{{ t('dashboard.pushNotificationsHint') }}</div>
+              <div v-if="notificationSettings" class="column q-gutter-sm">
+                <q-toggle
+                  :model-value="notificationSettings.notifyAbsence"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifyAbsence')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifyAbsence', !!value)"
+                />
+                <q-toggle
+                  :model-value="notificationSettings.notifyGig"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifyGig')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifyGig', !!value)"
+                />
+                <q-toggle
+                  :model-value="notificationSettings.notifyRehearsal"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifyRehearsal')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifyRehearsal', !!value)"
+                />
+                <q-toggle
+                  :model-value="notificationSettings.notifySongSuggestion"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifySongSuggestion')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifySongSuggestion', !!value)"
+                />
+              </div>
+            </q-card-section>
+          </q-card>
+
           <q-card flat bordered>
             <q-card-section class="row items-center justify-between">
               <div>
@@ -308,6 +341,7 @@ import { Notify, copyToClipboard, useQuasar } from 'quasar'
 import { apiJson } from '../boot/api'
 import { useAuthStore, type BandMembership } from '../stores/auth'
 import { useBandStore } from '../stores/band'
+import { useNotificationsStore } from '../stores/notifications'
 import { isAndroidNative } from '../plugins/playBilling'
 import { useI18n } from '../composables/useI18n'
 
@@ -315,6 +349,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const bandStore = useBandStore()
+const notificationsStore = useNotificationsStore()
 const $q = useQuasar()
 const { t } = useI18n()
 
@@ -328,6 +363,7 @@ const showEditModal = ref(false)
 const showInvitesModal = ref(false)
 const showQrDialog = ref(false)
 const creatingInvite = ref(false)
+const updatingNotifications = ref(false)
 
 const editForm = ref<{ id: number; name: string; slug: string } | null>(null)
 const inviteBand = ref<BandMembership | null>(null)
@@ -366,6 +402,7 @@ const activeSubscriptionStatusLabel = computed(() => {
   if (status === 'canceled') return t('dashboard.subscriptionStatusCanceled')
   return t('dashboard.subscriptionStatusNone')
 })
+const notificationSettings = computed(() => notificationsStore.settings)
 const canCreateBand = computed(() => {
   const ownedBands = authStore.bands.filter((band) => band.role === 'owner')
   if (ownedBands.length === 0) return true
@@ -652,9 +689,23 @@ async function openGooglePlayManagement() {
   }
 }
 
+async function toggleNotificationSetting(key: 'notifyAbsence' | 'notifyGig' | 'notifyRehearsal' | 'notifySongSuggestion', value: boolean) {
+  updatingNotifications.value = true
+  try {
+    await notificationsStore.updateSettings({ [key]: value })
+  } catch (error) {
+    Notify.create({
+      type: 'negative',
+      message: error instanceof Error ? error.message : t('dashboard.failedUpdateNotificationSettings'),
+    })
+  } finally {
+    updatingNotifications.value = false
+  }
+}
+
 onMounted(async () => {
   prefillJoinCodeFromRoute()
-  await refreshBands()
+  await Promise.all([refreshBands(), notificationsStore.fetchSettings()])
 })
 </script>
 

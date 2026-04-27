@@ -6,6 +6,7 @@ import { db } from '../db/index.js'
 import { calendarEvents, users } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
+import { queueBandNotification } from '../lib/notifications.js'
 
 export const calendar = new Hono<TenantEnv>()
 
@@ -53,19 +54,47 @@ const eventBodySchema = z.object({
 // POST /calendar
 calendar.post('/', zValidator('json', eventBodySchema), async (c) => {
   const bandId = c.get('bandId')
+  const actor = c.get('user')
   const body = c.req.valid('json')
 
-  await db.insert(calendarEvents).values({
-    bandId,
-    title: body.title,
-    description: body.description ?? null,
-    startTime: new Date(body.startTime),
-    endTime: new Date(body.endTime),
-    type: body.type,
-    userId: body.userId ?? null,
-    bierwartOverrideId: body.bierwartOverrideId ?? null,
-    isTentative: body.isTentative,
-  })
+  const [created] = await db
+    .insert(calendarEvents)
+    .values({
+      bandId,
+      title: body.title,
+      description: body.description ?? null,
+      startTime: new Date(body.startTime),
+      endTime: new Date(body.endTime),
+      type: body.type,
+      userId: body.userId ?? null,
+      bierwartOverrideId: body.bierwartOverrideId ?? null,
+      isTentative: body.isTentative,
+    })
+    .returning()
+
+  if (body.type === 'gig') {
+    await queueBandNotification({
+      bandId,
+      actorUserId: actor.id,
+      eventType: 'gig',
+      entityKey: `calendar:${created.id}`,
+      title: 'Gig updated',
+      message: `${actor.name} added/updated "${created.title}".`,
+      linkPath: '/calendar',
+      linkQuery: `eventId=${created.id}`,
+    })
+  } else if (body.type === 'rehearsal') {
+    await queueBandNotification({
+      bandId,
+      actorUserId: actor.id,
+      eventType: 'rehearsal',
+      entityKey: `calendar:${created.id}`,
+      title: 'Rehearsal updated',
+      message: `${actor.name} added/updated "${created.title}".`,
+      linkPath: '/',
+      linkQuery: '',
+    })
+  }
 
   return c.json({ success: true }, 201)
 })
@@ -76,6 +105,7 @@ calendar.put(
   zValidator('json', eventBodySchema.partial().extend({ id: z.number().optional() })),
   async (c) => {
     const bandId = c.get('bandId')
+    const actor = c.get('user')
     const id = Number(c.req.param('id'))
     const body = c.req.valid('json')
 
@@ -93,10 +123,53 @@ calendar.put(
     if (body.bierwartOverrideId !== undefined) updates.bierwartOverrideId = body.bierwartOverrideId
     if (body.isTentative !== undefined) updates.isTentative = body.isTentative
 
-    await db
+    const [existing] = await db
+      .select({
+        id: calendarEvents.id,
+        title: calendarEvents.title,
+        type: calendarEvents.type,
+      })
+      .from(calendarEvents)
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
+      .limit(1)
+
+    if (!existing) return c.json({ error: 'Calendar event not found' }, 404)
+
+    const [updated] = await db
       .update(calendarEvents)
       .set(updates)
       .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
+      .returning({
+        id: calendarEvents.id,
+        title: calendarEvents.title,
+        type: calendarEvents.type,
+      })
+
+    const eventType = updated?.type ?? existing.type
+    const eventTitle = updated?.title ?? existing.title
+    if (eventType === 'gig') {
+      await queueBandNotification({
+        bandId,
+        actorUserId: actor.id,
+        eventType: 'gig',
+        entityKey: `calendar:${id}`,
+        title: 'Gig updated',
+        message: `${actor.name} added/updated "${eventTitle}".`,
+        linkPath: '/calendar',
+        linkQuery: `eventId=${id}`,
+      })
+    } else if (eventType === 'rehearsal') {
+      await queueBandNotification({
+        bandId,
+        actorUserId: actor.id,
+        eventType: 'rehearsal',
+        entityKey: `calendar:${id}`,
+        title: 'Rehearsal updated',
+        message: `${actor.name} added/updated "${eventTitle}".`,
+        linkPath: '/',
+        linkQuery: '',
+      })
+    }
 
     return c.json({ success: true })
   },

@@ -267,4 +267,18 @@
  - "Home" page has a widget at the and showing all personal notes and the linked songs. Can be expanded/reduced. Reduced by default. 
 
 
+## Iteration 16 - User Feedback #2
 
+- The Avatar Icons shall always consist of the initials of a user (e.g. CB for Carl Brown, or SA for Sammy). No image Loading
+- Introduce customible Push Notifiations in Settings
+- Push Notifications can be toggled for each type of Push Notification
+- Push Notications when a user adds a new absence. Link opens Calendar Entry.
+- Push Notification when a user adds/edits a new gig. Link opens Calendar Entry.
+- Push Notification when a user adds/edits a rehearsal. Link opens Start Page
+- Push Notification when a new song has been suggested. Link opens Voting page for this song.
+
+- There is an option to suggest a different time for a rehearsal event. The user can either directly change the time or propose a new time that can be acceptec/rejected with comments by all other users.
+
+- The push notifications are debounced by 20 seconds. If within this time window the same element is changed again, then only the last change will be pushed after the debounce time.
+
+**Backlog:** [`docs/backlog/iter-16-user-feedback-2.md`](./backlog/iter-16-user-feedback-2.md)

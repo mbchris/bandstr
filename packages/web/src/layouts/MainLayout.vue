@@ -9,6 +9,58 @@
         </q-toolbar-title>
 
         <div class="row items-center q-gutter-xs q-gutter-sm-md no-wrap">
+          <q-btn flat round dense class="header-action-btn" icon="notifications">
+            <q-badge
+              v-if="notificationsStore.unreadCount > 0"
+              floating
+              rounded
+              color="negative"
+              :label="String(Math.min(notificationsStore.unreadCount, 99))"
+            />
+            <q-menu anchor="bottom right" self="top right">
+              <q-list style="min-width: 320px; max-width: 92vw">
+                <q-item>
+                  <q-item-section>
+                    <q-item-label class="text-weight-bold">{{ t('nav.notifications') }}</q-item-label>
+                    <q-item-label caption>{{ t('nav.notificationsUnread', { count: notificationsStore.unreadCount }) }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-btn
+                      flat
+                      dense
+                      size="sm"
+                      icon="done_all"
+                      :label="t('nav.markAllRead')"
+                      :disable="notificationsStore.unreadCount === 0"
+                      @click="markAllNotificationsRead"
+                    />
+                  </q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item v-if="notificationsStore.items.length === 0" dense>
+                  <q-item-section>
+                    <q-item-label caption>{{ t('nav.noNotifications') }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-item
+                  v-for="item in notificationsStore.items.slice(0, 8)"
+                  :key="item.id"
+                  clickable
+                  v-close-popup
+                  @click="openNotification(item)"
+                >
+                  <q-item-section>
+                    <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
+                    <q-item-label caption lines="2">{{ item.message }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-badge v-if="!item.isRead" color="primary" rounded />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </q-btn>
+
           <q-btn
             flat
             round
@@ -120,11 +172,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '../stores/auth'
 import { useBandStore } from '../stores/band'
+import { useNotificationsStore, type AppNotification } from '../stores/notifications'
 import { useI18n } from '../composables/useI18n'
 import defaultLogoDark from '../assets/bandstr_rect_wh.webp'
 import defaultLogoLight from '../assets/bandstr_rect_bl.webp'
@@ -141,10 +194,13 @@ import adminBl from '../assets/icons/admin_bl.webp'
 
 const authStore = useAuthStore()
 const bandStore = useBandStore()
+const notificationsStore = useNotificationsStore()
 const route = useRoute()
 const router = useRouter()
 const { t, locale, toggleLocale } = useI18n()
 const $q = useQuasar()
+const POLL_INTERVAL_MS = 10_000
+let pollTimer: number | null = null
 
 const activeBandId = computed({
   get: () => authStore.activeBandId,
@@ -234,6 +290,65 @@ function goSupport() {
   router.push('/support')
 }
 
+function parseLinkQuery(raw: string | null | undefined) {
+  const result: Record<string, string> = {}
+  if (!raw) return result
+  const params = new URLSearchParams(raw)
+  params.forEach((value, key) => {
+    result[key] = value
+  })
+  return result
+}
+
+async function openNotification(item: AppNotification) {
+  if (!item.isRead) {
+    await notificationsStore.markRead(item.id).catch(() => undefined)
+  }
+
+  await router.push({
+    path: item.linkPath || '/',
+    query: parseLinkQuery(item.linkQuery),
+  })
+}
+
+async function markAllNotificationsRead() {
+  await notificationsStore.markAllRead().catch(() => undefined)
+}
+
+async function refreshNotifications() {
+  if (!authStore.activeBandId) return
+  try {
+    const newItems = await notificationsStore.pollNew()
+    for (const item of newItems) {
+      $q.notify({
+        type: 'info',
+        classes: 'bandstr-notify',
+        message: item.title,
+        caption: item.message,
+        timeout: 6500,
+        actions: [
+          {
+            label: t('nav.openNotification'),
+            color: 'white',
+            handler: () => {
+              void openNotification(item)
+            },
+          },
+        ],
+      })
+    }
+  } catch {
+    // Ignore transient polling errors.
+  }
+}
+
+function startNotificationPolling() {
+  if (pollTimer !== null) window.clearInterval(pollTimer)
+  pollTimer = window.setInterval(() => {
+    void refreshNotifications()
+  }, POLL_INTERVAL_MS)
+}
+
 async function handleLogout() {
   const { authClient } = await import('../boot/auth')
   const apiBase = (process.env.API_URL || '').replace(/\/+$/, '').replace(/\/api$/, '')
@@ -280,8 +395,30 @@ async function handleLogout() {
 onMounted(async () => {
   try {
     await authStore.loadBands()
+    if (authStore.activeBandId) {
+      await notificationsStore.fetchRecent()
+      await refreshNotifications()
+    }
+    startNotificationPolling()
   } catch {
     // Keep layout usable even if band refresh fails transiently.
+  }
+})
+
+watch(
+  () => authStore.activeBandId,
+  async () => {
+    notificationsStore.resetForBand()
+    if (!authStore.activeBandId) return
+    await notificationsStore.fetchRecent().catch(() => undefined)
+    await refreshNotifications()
+  },
+)
+
+onBeforeUnmount(() => {
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer)
+    pollTimer = null
   }
 })
 </script>

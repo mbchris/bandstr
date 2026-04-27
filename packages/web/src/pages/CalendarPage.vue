@@ -157,13 +157,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useCalendarStore, type CalendarEvent } from '../stores/calendar'
 import { useBandStore } from '../stores/band'
 import { useI18n } from '../composables/useI18n'
 
 const $q = useQuasar()
+const route = useRoute()
+const router = useRouter()
 const calendarStore = useCalendarStore()
 const bandStore = useBandStore()
 const { t, tv } = useI18n()
@@ -366,10 +369,30 @@ function openEditFromDayView(event: CalendarEvent) {
   editEvent(event)
 }
 
+function openEventFromQuery() {
+  const rawEventId = route.query.eventId
+  const eventId = typeof rawEventId === 'string' ? Number(rawEventId) : NaN
+  if (!Number.isFinite(eventId) || eventId <= 0) return
+  const event = calendarStore.events.find((entry) => entry.id === eventId)
+  if (!event) return
+  editEvent(event)
+  const nextQuery = { ...route.query }
+  delete nextQuery.eventId
+  void router.replace({ path: route.path, query: nextQuery })
+}
+
 onMounted(() => {
-  calendarStore.fetchEvents()
-  bandStore.fetchMembers()
+  void Promise.all([calendarStore.fetchEvents(), bandStore.fetchMembers()]).then(() => {
+    openEventFromQuery()
+  })
 })
+
+watch(
+  () => calendarStore.events.length,
+  () => {
+    openEventFromQuery()
+  },
+)
 </script>
 
 <style scoped>

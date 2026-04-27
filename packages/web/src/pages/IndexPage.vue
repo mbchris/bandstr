@@ -63,6 +63,15 @@
                 :loading="attendanceLoading"
                 @click="setAttendance('reset')"
               />
+              <q-btn
+                flat
+                dense
+                icon="schedule"
+                color="primary"
+                :label="t('home.suggestRehearsalTime')"
+                :disable="!nextRehearsal"
+                @click="openRehearsalProposalDialog"
+              />
             </div>
 
             <div v-if="nextRehearsal.memberAttendance?.length" class="option1-vote-row q-mb-md">
@@ -76,17 +85,63 @@
                   color="grey-7"
                   text-color="white"
                 >
-                  <img v-if="member.image" :src="member.image" />
-                  <span v-else>{{ getNameInitial(member.userName) }}</span>
+                  <span>{{ getInitials(member.userName) }}</span>
                 </q-avatar>
                 <q-tooltip>{{ attendanceNamesLabel }}</q-tooltip>
               </div>
             </div>
 
+            <div v-if="rehearsalProposals.length" class="q-mb-md">
+              <div class="text-subtitle2 q-mb-sm">{{ t('home.rehearsalTimeProposals') }}</div>
+              <q-list bordered separator dense>
+                <q-item v-for="proposal in rehearsalProposals" :key="proposal.id">
+                  <q-item-section>
+                    <q-item-label>
+                      {{ proposal.proposerName || t('home.unknownProposer') }}
+                      ·
+                      {{ formatDate(proposal.proposedStartTime) }} {{ formatTime(proposal.proposedStartTime) }}
+                      -
+                      {{ formatTime(proposal.proposedEndTime) }}
+                    </q-item-label>
+                    <q-item-label caption>
+                      {{ proposal.comment || t('home.noProposalComment') }}
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <div class="column items-end q-gutter-xs">
+                      <q-badge
+                        :color="proposal.status === 'accepted' ? 'positive' : proposal.status === 'rejected' ? 'negative' : 'grey-7'"
+                        :label="proposal.status"
+                      />
+                      <div v-if="proposal.status === 'pending'" class="row q-gutter-xs">
+                        <q-btn
+                          flat
+                          dense
+                          size="sm"
+                          color="positive"
+                          icon="check"
+                          :label="t('home.acceptProposal')"
+                          @click="decideProposal(proposal.id, 'accepted')"
+                        />
+                        <q-btn
+                          flat
+                          dense
+                          size="sm"
+                          color="negative"
+                          icon="close"
+                          :label="t('home.rejectProposal')"
+                          @click="decideProposal(proposal.id, 'rejected')"
+                        />
+                      </div>
+                    </div>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </div>
+
             <div v-if="bierwart" class="row items-center q-gutter-md cursor-pointer q-pa-sm rounded-borders" @click="openBierwartModal">
               <q-avatar size="48px" color="orange-2">
-                <img v-if="bierwart.image" :src="bierwart.image" />
-                <span v-else class="text-orange text-weight-bold">{{ bierwart.name?.charAt(0) }}</span>
+                <span class="text-orange text-weight-bold">{{ getInitials(bierwart.name) }}</span>
               </q-avatar>
               <div class="col">
                 <div class="text-overline text-orange" style="font-size: 10px">{{ t('home.onDuty') }}</div>
@@ -247,8 +302,7 @@
             <q-item v-for="member in visibleMembers" :key="member.id" clickable v-ripple :active="member.id === bierwart?.id" active-class="bg-orange-1" @click="confirmBierwart(member)">
               <q-item-section avatar>
                 <q-avatar color="grey-3">
-                  <img v-if="member.image" :src="member.image" />
-                  <span v-else>{{ member.name?.charAt(0) }}</span>
+                  <span>{{ getInitials(member.name) }}</span>
                 </q-avatar>
               </q-item-section>
               <q-item-section><q-item-label class="text-weight-bold">{{ member.name }}</q-item-label></q-item-section>
@@ -256,6 +310,32 @@
             </q-item>
           </q-list>
         </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showProposalDialog">
+      <q-card style="min-width: 420px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('home.suggestRehearsalTime') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <q-input v-model="proposalForm.startTime" :label="t('calendar.startTime')" type="datetime-local" outlined dense />
+          <q-input v-model="proposalForm.endTime" :label="t('calendar.endTime')" type="datetime-local" outlined dense />
+          <q-input
+            v-model="proposalForm.comment"
+            type="textarea"
+            autogrow
+            outlined
+            dense
+            :label="t('home.proposalComment')"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.save')" :loading="proposalLoading" @click="submitProposal" />
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -273,6 +353,7 @@ import { apiJson } from '../boot/api'
 import MarkdownComponent from '../components/Markdown.vue'
 import BeerRain from '../components/BeerRain.vue'
 import { useI18n } from '../composables/useI18n'
+import { getInitials } from '../utils/initials'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -281,6 +362,15 @@ const bandStore = useBandStore()
 const { t, dateLocale } = useI18n()
 
 type RehearsalData = { nextRehearsal: any | null; upcomingGigs: any[] }
+type RehearsalTimeProposal = {
+  id: number
+  proposerUserId: string
+  proposerName?: string | null
+  proposedStartTime: string
+  proposedEndTime: string
+  comment?: string | null
+  status: 'pending' | 'accepted' | 'rejected'
+}
 
 const rehearsalData = ref<RehearsalData | null>(null)
 const saving = ref(false)
@@ -289,6 +379,14 @@ const attendanceLoading = ref(false)
 const beerRainActive = ref(false)
 const personalNotes = ref<any[]>([])
 const showPersonalNotesWidget = ref(false)
+const rehearsalProposals = ref<RehearsalTimeProposal[]>([])
+const showProposalDialog = ref(false)
+const proposalLoading = ref(false)
+const proposalForm = ref({
+  startTime: '',
+  endTime: '',
+  comment: '',
+})
 
 const isAdmin = computed(() => {
   const band = authStore.activeBand
@@ -330,7 +428,7 @@ async function loadData() {
   } catch {
     rehearsalData.value = null
   }
-  await Promise.all([bandStore.fetchMembers(), fetchPersonalNotes()])
+  await Promise.all([bandStore.fetchMembers(), fetchPersonalNotes(), fetchRehearsalProposals()])
 }
 
 onMounted(loadData)
@@ -347,6 +445,18 @@ function formatForInput(d: string | number) {
   if (!d) return ''
   const date = new Date(d)
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+async function fetchRehearsalProposals() {
+  if (!nextRehearsal.value?.id) {
+    rehearsalProposals.value = []
+    return
+  }
+  try {
+    rehearsalProposals.value = await apiJson<RehearsalTimeProposal[]>(`/rehearsals/${nextRehearsal.value.id}/time-proposals`)
+  } catch {
+    rehearsalProposals.value = []
+  }
 }
 
 async function addBeer() {
@@ -396,14 +506,68 @@ async function setAttendance(status: 'present' | 'absent' | 'reset') {
   }
 }
 
+function openRehearsalProposalDialog() {
+  if (!nextRehearsal.value) return
+  proposalForm.value = {
+    startTime: formatForInput(nextRehearsal.value.startTime),
+    endTime: formatForInput(nextRehearsal.value.endTime || nextRehearsal.value.startTime),
+    comment: '',
+  }
+  showProposalDialog.value = true
+}
+
+async function submitProposal() {
+  if (!nextRehearsal.value) return
+  proposalLoading.value = true
+  try {
+    await apiJson(`/rehearsals/${nextRehearsal.value.id}/time-proposals`, {
+      method: 'POST',
+      body: JSON.stringify({
+        proposedStartTime: new Date(proposalForm.value.startTime).toISOString(),
+        proposedEndTime: new Date(proposalForm.value.endTime).toISOString(),
+        comment: proposalForm.value.comment || undefined,
+      }),
+    })
+    showProposalDialog.value = false
+    await fetchRehearsalProposals()
+    $q.notify({ type: 'positive', message: t('home.proposalSubmitted') })
+  } catch (error: any) {
+    $q.notify({ type: 'negative', message: error?.message || t('home.failedProposalSubmit') })
+  } finally {
+    proposalLoading.value = false
+  }
+}
+
+async function decideProposal(proposalId: number, decision: 'accepted' | 'rejected') {
+  $q.dialog({
+    title: decision === 'accepted' ? t('home.acceptProposal') : t('home.rejectProposal'),
+    message: t('home.decisionCommentPrompt'),
+    prompt: {
+      model: '',
+      type: 'text',
+      isValid: () => true,
+    },
+    cancel: true,
+  }).onOk(async (comment) => {
+    try {
+      await apiJson(`/rehearsals/time-proposals/${proposalId}/decision`, {
+        method: 'POST',
+        body: JSON.stringify({ decision, comment: String(comment || '').trim() || undefined }),
+      })
+      await loadData()
+      $q.notify({
+        type: 'positive',
+        message: decision === 'accepted' ? t('home.proposalAccepted') : t('home.proposalRejected'),
+      })
+    } catch (error: any) {
+      $q.notify({ type: 'negative', message: error?.message || t('home.failedProposalDecision') })
+    }
+  })
+}
+
 function goToSetlist(songTitle?: string) {
   const query = songTitle ? { q: songTitle, list: 'user' } : { list: 'user' }
   router.push({ path: '/setlist', query })
-}
-
-function getNameInitial(name: string) {
-  const trimmed = (name || '').trim()
-  return trimmed ? trimmed.charAt(0).toUpperCase() : '?'
 }
 
 function attendanceAvatarStyle(status: 'present' | 'absent' | 'open', index: number) {
