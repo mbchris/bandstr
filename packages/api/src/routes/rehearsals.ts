@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, and, asc, gte, lte } from 'drizzle-orm'
+import { eq, and, asc, gte, lte, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { calendarEvents, rehearsalSongs, songs, users, bandMembers, rehearsalAttendance, rehearsalTimeProposals } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -24,7 +24,7 @@ rehearsals.get('/next', async (c) => {
     .from(calendarEvents)
     .where(
       and(
-        eq(calendarEvents.type, 'rehearsal'),
+        sql`lower(${calendarEvents.type}) = 'rehearsal'`,
         eq(calendarEvents.bandId, bandId),
         gte(calendarEvents.startTime, now),
       ),
