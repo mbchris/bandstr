@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, and, sql } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { db } from '../db/index.js'
 import { users, bandMembers } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -11,6 +12,14 @@ import { requireRole } from '../middleware/rbac.js'
 export const usersRouter = new Hono<TenantEnv>()
 
 usersRouter.use('*', requireAuth, requireTenant)
+
+const createMemberSchema = z.object({
+  name: z.string().trim().min(1),
+  email: z.string().trim().email(),
+  role: z.enum(['admin', 'member']).default('member'),
+  isHidden: z.boolean().default(false),
+  beerCount: z.number().int().min(0).default(0),
+})
 
 // GET /users — list band members with user info
 usersRouter.get('/', async (c) => {
@@ -34,6 +43,73 @@ usersRouter.get('/', async (c) => {
     .orderBy(bandMembers.sortOrder)
 
   return c.json(members)
+})
+
+// POST /users — add member by email (create user row if needed)
+usersRouter.post('/', requireRole('admin'), zValidator('json', createMemberSchema), async (c) => {
+  const bandId = c.get('bandId')
+  const payload = c.req.valid('json')
+  const normalizedEmail = payload.email.toLowerCase()
+
+  const [existingUser] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+    })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${normalizedEmail}`)
+    .limit(1)
+
+  const userId = existingUser?.id ?? randomUUID()
+  if (!existingUser) {
+    await db.insert(users).values({
+      id: userId,
+      name: payload.name,
+      email: normalizedEmail,
+    })
+  }
+
+  const [memberCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(bandMembers)
+    .where(eq(bandMembers.bandId, bandId))
+    .limit(1)
+
+  await db
+    .insert(bandMembers)
+    .values({
+      bandId,
+      userId,
+      role: payload.role,
+      isHidden: payload.isHidden,
+      beerCount: payload.beerCount,
+      sortOrder: memberCountRow?.count ?? 0,
+    })
+    .onConflictDoNothing({ target: [bandMembers.bandId, bandMembers.userId] })
+
+  const [createdMember] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      image: users.image,
+      role: bandMembers.role,
+      sortOrder: bandMembers.sortOrder,
+      isHidden: bandMembers.isHidden,
+      beerCount: bandMembers.beerCount,
+      joinedAt: bandMembers.joinedAt,
+    })
+    .from(bandMembers)
+    .innerJoin(users, eq(bandMembers.userId, users.id))
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.userId, userId)))
+    .limit(1)
+
+  if (!createdMember) {
+    return c.json({ error: 'Could not create member' }, 500)
+  }
+
+  return c.json(createdMember, 201)
 })
 
 // PATCH /users/:id — update band-level member attributes
