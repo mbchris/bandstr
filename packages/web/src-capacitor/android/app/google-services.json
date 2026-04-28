@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "859545735740",
+    "project_id": "fourki-projects",
+    "storage_bucket": "fourki-projects.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:859545735740:android:d6bbd0bbbd0c0c1d636939",
+        "android_client_info": {
+          "package_name": "app.fourki.stickaz"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOogKYCnliJqoerHe-XTPwflq1_CMAi9w"
+        },
+        {
+          "current_key": "AIzaSyAgrQHIBAyTuCnFTM-4TUspIsljYpFA5L0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:859545735740:android:04560ae09a3157fc636939",
+        "android_client_info": {
+          "package_name": "org.capacitor.bandstr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOogKYCnliJqoerHe-XTPwflq1_CMAi9w"
+        },
+        {
+          "current_key": "AIzaSyAgrQHIBAyTuCnFTM-4TUspIsljYpFA5L0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

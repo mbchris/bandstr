@@ -178,6 +178,15 @@ Commands:
     - runs Capacitor sync for Android/iOS (unless --check)
     - prints where to get each required value (Firebase + Apple Developer)
 
+  push-bootstrap-firebase [--create-key]
+    Bootstrap Firebase/FCM project-side setup for Android push:
+    - enables required APIs
+    - ensures Firebase Android app exists
+    - downloads google-services.json into Capacitor Android app folder
+    - ensures push service-account + IAM role
+    - optional: create service-account key and print env values
+    Required env: GCP_PROJECT_ID (or FCM_PROJECT_ID)
+
   sync-assets local
     Sync assets from ./assets to app/public targets.
 
@@ -345,6 +354,11 @@ fi
 
 if [[ "$command" == "keygen-apk" ]]; then
   bash ./scripts/create-android-signing-key.sh "${@:2}"
+  exit $?
+fi
+
+if [[ "$command" == "push-bootstrap-firebase" ]]; then
+  bash ./scripts/push-bootstrap-firebase.sh "${@:2}"
   exit $?
 fi
 
