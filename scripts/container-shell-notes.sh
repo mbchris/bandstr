@@ -58,6 +58,12 @@ Useful commands:
   /app/bandstr-mail-test send --to "you@example.com"
   /app/bandstr-mail-test send --to "you@example.com" --kind reset-password --link "https://example.com/reset?token=test"
 
+- Send test push to all enabled devices of a band
+  /app/bandstr-cli push-test --band-id 1 --title "bandstr test" --body "Push test from container"
+  /app/bandstr-cli push-test --band-id 1 --title "bandstr test" --body "Dry run only" --dry-run true
+  /app/scripts/bandstr-send-push.sh --band-id 1 --title "bandstr test" --body "Push test from container"
+  /app/scripts/bandstr-send-push.sh --band-id 1 --title "bandstr test" --body "Dry run only" --dry-run true
+
 - List users / bands
   /app/bandstr-cli list-users
   /app/bandstr-cli list-bands
