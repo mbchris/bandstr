@@ -3,6 +3,7 @@ import pg from 'pg'
 import { and, eq } from 'drizzle-orm'
 import { db, pool } from '../db/index.js'
 import { bandMembers, bands, songs, users, votes } from '../db/schema.js'
+import { sendPushToDevice } from '../lib/push-delivery.js'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -696,6 +697,63 @@ async function importVotingsFromSqlDb(options: Record<string, string | boolean>)
   }
 }
 
+async function sendBandPush(options: Record<string, string | boolean>): Promise<void> {
+  const bandId = readIntOption(options, 'band-id')
+  const title = requireStringOption(options, 'title')
+  const body = requireStringOption(options, 'body')
+  const path = optionalStringOption(options, 'path') ?? '/calendar'
+  const query = optionalStringOption(options, 'query') ?? `bandId=${encodeURIComponent(String(bandId))}`
+  const dryRun = readBooleanOption(options, 'dry-run', false)
+
+  const [band] = await db
+    .select({ id: bands.id, name: bands.name })
+    .from(bands)
+    .where(eq(bands.id, bandId))
+    .limit(1)
+  if (!band) throw new Error(`Band not found: ${bandId}`)
+
+  const devices = await pool.query<{
+    user_id: string
+    token_type: string
+    token: string
+  }>(
+    `
+      select distinct upd.user_id, upd.token_type, upd.token
+      from user_push_devices upd
+      inner join band_members bm on bm.user_id = upd.user_id
+      where bm.band_id = $1
+        and upd.is_enabled = true
+      order by upd.user_id asc
+    `,
+    [bandId],
+  )
+
+  if (devices.rows.length === 0) {
+    console.log(`No enabled push devices found for band ${bandId} (${band.name}).`)
+    return
+  }
+
+  let sent = 0
+  for (const row of devices.rows) {
+    const tokenType = row.token_type === 'apns' ? 'apns' : 'fcm'
+    if (!dryRun) {
+      await sendPushToDevice({
+        tokenType,
+        token: row.token,
+        title,
+        body,
+        path,
+        query,
+      })
+    }
+    sent += 1
+  }
+
+  console.log(
+    `Push ${dryRun ? 'simulated' : 'sent'}: bandId=${bandId} bandName="${band.name}" devices=${sent} path=${path} query="${query}"`,
+  )
+}
+
 function printHelp(): void {
   console.log(`
 bandstr admin CLI (run inside container):
@@ -712,6 +770,7 @@ Commands:
   import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id <id> --target-band-id <id> [--replace true|false]
   import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id <id> --target-band-id <id> [--replace true|false]
   change-subscription-for-user --user-id "<user-id>" --enabled true|false
+  send-band-push --band-id <id> --title "<title>" --body "<body>" [--path "/calendar"] [--query "bandId=1"] [--dry-run true|false]
 
 Notes:
   - "votings" maps source songs to target songs by song signature (title/artist/type/position/links).
@@ -757,6 +816,9 @@ async function main(): Promise<void> {
     case 'change-subscription-for-user':
       await changeSubscriptionForUser(options)
       break
+    case 'send-band-push':
+      await sendBandPush(options)
+      break
     default:
       throw new Error(`Unknown command "${command}". Run with "help" for usage.`)
   }
@@ -770,4 +832,3 @@ main()
   .finally(async () => {
     await pool.end()
   })
-

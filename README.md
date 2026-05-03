@@ -101,6 +101,27 @@ Service account IAM for FCM send:
 - Recommended predefined role: `Firebase Cloud Messaging API Admin` (`roles/firebasecloudmessaging.admin`)
 - Ensure API is enabled on the project: `Firebase Cloud Messaging API`
 
+Android runtime permission note:
+- The APK now declares `android.permission.POST_NOTIFICATIONS` and requests permission at runtime via Capacitor PushNotifications.
+- On Android 13+ you should see a system prompt on first app start after login.
+- If you already denied once, reset and retest:
+  - `adb shell pm revoke org.capacitor.bandstr android.permission.POST_NOTIFICATIONS`
+  - `adb shell pm clear-permission-flags org.capacitor.bandstr android.permission.POST_NOTIFICATIONS user-set user-fixed`
+
+Container push test command (sends to all enabled devices in a band):
+
+```bash
+/app/bandstr-cli push-test --band-id 1 --title "bandstr test" --body "Push test from container"
+/app/scripts/bandstr-send-push.sh --band-id 1 --title "bandstr test" --body "Push test from container"
+```
+
+Dry run:
+
+```bash
+/app/bandstr-cli push-test --band-id 1 --title "bandstr test" --body "Dry run only" --dry-run true
+/app/scripts/bandstr-send-push.sh --band-id 1 --title "bandstr test" --body "Dry run only" --dry-run true
+```
+
 ### `creds.sh` (Vaultwarden env sync)
 
 `./creds.sh` syncs key/value secrets between Vaultwarden and local env files (usually `.env.production`).

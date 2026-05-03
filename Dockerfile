@@ -31,8 +31,8 @@ RUN NODE_ENV=development pnpm install --frozen-lockfile || pnpm install
 COPY . .
 
 # Normalize shell scripts to LF in case the host checkout uses CRLF.
-RUN sed -i 's/\r$//' scripts/sync-assets.sh scripts/bandstr-cli.sh scripts/bandstr-mail-test.sh scripts/container-shell-notes.sh && \
-  chmod +x scripts/sync-assets.sh scripts/bandstr-cli.sh scripts/bandstr-mail-test.sh scripts/container-shell-notes.sh
+RUN sed -i 's/\r$//' scripts/sync-assets.sh scripts/bandstr-cli.sh scripts/bandstr-mail-test.sh scripts/container-shell-notes.sh scripts/bandstr-send-push.sh && \
+  chmod +x scripts/sync-assets.sh scripts/bandstr-cli.sh scripts/bandstr-mail-test.sh scripts/container-shell-notes.sh scripts/bandstr-send-push.sh
 
 # Build API (tsc) and Web (quasar build) in parallel via pnpm
 RUN pnpm run build
@@ -86,6 +86,7 @@ COPY --from=build /app/packages/api/dist/ packages/api/dist/
 COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
 # Seed data used by dist/db/seed.js inside container shells
 COPY --from=build /app/scripts/seed_example.sql /app/scripts/seed_example.sql
+COPY --from=build /app/scripts/bandstr-send-push.sh /app/scripts/bandstr-send-push.sh
 COPY --from=build /app/scripts/bandstr-cli.sh /app/bandstr-cli
 COPY --from=build /app/scripts/bandstr-mail-test.sh /app/bandstr-mail-test
 COPY --from=build /app/do /app/do
@@ -107,7 +108,7 @@ LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 
 # Interactive shell notes (shown on docker exec -it <container> sh)
 COPY scripts/container-shell-notes.sh /etc/bandstr_shell_rc
-RUN chmod +x /app/bandstr-cli /app/bandstr-mail-test /app/do
+RUN chmod +x /app/bandstr-cli /app/bandstr-mail-test /app/do /app/scripts/bandstr-send-push.sh
 
 EXPOSE 80
 

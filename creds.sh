@@ -473,6 +473,7 @@ if [[ "$MODE" == "push" && ! -f "$ENV_FILE" ]]; then
 fi
 
 if [[ "$MODE" == "push" || "$MODE" == "pull" ]]; then
+  log_step "Using env file: $ENV_FILE"
   PACKAGE_NAME="${PACKAGE_NAME_ARG:-}"
   if [[ -z "$PACKAGE_NAME" ]]; then
     PACKAGE_NAME="$(resolve_package_name_from_env "$ENV_FILE" || true)"
