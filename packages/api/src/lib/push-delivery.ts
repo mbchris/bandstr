@@ -8,6 +8,55 @@ type PushPayload = {
   query: string
 }
 
+type PushLogContext = {
+  bandId?: number
+  userId?: string
+  notificationId?: number
+}
+
+type PushDeliveryResult = {
+  provider: 'fcm' | 'apns'
+  ok: boolean
+  status: number | null
+  error: string | null
+  responseBody: string | null
+}
+
+function previewToken(token: string): string {
+  const trimmed = token.trim()
+  if (trimmed.length <= 12) return trimmed
+  return `${trimmed.slice(0, 8)}...${trimmed.slice(-4)}`
+}
+
+function normalizeError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+function logPushDelivery(result: PushDeliveryResult, payload: PushPayload, context?: PushLogContext): void {
+  const prefix = result.ok ? '[push-delivery] delivered' : '[push-delivery] failed'
+  const parts = [
+    `provider=${result.provider}`,
+    `status=${result.status ?? 'none'}`,
+    `token=${previewToken(payload.token)}`,
+    `path=${payload.path}`,
+  ]
+
+  if (context?.bandId !== undefined) parts.push(`bandId=${context.bandId}`)
+  if (context?.userId) parts.push(`userId=${context.userId}`)
+  if (context?.notificationId !== undefined) parts.push(`notificationId=${context.notificationId}`)
+  if (result.error) parts.push(`error=${JSON.stringify(result.error)}`)
+  if (result.responseBody) parts.push(`response=${JSON.stringify(result.responseBody)}`)
+
+  const message = `${prefix} ${parts.join(' ')}`
+  if (result.ok) {
+    console.info(message)
+    return
+  }
+
+  console.error(message)
+}
+
 function encodeBase64Url(input: string): string {
   return Buffer.from(input).toString('base64url')
 }
@@ -108,10 +157,19 @@ async function getGoogleAccessToken(): Promise<string | null> {
     body,
   })
 
-  if (!tokenResponse.ok) return null
+  if (!tokenResponse.ok) {
+    const errorBody = (await tokenResponse.text().catch(() => '')) || '(empty)'
+    console.error(
+      `[push-delivery] failed provider=fcm status=${tokenResponse.status} stage=oauth-token error=${JSON.stringify(errorBody)}`,
+    )
+    return null
+  }
 
   const data = (await tokenResponse.json()) as { access_token?: string; expires_in?: number }
-  if (!data.access_token) return null
+  if (!data.access_token) {
+    console.error('[push-delivery] failed provider=fcm status=none stage=oauth-token error="Missing access_token in OAuth response"')
+    return null
+  }
 
   cachedGoogleToken = {
     accessToken: data.access_token,
@@ -129,38 +187,65 @@ function resolveFcmProjectId(): string {
   return (serviceAccount?.project_id ?? '').trim()
 }
 
-async function sendFcmPush(payload: PushPayload): Promise<void> {
+async function sendFcmPush(payload: PushPayload): Promise<PushDeliveryResult> {
   const accessToken = await getGoogleAccessToken()
   const projectId = resolveFcmProjectId()
-  if (!accessToken || !projectId) return
+  if (!accessToken || !projectId) {
+    return {
+      provider: 'fcm',
+      ok: false,
+      status: null,
+      error: 'Missing FCM access token or project id',
+      responseBody: null,
+    }
+  }
 
-  await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message: {
-        token: payload.token,
-        notification: {
-          title: payload.title,
-          body: payload.body,
-        },
-        data: {
-          path: payload.path,
-          query: payload.query,
-        },
-        android: {
-          priority: 'high',
+  try {
+    const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token: payload.token,
           notification: {
-            channel_id: 'default',
-            click_action: 'FCM_PLUGIN_ACTIVITY',
+            title: payload.title,
+            body: payload.body,
+          },
+          data: {
+            path: payload.path,
+            query: payload.query,
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              channel_id: 'default',
+              click_action: 'FCM_PLUGIN_ACTIVITY',
+            },
           },
         },
-      },
-    }),
-  }).catch(() => undefined)
+      }),
+    })
+
+    const responseBody = (await response.text().catch(() => '')) || null
+    return {
+      provider: 'fcm',
+      ok: response.ok,
+      status: response.status,
+      error: response.ok ? null : `FCM request failed with HTTP ${response.status}`,
+      responseBody,
+    }
+  } catch (error) {
+    return {
+      provider: 'fcm',
+      ok: false,
+      status: null,
+      error: normalizeError(error),
+      responseBody: null,
+    }
+  }
 }
 
 function createApnsJwt(): string | null {
@@ -184,35 +269,62 @@ function createApnsJwt(): string | null {
   }
 }
 
-async function sendApnsPush(payload: PushPayload): Promise<void> {
+async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
   const jwt = createApnsJwt()
   const bundleId = (process.env.APNS_BUNDLE_ID ?? 'org.capacitor.bandstr').trim()
-  if (!jwt || !bundleId) return
+  if (!jwt || !bundleId) {
+    return {
+      provider: 'apns',
+      ok: false,
+      status: null,
+      error: 'Missing APNs JWT or bundle id',
+      responseBody: null,
+    }
+  }
 
   const useSandbox = /^(1|true|yes|on)$/i.test((process.env.APNS_USE_SANDBOX ?? '').trim())
   const host = useSandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com'
 
-  await fetch(`https://${host}/3/device/${encodeURIComponent(payload.token)}`, {
-    method: 'POST',
-    headers: {
-      authorization: `bearer ${jwt}`,
-      'apns-topic': bundleId,
-      'apns-push-type': 'alert',
-      'apns-priority': '10',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      aps: {
-        alert: {
-          title: payload.title,
-          body: payload.body,
-        },
-        sound: 'default',
+  try {
+    const response = await fetch(`https://${host}/3/device/${encodeURIComponent(payload.token)}`, {
+      method: 'POST',
+      headers: {
+        authorization: `bearer ${jwt}`,
+        'apns-topic': bundleId,
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+        'content-type': 'application/json',
       },
-      path: payload.path,
-      query: payload.query,
-    }),
-  }).catch(() => undefined)
+      body: JSON.stringify({
+        aps: {
+          alert: {
+            title: payload.title,
+            body: payload.body,
+          },
+          sound: 'default',
+        },
+        path: payload.path,
+        query: payload.query,
+      }),
+    })
+
+    const responseBody = (await response.text().catch(() => '')) || null
+    return {
+      provider: 'apns',
+      ok: response.ok,
+      status: response.status,
+      error: response.ok ? null : `APNs request failed with HTTP ${response.status}`,
+      responseBody,
+    }
+  } catch (error) {
+    return {
+      provider: 'apns',
+      ok: false,
+      status: null,
+      error: normalizeError(error),
+      responseBody: null,
+    }
+  }
 }
 
 export async function sendPushToDevice(args: {
@@ -222,6 +334,7 @@ export async function sendPushToDevice(args: {
   body: string
   path: string
   query: string
+  context?: PushLogContext
 }) {
   const payload: PushPayload = {
     token: args.token,
@@ -232,9 +345,12 @@ export async function sendPushToDevice(args: {
   }
 
   if (args.tokenType === 'fcm') {
-    await sendFcmPush(payload)
-    return
+    const result = await sendFcmPush(payload)
+    logPushDelivery(result, payload, args.context)
+    return result
   }
 
-  await sendApnsPush(payload)
+  const result = await sendApnsPush(payload)
+  logPushDelivery(result, payload, args.context)
+  return result
 }

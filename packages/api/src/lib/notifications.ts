@@ -156,9 +156,20 @@ export async function flushDueBandNotifications(bandId: number) {
   }
 
   if (notificationsToInsert.length > 0) {
-    await db.insert(userNotifications).values(notificationsToInsert)
+    const insertedNotifications = await db
+      .insert(userNotifications)
+      .values(notificationsToInsert)
+      .returning({
+        id: userNotifications.id,
+        bandId: userNotifications.bandId,
+        userId: userNotifications.userId,
+        title: userNotifications.title,
+        message: userNotifications.message,
+        linkPath: userNotifications.linkPath,
+        linkQuery: userNotifications.linkQuery,
+      })
 
-    const recipientUserIds = Array.from(new Set(notificationsToInsert.map((item) => item.userId)))
+    const recipientUserIds = Array.from(new Set(insertedNotifications.map((item) => item.userId)))
     const pushDevices = await db
       .select({
         userId: userPushDevices.userId,
@@ -176,7 +187,7 @@ export async function flushDueBandNotifications(bandId: number) {
     }
 
     await Promise.all(
-      notificationsToInsert.map(async (notification) => {
+      insertedNotifications.map(async (notification) => {
         const devices = devicesByUserId.get(notification.userId) ?? []
         if (devices.length === 0) return
         await Promise.all(
@@ -189,6 +200,11 @@ export async function flushDueBandNotifications(bandId: number) {
               body: notification.message,
               path: notification.linkPath,
               query: notification.linkQuery ?? '',
+              context: {
+                bandId: notification.bandId,
+                userId: notification.userId,
+                notificationId: notification.id,
+              },
             })
           }),
         )

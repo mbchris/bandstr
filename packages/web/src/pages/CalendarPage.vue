@@ -162,6 +162,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useCalendarStore, type CalendarEvent } from '../stores/calendar'
 import { useBandStore } from '../stores/band'
+import { useAuthStore } from '../stores/auth'
 import { useI18n } from '../composables/useI18n'
 
 const $q = useQuasar()
@@ -169,6 +170,7 @@ const route = useRoute()
 const router = useRouter()
 const calendarStore = useCalendarStore()
 const bandStore = useBandStore()
+const authStore = useAuthStore()
 const { t, tv } = useI18n()
 
 const dayHeaders = computed(() => (tv('calendar.days') as string[]) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
@@ -293,6 +295,15 @@ function editEvent(event: CalendarEvent) {
   }
   showEventModal.value = true
 }
+
+watch(
+  () => form.value.type,
+  (type) => {
+    if (type === 'unavailability' && !form.value.userId) {
+      form.value.userId = authStore.user?.id ?? null
+    }
+  },
+)
 
 async function saveEvent() {
   isSaving.value = true

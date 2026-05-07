@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, gte, lte } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { calendarEvents, users } from '../db/schema.js'
+import { calendarEvents, rehearsalAttendance, users } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
 import { queueBandNotification } from '../lib/notifications.js'
@@ -51,11 +51,63 @@ const eventBodySchema = z.object({
   isTentative: z.boolean().default(false),
 })
 
+async function syncAbsenceAttendance(params: {
+  bandId: number
+  userId: string | null
+  startTime: Date
+  endTime: Date
+}) {
+  if (!params.userId) return
+
+  const overlappingRehearsals = await db
+    .select({ id: calendarEvents.id })
+    .from(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.bandId, params.bandId),
+        eq(calendarEvents.type, 'rehearsal'),
+        lte(calendarEvents.startTime, params.endTime),
+        gte(calendarEvents.endTime, params.startTime),
+      ),
+    )
+
+  for (const rehearsal of overlappingRehearsals) {
+    const [existingAttendance] = await db
+      .select({ id: rehearsalAttendance.id })
+      .from(rehearsalAttendance)
+      .where(
+        and(
+          eq(rehearsalAttendance.bandId, params.bandId),
+          eq(rehearsalAttendance.rehearsalId, rehearsal.id),
+          eq(rehearsalAttendance.userId, params.userId),
+        ),
+      )
+      .limit(1)
+
+    if (existingAttendance) {
+      await db
+        .update(rehearsalAttendance)
+        .set({ status: 'absent', updatedAt: new Date() })
+        .where(eq(rehearsalAttendance.id, existingAttendance.id))
+    } else {
+      await db.insert(rehearsalAttendance).values({
+        bandId: params.bandId,
+        rehearsalId: rehearsal.id,
+        userId: params.userId,
+        status: 'absent',
+      })
+    }
+  }
+}
+
 // POST /calendar
 calendar.post('/', zValidator('json', eventBodySchema), async (c) => {
   const bandId = c.get('bandId')
   const actor = c.get('user')
   const body = c.req.valid('json')
+  const userId = body.type === 'unavailability' ? (body.userId ?? actor.id) : (body.userId ?? null)
+  const startTime = new Date(body.startTime)
+  const endTime = new Date(body.endTime)
 
   const [created] = await db
     .insert(calendarEvents)
@@ -63,14 +115,18 @@ calendar.post('/', zValidator('json', eventBodySchema), async (c) => {
       bandId,
       title: body.title,
       description: body.description ?? null,
-      startTime: new Date(body.startTime),
-      endTime: new Date(body.endTime),
+      startTime,
+      endTime,
       type: body.type,
-      userId: body.userId ?? null,
+      userId,
       bierwartOverrideId: body.bierwartOverrideId ?? null,
       isTentative: body.isTentative,
     })
     .returning()
+
+  if (body.type === 'unavailability') {
+    await syncAbsenceAttendance({ bandId, userId, startTime, endTime })
+  }
 
   if (body.type === 'gig') {
     await queueBandNotification({
@@ -128,6 +184,9 @@ calendar.put(
         id: calendarEvents.id,
         title: calendarEvents.title,
         type: calendarEvents.type,
+        startTime: calendarEvents.startTime,
+        endTime: calendarEvents.endTime,
+        userId: calendarEvents.userId,
       })
       .from(calendarEvents)
       .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
@@ -135,15 +194,35 @@ calendar.put(
 
     if (!existing) return c.json({ error: 'Calendar event not found' }, 404)
 
+    const nextType = body.type ?? existing.type
+    const nextUserId =
+      nextType === 'unavailability'
+        ? (body.userId === undefined ? (existing.userId ?? actor.id) : body.userId)
+        : (body.userId ?? existing.userId)
+    const nextStartTime = body.startTime ? new Date(body.startTime) : existing.startTime
+    const nextEndTime = body.endTime ? new Date(body.endTime) : existing.endTime
+
     const [updated] = await db
       .update(calendarEvents)
-      .set(updates)
+      .set({
+        ...updates,
+        userId: nextUserId,
+      })
       .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
       .returning({
         id: calendarEvents.id,
         title: calendarEvents.title,
         type: calendarEvents.type,
       })
+
+    if (nextType === 'unavailability') {
+      await syncAbsenceAttendance({
+        bandId,
+        userId: nextUserId ?? null,
+        startTime: nextStartTime,
+        endTime: nextEndTime,
+      })
+    }
 
     const eventType = updated?.type ?? existing.type
     const eventTitle = updated?.title ?? existing.title

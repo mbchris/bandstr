@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { db, pool } from '../db/index.js'
 import { bandMembers, bands, songs, users, votes } from '../db/schema.js'
 import { sendPushToDevice } from '../lib/push-delivery.js'
+import { listRegisteredPushDevicesForBand } from '../lib/push-device-admin.js'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -744,6 +745,10 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
         body,
         path,
         query,
+        context: {
+          bandId,
+          userId: row.user_id,
+        },
       })
     }
     sent += 1
@@ -751,6 +756,45 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
 
   console.log(
     `Push ${dryRun ? 'simulated' : 'sent'}: bandId=${bandId} bandName="${band.name}" devices=${sent} path=${path} query="${query}"`,
+  )
+}
+
+async function listBandPushDevices(options: Record<string, string | boolean>): Promise<void> {
+  const bandId = readIntOption(options, 'band-id')
+  const includeDisabled = readBooleanOption(options, 'include-disabled', false)
+
+  const [band] = await db
+    .select({ id: bands.id, name: bands.name })
+    .from(bands)
+    .where(eq(bands.id, bandId))
+    .limit(1)
+  if (!band) throw new Error(`Band not found: ${bandId}`)
+
+  const devices = await listRegisteredPushDevicesForBand(bandId, includeDisabled)
+
+  console.log(
+    `Registered push devices for band ${bandId} (${band.name}) includeDisabled=${includeDisabled ? 'yes' : 'no'} count=${devices.length}`,
+  )
+
+  if (devices.length === 0) {
+    console.log('No matching push devices found.')
+    return
+  }
+
+  printTextTable(
+    ['userId', 'name', 'email', 'role', 'deviceId', 'platform', 'tokenType', 'enabled', 'lastSeenAt', 'token'],
+    devices.map((device) => [
+      device.userId,
+      device.userName || '-',
+      device.userEmail || '-',
+      device.memberRole,
+      String(device.deviceId),
+      device.platform,
+      device.tokenType,
+      device.isEnabled ? 'yes' : 'no',
+      device.lastSeenAt.toISOString(),
+      device.tokenPreview,
+    ]),
   )
 }
 
@@ -770,6 +814,7 @@ Commands:
   import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id <id> --target-band-id <id> [--replace true|false]
   import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id <id> --target-band-id <id> [--replace true|false]
   change-subscription-for-user --user-id "<user-id>" --enabled true|false
+  list-band-push-devices --band-id <id> [--include-disabled true|false]
   send-band-push --band-id <id> --title "<title>" --body "<body>" [--path "/calendar"] [--query "bandId=1"] [--dry-run true|false]
 
 Notes:
@@ -815,6 +860,9 @@ async function main(): Promise<void> {
       break
     case 'change-subscription-for-user':
       await changeSubscriptionForUser(options)
+      break
+    case 'list-band-push-devices':
+      await listBandPushDevices(options)
       break
     case 'send-band-push':
       await sendBandPush(options)
