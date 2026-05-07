@@ -20,8 +20,7 @@
           <q-card-section>
             <q-banner v-if="nextRehearsal.unavailabilities?.length" rounded class="bg-red-1 text-red q-mb-md">
               <template #avatar><q-icon name="warning" color="red" /></template>
-              {{ nextRehearsal.unavailabilities.map((u: any) => u.userName).join(', ') }}
-              {{ nextRehearsal.unavailabilities.length === 1 ? t('home.unavailSingle') : t('home.unavailMulti') }}
+              <div v-for="(entry, index) in unavailabilityMessages" :key="`${index}-${entry}`">{{ entry }}</div>
             </q-banner>
 
             <div class="text-h4 text-weight-black">{{ formatTime(nextRehearsal.startTime) }}</div>
@@ -399,13 +398,12 @@ const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidde
 
 const bierwart = computed(() => {
   if (!nextRehearsal.value || visibleMembers.value.length === 0) return null
-  const overrideId = nextRehearsal.value.bierwartOverrideId
-  if (overrideId) {
-    const m = visibleMembers.value.find((m) => m.id === overrideId)
+  const effectiveBierwartId = nextRehearsal.value.effectiveBierwartId || nextRehearsal.value.bierwartOverrideId
+  if (effectiveBierwartId) {
+    const m = visibleMembers.value.find((m) => m.id === effectiveBierwartId)
     if (m) return m
   }
-  const idx = (nextRehearsal.value.id - 1) % visibleMembers.value.length
-  return visibleMembers.value[idx]
+  return visibleMembers.value[0]
 })
 
 const attendanceNamesLabel = computed(() => {
@@ -420,6 +418,11 @@ const attendanceNamesLabel = computed(() => {
           : t('home.attendanceUnset')
     return `${row.userName}: ${status}`
   }).join(' | ')
+})
+
+const unavailabilityMessages = computed(() => {
+  const rows = nextRehearsal.value?.unavailabilities ?? []
+  return rows.map((row: any) => `${row.displayName || row.userName || row.title} ${t('home.unavailSingle')}`)
 })
 
 async function loadData() {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, and, asc, gte, lte, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, gte, lt, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { calendarEvents, rehearsalSongs, songs, users, bandMembers, rehearsalAttendance, rehearsalTimeProposals } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -10,6 +10,39 @@ import { queueBandNotification } from '../lib/notifications.js'
 
 export const rehearsals = new Hono<TenantEnv>()
 const ATTENDANCE_ABSENCE_MARKER_PREFIX = '[bandstr:rehearsal-absence]'
+
+async function getEffectiveBierwartId(bandId: number, rehearsal: { id: number; startTime: Date; bierwartOverrideId: string | null }) {
+  if (rehearsal.bierwartOverrideId) return rehearsal.bierwartOverrideId
+
+  const [previousOverride] = await db
+    .select({ bierwartOverrideId: calendarEvents.bierwartOverrideId })
+    .from(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.bandId, bandId),
+        eq(calendarEvents.type, 'rehearsal'),
+        sql`${calendarEvents.bierwartOverrideId} is not null`,
+        or(
+          lt(calendarEvents.startTime, rehearsal.startTime),
+          and(eq(calendarEvents.startTime, rehearsal.startTime), lte(calendarEvents.id, rehearsal.id)),
+        ),
+      ),
+    )
+    .orderBy(desc(calendarEvents.startTime), desc(calendarEvents.id))
+    .limit(1)
+
+  if (previousOverride?.bierwartOverrideId) return previousOverride.bierwartOverrideId
+
+  const [firstVisibleMember] = await db
+    .select({ userId: users.id })
+    .from(bandMembers)
+    .innerJoin(users, eq(bandMembers.userId, users.id))
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.isHidden, false)))
+    .orderBy(asc(bandMembers.sortOrder), asc(users.name))
+    .limit(1)
+
+  return firstVisibleMember?.userId ?? null
+}
 
 rehearsals.use('*', requireAuth, requireTenant)
 
@@ -54,17 +87,23 @@ rehearsals.get('/next', async (c) => {
   const dayEnd = new Date(dayStart)
   dayEnd.setDate(dayEnd.getDate() + 1)
 
-  // Unavailabilities from non-hidden members for that day
+  const effectiveBierwartId = await getEffectiveBierwartId(bandId, nextRehearsal)
+
+  // Unavailabilities for that day.
   const unavailabilities = await db
     .select({
       id: calendarEvents.id,
       title: calendarEvents.title,
+      description: calendarEvents.description,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
       userId: calendarEvents.userId,
       userName: users.name,
+      isHidden: bandMembers.isHidden,
     })
     .from(calendarEvents)
-    .innerJoin(users, eq(calendarEvents.userId, users.id))
-    .innerJoin(
+    .leftJoin(users, eq(calendarEvents.userId, users.id))
+    .leftJoin(
       bandMembers,
       and(eq(bandMembers.userId, users.id), eq(bandMembers.bandId, bandId)),
     )
@@ -72,7 +111,6 @@ rehearsals.get('/next', async (c) => {
       and(
         eq(calendarEvents.type, 'unavailability'),
         eq(calendarEvents.bandId, bandId),
-        eq(bandMembers.isHidden, false),
         lte(calendarEvents.startTime, dayEnd),
         gte(calendarEvents.endTime, dayStart),
       ),
@@ -148,8 +186,14 @@ rehearsals.get('/next', async (c) => {
   return c.json({
     nextRehearsal: {
       ...nextRehearsal,
+      effectiveBierwartId,
       songs: rehearsalSongData,
-      unavailabilities,
+      unavailabilities: unavailabilities
+        .filter((entry) => entry.isHidden !== true)
+        .map(({ isHidden, ...entry }) => ({
+          ...entry,
+          displayName: entry.userName || entry.title,
+        })),
       myAttendance: attendance?.status ?? null,
       memberAttendance,
     },

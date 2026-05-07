@@ -8,6 +8,7 @@ import { db } from '../db/index.js'
 import { bands, bandMembers, songs, votes, calendarEvents, users } from '../db/schema.js'
 import { eq, inArray } from 'drizzle-orm'
 import { bandHasProPlan } from '../lib/entitlements.js'
+import { listRegisteredPushDevicesForBand } from '../lib/push-device-admin.js'
 
 export const admin = new Hono<TenantEnv>()
 
@@ -37,6 +38,39 @@ admin.get('/status', async (c) => {
       githubOAuth: !!(process.env.GHUB_CLIENT_ID && process.env.GHUB_CLIENT_SECRET),
       stripe: !!process.env.STRIPE_SECRET_KEY,
     },
+  })
+})
+
+// GET /admin/push-devices
+admin.get('/push-devices', async (c) => {
+  const bandId = c.get('bandId')
+  const includeDisabled = c.req.query('includeDisabled') === 'true'
+
+  const [band] = await db.select({ id: bands.id, name: bands.name }).from(bands).where(eq(bands.id, bandId)).limit(1)
+  if (!band) return c.json({ error: 'Band not found' }, 404)
+
+  const devices = await listRegisteredPushDevicesForBand(bandId, includeDisabled)
+  return c.json({
+    band: {
+      id: band.id,
+      name: band.name,
+    },
+    includeDisabled,
+    count: devices.length,
+    devices: devices.map((device) => ({
+      userId: device.userId,
+      userName: device.userName,
+      userEmail: device.userEmail,
+      memberRole: device.memberRole,
+      deviceId: device.deviceId,
+      platform: device.platform,
+      tokenType: device.tokenType,
+      tokenPreview: device.tokenPreview,
+      isEnabled: device.isEnabled,
+      lastSeenAt: device.lastSeenAt,
+      createdAt: device.createdAt,
+      updatedAt: device.updatedAt,
+    })),
   })
 })
 
