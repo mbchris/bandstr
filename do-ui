@@ -20,8 +20,12 @@ print_menu() {
   echo "  2) Build APK (./do build-apk production --no-install)"
   echo "  3) Create APK Bundle (./do create-apk-bundle)"
   echo "  4) Deploy to Play Console (./do deploy-play-console)"
+  echo "  5) Build signed iOS IPA (./do build-ios production)"
+  echo "  6) Upload IPA to App Store Connect (./do upload-ios production)"
+  echo "  7) Show Apple account-owner checklist (./do appstore-checklist production)"
+  echo "  8) Install iOS app on local device (using ios-deploy)"
   echo "  9) Install APK on local device (using ADB)"
-  echo "  6) Quit"
+  echo "  0) Quit"
   echo
 }
 
@@ -32,8 +36,12 @@ run_command() {
     2) echo "Running: ./do build-apk production --no-install"; ./do build-apk production --no-install ;;
     3) echo "Running: ./do create-apk-bundle";                 ./do create-apk-bundle ;;
     4) echo "Running: ./do deploy-play-console";               ./do deploy-play-console ;;
+    5) echo "Running: ./do build-ios production";              ./do build-ios production ;;
+    6) echo "Running: ./do upload-ios production";             ./do upload-ios production ;;
+    7) echo "Running: ./do appstore-checklist production";     ./do appstore-checklist production ;;
+    8) echo "Running: ./do deploy-ios local";                  ./do deploy-ios local ;;
     9) echo "Running: ./do deploy-apk production";             ./do deploy-apk production ;;
-    6) echo "Exiting."; exit 0 ;;
+    0) echo "Exiting."; exit 0 ;;
     *) echo "Invalid option: $num"; return 1 ;;
   esac
 }

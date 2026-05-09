@@ -246,7 +246,8 @@ The `./do` script wraps common Docker/dev tasks:
 ./do deploy-apk local [DEVICE_ID]
 ./do build-ios local
 ./do deploy-ios local [DEVICE_ID]
-./do upload-ios [IPA_PATH]
+./do upload-ios [local|production] [IPA_PATH]
+./do appstore-checklist [local|production]
 ./do push-setup [local|production] [--check] [--android-only|--ios-only]
 ./do keygen-apk --store-pass "<strong-password>"
 ./do install-bundletool
@@ -263,8 +264,15 @@ Notes:
 - `create-apk-bundle` builds a Play Store `.aab` and signs/validates it by default (`--no-sign` disables that).
 - `create-apk-bundle` defaults to `production` profile when no profile is passed.
 - `build-ios` and `deploy-ios` require macOS + Xcode.
+- `build-ios` and `deploy-ios` also require CocoaPods (`brew install cocoapods`, then `pod setup` once).
+- After installing Xcode, run `sudo xcodebuild -runFirstLaunch` and open Xcode once if Apple still needs to install simulator/components.
+- `./do build-ios` and `./do deploy-ios` now use Quasar `--skip-pkg`, then do the native compile/archive with `xcodebuild` directly.
+- `./do build-ios` archives against Xcode's generic iOS destination explicitly to avoid fresh-install destination resolution issues.
+- The iOS scripts also mark `packages/web/src-capacitor/ios/App/build` as Xcode-managed so Capacitor's clean step can reuse it safely.
 - `build-ios` exports an IPA by default (`--no-sign` creates archive only).
+- `upload-ios` now follows the same `local|production` profile pattern as the Android release commands.
 - `upload-ios` uses App Store Connect API key auth (`APPSTORE_CONNECT_API_KEY_ID`, `APPSTORE_CONNECT_ISSUER_ID`).
+- `appstore-checklist` prints the Apple-side handoff/setup tasks for a friend-owned Apple Developer account.
 - `push-setup` validates FCM/APNs config, can write `google-services.json`, and runs `cap sync`.
 - `build-apk` and `create-apk-bundle` auto-increment Android `versionCode` on each run.
 - Both commands also create named artifacts: `<appName>-vc<versionCode>-b<buildId>.apk|.aab`.
@@ -286,6 +294,10 @@ It currently provides one-click access for:
 - building APK
 - creating AAB bundle
 - deploying to Play Console
+- building signed iOS IPA files
+- uploading IPA files to App Store Connect
+- printing the Apple account-owner checklist
+- installing the iOS app to a connected device
 - installing APK to a connected Android device
 
 Run:
@@ -413,6 +425,26 @@ Notes:
 - `gplay-play-console-checklist.sh` exists because Play Console user/app permission assignment is not fully exposed via `gcloud`.
 - `gplay-api-permission-probe.sh` is the fastest check for `401 permissionDenied` on `subscriptionsv2`.
 - `gplay-api-permission-probe-no-token.sh` validates auth/permissions path without needing a purchase token. It expects a `400/404` with a dummy token as success.
+
+## Apple App Store Setup Scripts
+
+Use these commands to mirror the Android release workflow on iOS:
+
+```bash
+# 1) Print the Apple Developer / App Store Connect setup checklist
+./do appstore-checklist production
+
+# 2) Build a signed IPA on macOS
+./do build-ios production
+
+# 3) Upload the IPA to App Store Connect / TestFlight
+./do upload-ios production
+```
+
+If the Apple Developer account belongs to your friend:
+- Your friend must create the App ID, App Store Connect app entry, subscription products, and signing assets for the bundle ID.
+- They can either invite you to the Apple team / App Store Connect, or keep final signing/upload on their own Mac.
+- `./do appstore-checklist production` prints the exact handoff items and env vars needed for that setup.
 
 ## Application Flow
 

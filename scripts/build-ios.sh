@@ -37,22 +37,56 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! xcodebuild -version >/dev/null 2>&1; then
+  echo "Error: Xcode is installed but not fully initialized."
+  echo "Run these commands and retry:"
+  echo "  sudo xcodebuild -runFirstLaunch"
+  echo "  sudo xcodebuild -license accept"
+  echo "If that still fails, open Xcode once and let it finish installing components."
+  exit 1
+fi
+
+if ! command -v pod >/dev/null 2>&1; then
+  echo "Error: CocoaPods is not installed."
+  echo "Install it on macOS with one of:"
+  echo "  brew install cocoapods"
+  echo "  sudo gem install cocoapods"
+  echo "Then run once:"
+  echo "  pod setup"
+  exit 1
+fi
+
 if ! command -v corepack >/dev/null 2>&1; then
   echo "Error: corepack not found."
   exit 1
 fi
 
-echo "Building web assets for iOS..."
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
-corepack pnpm --filter @bandstr/web run build:ios
+stamp_xcode_build_dir() {
+  local dir="$1"
+  mkdir -p "$dir"
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -w com.apple.xcode.CreatedByBuildSystem true "$dir" 2>/dev/null || true
+  fi
+}
 
 ios_dir="packages/web/src-capacitor/ios/App"
 archive_dir="$ios_dir/build"
+
+# Capacitor/Quasar may invoke `xcodebuild clean` during sync. Mark the shared build
+# directory as Xcode-managed so the clean step can delete/recreate it safely.
+stamp_xcode_build_dir "$archive_dir"
+
+echo "Building web assets for iOS..."
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+# Quasar's default Capacitor iOS packaging step tries to invoke Xcode directly.
+# Our release flow archives/exports with xcodebuild below, so only sync the UI/native project here.
+corepack pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
+
 archive_path="$archive_dir/App.xcarchive"
 export_dir="$archive_dir/export"
 export_opts="${IOS_EXPORT_OPTIONS_PLIST:-$REPO_ROOT/scripts/ios/ExportOptions-AppStore.plist}"
 
-mkdir -p "$archive_dir"
+stamp_xcode_build_dir "$archive_dir"
 rm -rf "$archive_path" "$export_dir"
 
 archive_cmd=(
@@ -60,6 +94,7 @@ archive_cmd=(
   -workspace "$ios_dir/App.xcworkspace"
   -scheme App
   -configuration Release
+  -destination "generic/platform=iOS"
   -archivePath "$archive_path"
   archive
 )
