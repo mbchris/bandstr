@@ -24,6 +24,25 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! xcodebuild -version >/dev/null 2>&1; then
+  echo "Error: Xcode is installed but not fully initialized."
+  echo "Run these commands and retry:"
+  echo "  sudo xcodebuild -runFirstLaunch"
+  echo "  sudo xcodebuild -license accept"
+  echo "If that still fails, open Xcode once and let it finish installing components."
+  exit 1
+fi
+
+if ! command -v pod >/dev/null 2>&1; then
+  echo "Error: CocoaPods is not installed."
+  echo "Install it on macOS with one of:"
+  echo "  brew install cocoapods"
+  echo "  sudo gem install cocoapods"
+  echo "Then run once:"
+  echo "  pod setup"
+  exit 1
+fi
+
 if ! command -v ios-deploy >/dev/null 2>&1; then
   echo "Error: ios-deploy not found. Install it with: npm i -g ios-deploy"
   exit 1
@@ -34,11 +53,23 @@ if ! command -v corepack >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Building web assets for iOS..."
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
-corepack pnpm --filter @bandstr/web run build:ios
+stamp_xcode_build_dir() {
+  local dir="$1"
+  mkdir -p "$dir"
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -w com.apple.xcode.CreatedByBuildSystem true "$dir" 2>/dev/null || true
+  fi
+}
 
 ios_dir="packages/web/src-capacitor/ios/App"
+stamp_xcode_build_dir "$ios_dir/build"
+
+echo "Building web assets for iOS..."
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+# Quasar's default Capacitor iOS packaging step tries to invoke Xcode directly.
+# Our deploy flow compiles with xcodebuild below, so only sync the UI/native project here.
+corepack pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
+
 derived_dir="$ios_dir/build/DerivedData"
 
 destination="generic/platform=iOS"

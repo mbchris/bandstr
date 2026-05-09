@@ -208,10 +208,12 @@
 
 - The app is available as an iOS bundle
 - the app is ready to be pushed to the Apple Store
+- the app can be exported as a signed IPA and uploaded to App Store Connect / TestFlight
 - the subscriptions can be managed using Apple InApp Payments
 - ./do build–<whatever-the-format-is>  is created
 - ./do deployd–<whatever-the-format-is>  is created  (for local deployment to connected devices)
 - scripts with toolings required for Apple Store uploads are created (code signing? bundle creation?)
+- a handoff checklist exists for cases where the Apple Developer account is owned by another person
 
 
 **Backlog:** [`docs/backlog/iter-11-ios-app.md`](./backlog/iter-11-ios-app.md)

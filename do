@@ -25,7 +25,7 @@ to_uppercase() {
 
 is_profile_scoped_command() {
   case "$1" in
-    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|push-setup)
+    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|upload-ios|appstore-checklist|push-setup)
       return 0
       ;;
     *)
@@ -155,13 +155,22 @@ Commands:
     DEVICE_ID can also be set via IOS_DEVICE_ID in env file.
     Requires `ios-deploy` and valid iOS signing setup.
 
-  upload-ios [IPA_PATH]
+  upload-ios [local|production] [IPA_PATH]
     Upload an IPA to App Store Connect using iTMSTransporter.
+    Default profile: production (if omitted)
+    If IPA_PATH is omitted, uses the latest exported IPA from the iOS build directory.
     Required env vars:
       APPSTORE_CONNECT_API_KEY_ID
       APPSTORE_CONNECT_ISSUER_ID
     Optional:
       APPSTORE_CONNECT_API_KEY_PATH
+    Recommended env vars for signing/export:
+      APPLE_BUNDLE_ID
+      IOS_EXPORT_OPTIONS_PLIST
+
+  appstore-checklist [local|production]
+    Print the Apple Developer / App Store Connect handoff checklist for iOS release setup.
+    Default profile: production (if omitted)
 
   keygen-apk [args...]
     Create a release signing key and print CI env vars.
@@ -323,8 +332,28 @@ elif [[ "$command" == "sign-apk" ]]; then
     fi
   fi
 elif [[ "$command" == "upload-ios" ]]; then
-  env_profile="local"
-  upload_ios_input_path="${2:-}"
+  upload_arg="${2:-}"
+  if [[ -z "$upload_arg" ]]; then
+    env_profile="production"
+    upload_ios_input_path=""
+  elif [[ "$upload_arg" == "local" || "$upload_arg" == "production" ]]; then
+    env_profile="$upload_arg"
+    upload_ios_input_path="${3:-}"
+  else
+    env_profile="production"
+    upload_ios_input_path="$upload_arg"
+  fi
+elif [[ "$command" == "appstore-checklist" ]]; then
+  checklist_arg="${2:-}"
+  if [[ -z "$checklist_arg" ]]; then
+    env_profile="production"
+  elif [[ "$checklist_arg" == "local" || "$checklist_arg" == "production" ]]; then
+    env_profile="$checklist_arg"
+  else
+    echo "Error: appstore-checklist supports only local or production."
+    echo "Usage: ./do appstore-checklist [local|production]"
+    exit 1
+  fi
 elif [[ "$command" == "push-setup" ]]; then
   second_arg="${2:-}"
   if [[ "$second_arg" == "local" || "$second_arg" == "production" ]]; then
@@ -362,7 +391,7 @@ if [[ "$command" == "push-bootstrap-firebase" ]]; then
   exit $?
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" || "$command" == "upload-ios" || "$command" == "appstore-checklist" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -373,7 +402,7 @@ elif [[ "$env_profile" != "local" ]]; then
   exit 1
 fi
 
-if [[ "$command" != "install-bundletool" && "$command" != "upload-ios" && "$command" != "security-scan" ]]; then
+if [[ "$command" != "install-bundletool" && "$command" != "security-scan" ]]; then
   if [[ "$env_profile" == "production" ]]; then
     if [[ -f ".env.production" ]]; then
       env_file=".env.production"
@@ -1591,7 +1620,12 @@ case "$command" in
     bash ./scripts/push-setup.sh "$env_profile" "${push_setup_args[@]}"
     ;;
   upload-ios)
+    export_env_file "$env_file"
     bash ./scripts/upload-ios-appstore.sh "$upload_ios_input_path"
+    ;;
+  appstore-checklist)
+    export_env_file "$env_file"
+    bash ./scripts/appstore-connect-checklist.sh "$env_profile"
     ;;
   sign-apk)
     sign_existing_android_apk "$env_profile" "$sign_apk_input_path"
