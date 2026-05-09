@@ -69,13 +69,30 @@ type GoogleServiceAccount = {
   project_id?: string
 }
 
+type FcmConfigState = {
+  projectId: string
+  clientEmail: string
+  privateKey: string
+  source:
+    | 'FCM_SERVICE_ACCOUNT_JSON'
+    | 'GOOGLE_APPLICATION_CREDENTIALS_JSON'
+    | 'GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64'
+    | 'FCM_SERVICE_ACCOUNT_EMAIL/FCM_SERVICE_ACCOUNT_PRIVATE_KEY'
+    | 'none'
+}
+
 function parseGoogleServiceAccountFromEnv(): GoogleServiceAccount | null {
   const directJson = (process.env.FCM_SERVICE_ACCOUNT_JSON ?? '').trim()
   if (directJson) {
     try {
       return JSON.parse(directJson) as GoogleServiceAccount
     } catch {
-      return null
+      try {
+        const decoded = Buffer.from(directJson, 'base64').toString('utf8')
+        return JSON.parse(decoded) as GoogleServiceAccount
+      } catch {
+        return null
+      }
     }
   }
 
@@ -101,14 +118,20 @@ function parseGoogleServiceAccountFromEnv(): GoogleServiceAccount | null {
   return null
 }
 
-async function getGoogleAccessToken(): Promise<string | null> {
-  const now = Date.now()
-  if (cachedGoogleToken && cachedGoogleToken.expiresAt > now + 60_000) {
-    return cachedGoogleToken.accessToken
-  }
-
-  const serviceAccount = parseGoogleServiceAccountFromEnv()
+function resolveFcmConfig(): FcmConfigState {
   const projectIdFromEnv = (process.env.FCM_PROJECT_ID ?? '').trim()
+  const serviceAccountJson = (process.env.FCM_SERVICE_ACCOUNT_JSON ?? '').trim()
+  const googleCredsJson = (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ?? '').trim()
+  const googleCredsJsonB64 = (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64 ?? '').trim()
+  const serviceAccount = parseGoogleServiceAccountFromEnv()
+
+  let source: FcmConfigState['source'] = 'none'
+  if (serviceAccountJson) source = 'FCM_SERVICE_ACCOUNT_JSON'
+  else if (googleCredsJson) source = 'GOOGLE_APPLICATION_CREDENTIALS_JSON'
+  else if (googleCredsJsonB64) source = 'GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64'
+  else if ((process.env.FCM_SERVICE_ACCOUNT_EMAIL ?? '').trim() || (process.env.FCM_SERVICE_ACCOUNT_PRIVATE_KEY ?? '').trim()) {
+    source = 'FCM_SERVICE_ACCOUNT_EMAIL/FCM_SERVICE_ACCOUNT_PRIVATE_KEY'
+  }
 
   let clientEmail = ''
   let privateKey = ''
@@ -123,7 +146,32 @@ async function getGoogleAccessToken(): Promise<string | null> {
     privateKey = (process.env.FCM_SERVICE_ACCOUNT_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
   }
 
-  if (!clientEmail || !privateKey || !projectId) return null
+  return {
+    projectId,
+    clientEmail,
+    privateKey,
+    source,
+  }
+}
+
+function describeMissingFcmConfig(): string {
+  const config = resolveFcmConfig()
+  const missing: string[] = []
+  if (!config.projectId) missing.push('FCM_PROJECT_ID')
+  if (!config.clientEmail) missing.push('service account client_email')
+  if (!config.privateKey) missing.push('service account private_key')
+  const source = config.source === 'none' ? 'no FCM credential source configured' : `credential source=${config.source}`
+  return `Missing FCM configuration: ${missing.join(', ')} (${source})`
+}
+
+async function getGoogleAccessToken(): Promise<string | null> {
+  const now = Date.now()
+  if (cachedGoogleToken && cachedGoogleToken.expiresAt > now + 60_000) {
+    return cachedGoogleToken.accessToken
+  }
+
+  const config = resolveFcmConfig()
+  if (!config.clientEmail || !config.privateKey || !config.projectId) return null
 
   const iat = Math.floor(now / 1000)
   const exp = iat + 3600
@@ -131,7 +179,7 @@ async function getGoogleAccessToken(): Promise<string | null> {
   const header = encodeBase64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const claims = encodeBase64Url(
     JSON.stringify({
-      iss: clientEmail,
+      iss: config.clientEmail,
       scope: 'https://www.googleapis.com/auth/firebase.messaging',
       aud: 'https://oauth2.googleapis.com/token',
       iat,
@@ -143,7 +191,7 @@ async function getGoogleAccessToken(): Promise<string | null> {
   const signer = createSign('RSA-SHA256')
   signer.update(unsigned)
   signer.end()
-  const signature = signer.sign(privateKey).toString('base64url')
+  const signature = signer.sign(config.privateKey).toString('base64url')
   const assertion = `${unsigned}.${signature}`
 
   const body = new URLSearchParams({
@@ -180,11 +228,7 @@ async function getGoogleAccessToken(): Promise<string | null> {
 }
 
 function resolveFcmProjectId(): string {
-  const envProjectId = (process.env.FCM_PROJECT_ID ?? '').trim()
-  if (envProjectId) return envProjectId
-
-  const serviceAccount = parseGoogleServiceAccountFromEnv()
-  return (serviceAccount?.project_id ?? '').trim()
+  return resolveFcmConfig().projectId
 }
 
 async function sendFcmPush(payload: PushPayload): Promise<PushDeliveryResult> {
@@ -195,7 +239,7 @@ async function sendFcmPush(payload: PushPayload): Promise<PushDeliveryResult> {
       provider: 'fcm',
       ok: false,
       status: null,
-      error: 'Missing FCM access token or project id',
+      error: describeMissingFcmConfig(),
       responseBody: null,
     }
   }

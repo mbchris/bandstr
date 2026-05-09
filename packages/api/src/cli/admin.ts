@@ -734,11 +734,13 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
     return
   }
 
-  let sent = 0
+  let attempted = 0
+  let delivered = 0
+  let failed = 0
   for (const row of devices.rows) {
     const tokenType = row.token_type === 'apns' ? 'apns' : 'fcm'
     if (!dryRun) {
-      await sendPushToDevice({
+      const result = await sendPushToDevice({
         tokenType,
         token: row.token,
         title,
@@ -750,12 +752,16 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
           userId: row.user_id,
         },
       })
+      if (result.ok) delivered += 1
+      else failed += 1
+    } else {
+      delivered += 1
     }
-    sent += 1
+    attempted += 1
   }
 
   console.log(
-    `Push ${dryRun ? 'simulated' : 'sent'}: bandId=${bandId} bandName="${band.name}" devices=${sent} path=${path} query="${query}"`,
+    `Push ${dryRun ? 'simulated' : 'completed'}: bandId=${bandId} bandName="${band.name}" attempted=${attempted} delivered=${delivered} failed=${failed} path=${path} query="${query}"`,
   )
 }
 
