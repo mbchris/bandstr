@@ -5,15 +5,15 @@
         Please create or join a band first. Home, Voting, Setlist, and Calendar are available once a band is active.
       </q-banner>
 
-      <div class="row items-center q-gutter-sm q-mb-lg">
+      <div class="row items-center q-gutter-sm q-mb-lg manage-bands-title">
         <q-icon name="groups" size="30px" color="primary" />
         <div class="text-h5 text-weight-bold">Manage Bands</div>
       </div>
 
       <q-card flat bordered class="q-mb-lg">
-        <q-card-section class="row items-center justify-between">
+        <q-card-section class="row items-center justify-between band-card-header">
           <div class="text-subtitle1 text-weight-bold">All Bands</div>
-          <div class="row items-center q-gutter-sm">
+          <div class="row items-center band-card-actions">
             <q-badge v-if="!canCreateBand" color="orange" label="PRO feature" />
             <q-btn
               color="primary"
@@ -28,15 +28,18 @@
         </q-card-section>
 
         <q-list separator>
-          <q-item v-for="band in authStore.bands" :key="band.id">
+          <q-item v-for="band in authStore.bands" :key="band.id" class="band-list-item">
             <q-item-section>
               <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
-              <q-item-label caption>
-                Slug: {{ band.slug }} | Role: {{ band.role }} | Pro access: {{ band.hasProPlan ? 'yes' : 'no' }} | Default: {{ band.isDefault ? 'yes' : 'no' }}
+              <q-item-label caption class="band-meta">
+                <span>Slug: {{ band.slug }}</span>
+                <span>Role: {{ band.role }}</span>
+                <span>Pro access: {{ band.hasProPlan ? 'yes' : 'no' }}</span>
+                <span>Default: {{ band.isDefault ? 'yes' : 'no' }}</span>
               </q-item-label>
             </q-item-section>
-            <q-item-section side>
-              <div class="row q-gutter-xs">
+            <q-item-section side class="band-actions-section">
+              <div class="row band-actions">
                 <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
                 <q-badge v-if="band.isDefault" color="primary" label="Default" />
                 <q-btn flat dense icon="check_circle" label="Select" @click="switchBand(band.id)" />
@@ -475,10 +478,105 @@ void refreshBands()
 </script>
 
 <style scoped>
+.manage-bands-title {
+  flex-wrap: nowrap;
+}
+
+.band-card-header,
+.band-card-actions,
+.band-actions {
+  gap: 8px;
+}
+
+.band-card-actions {
+  justify-content: flex-end;
+}
+
+.band-list-item {
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.band-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.band-meta span:not(:last-child)::after {
+  content: "|";
+  margin-left: 10px;
+}
+
+.band-actions-section {
+  padding-left: 0;
+}
+
+.band-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .band-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .band-card-actions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .band-card-actions .q-btn {
+    flex: 0 0 auto;
+  }
+
+  .band-list-item {
+    flex-direction: column;
+  }
+
+  .band-actions-section {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .band-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .band-actions .q-btn {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .band-card-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .band-meta {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .band-meta span::after {
+    display: none;
+  }
+}
+</style>
+
+<style scoped>
 .qr-img {
   width: 300px;
   max-width: 100%;
   height: auto;
 }
 </style>
-

@@ -468,6 +468,7 @@ onBeforeUnmount(() => {
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 2px;
+  gap: 6px;
 }
 
 .bottom-nav-scroll::-webkit-scrollbar {
@@ -533,7 +534,7 @@ onBeforeUnmount(() => {
   --nav-btn-bg: rgba(39, 39, 42, 0.42);
   --nav-btn-border: rgba(255, 255, 255, 0.12);
   --nav-label: #e5e7eb;
-  --nav-label-active: ##f4f4f5;
+  --nav-label-active: #f4f4f5;
   --nav-active-bg: #27272a;
   --nav-active-border: rgba(255, 255, 255, 0.2);
   --nav-active-glow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
@@ -564,6 +565,37 @@ onBeforeUnmount(() => {
 
 .account-menu-separator {
   opacity: 1;
+}
+
+@media (max-width: 430px) {
+  .bottom-nav {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .bottom-nav-scroll {
+    justify-content: flex-start;
+  }
+
+  .bottom-nav-btn {
+    width: calc((100vw - 46px) / 5);
+    min-width: calc((100vw - 46px) / 5);
+    max-width: 76px;
+    height: 72px;
+    min-height: 72px;
+    margin-right: 0 !important;
+    padding: 7px 4px;
+  }
+
+  .bottom-nav-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .bottom-nav-label {
+    font-size: 0.66rem;
+    line-height: 1.05;
+  }
 }
 
 </style>
