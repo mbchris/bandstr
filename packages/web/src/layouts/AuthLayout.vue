@@ -15,10 +15,10 @@
             <p class="text-body2 text-grey-2 q-mb-lg auth-lead">
               Manage your setlists, song votings, calendar entries and keep track of who is bringing the drinks. Bandstr brings the structure you need for focussing on jamming instead of having endless messenger conversations!
             </p>
-            <p>
+            <p class="text-body1 text-grey-3 q-mb-md auth-support-copy">
             More music. Less chaos. Bandstr!
             </p>
-            <p>
+            <p class="text-body1 text-grey-3 q-mb-lg auth-support-copy">
             Please login with your account or create a new one to create or join a band and invite your friends. It's free! 
             </p>
             <router-view />
@@ -73,6 +73,10 @@
 
 .auth-lead {
   line-height: 1.6;
+}
+
+.auth-support-copy {
+  line-height: 1.55;
 }
 
 @media (max-width: 599px) {

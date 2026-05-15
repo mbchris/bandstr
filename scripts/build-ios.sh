@@ -61,6 +61,18 @@ if ! command -v corepack >/dev/null 2>&1; then
   exit 1
 fi
 
+resolve_bundle_id() {
+  local bundle_id="${APPLE_BUNDLE_ID:-}"
+  if [[ -z "$bundle_id" ]]; then
+    bundle_id="${APNS_BUNDLE_ID:-}"
+  fi
+  if [[ -z "$bundle_id" && -f "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" ]]; then
+    bundle_id="$(sed -n -E 's/.*"appId"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" | head -n 1 || true)"
+  fi
+  bundle_id="${bundle_id:-org.capacitor.bandstr}"
+  printf '%s\n' "$bundle_id"
+}
+
 stamp_xcode_build_dir() {
   local dir="$1"
   mkdir -p "$dir"
@@ -85,6 +97,13 @@ corepack pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip
 archive_path="$archive_dir/App.xcarchive"
 export_dir="$archive_dir/export"
 export_opts="${IOS_EXPORT_OPTIONS_PLIST:-$REPO_ROOT/scripts/ios/ExportOptions-AppStore.plist}"
+bundle_id="$(resolve_bundle_id)"
+development_team="${APPLE_TEAM_ID:-${APNS_TEAM_ID:-}}"
+
+echo "Using iOS bundle identifier: $bundle_id"
+if [[ -n "$development_team" ]]; then
+  echo "Using Apple development team: $development_team"
+fi
 
 stamp_xcode_build_dir "$archive_dir"
 rm -rf "$archive_path" "$export_dir"
@@ -96,11 +115,18 @@ archive_cmd=(
   -configuration Release
   -destination "generic/platform=iOS"
   -archivePath "$archive_path"
+  PRODUCT_BUNDLE_IDENTIFIER="$bundle_id"
   archive
 )
 
+if [[ -n "$development_team" ]]; then
+  archive_cmd+=(DEVELOPMENT_TEAM="$development_team")
+fi
+
 if [[ "$sign_build" == "0" ]]; then
   archive_cmd+=(CODE_SIGNING_ALLOWED=NO)
+else
+  archive_cmd+=(-allowProvisioningUpdates)
 fi
 
 echo "Archiving iOS app..."

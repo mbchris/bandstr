@@ -90,8 +90,8 @@
       />
 
       <div class="row justify-between items-center q-mt-sm">
-        <q-btn flat dense color="grey-4" :label="t('login.forgotPassword')" @click="authMode = 'forgot'" />
-        <q-btn flat dense color="grey-4" :label="t('login.backToSignIn')" @click="authMode = 'signin'" />
+        <q-btn flat dense class="auth-link-btn" :label="t('login.forgotPassword')" @click="authMode = 'forgot'" />
+        <q-btn flat dense class="auth-link-btn" :label="t('login.backToSignIn')" @click="authMode = 'signin'" />
       </div>
 
       <div v-if="error" class="q-mt-md text-negative text-center text-body2">
@@ -733,14 +733,56 @@ watch(
 <style scoped>
 .login-page-wrap {
   position: relative;
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.login-page-wrap :deep(.q-field__label),
+.login-page-wrap :deep(.q-field__native),
+.login-page-wrap :deep(.q-field__input),
+.login-page-wrap :deep(.q-field__marginal),
+.login-page-wrap :deep(.q-btn__content),
+.login-page-wrap :deep(.q-toggle__label) {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.login-page-wrap :deep(.q-field--outlined .q-field__control:before) {
+  border-color: rgba(255, 255, 255, 0.26);
+}
+
+.login-page-wrap :deep(.q-field--outlined .q-field__control:hover:before),
+.login-page-wrap :deep(.q-field--focused .q-field__control:after) {
+  border-color: rgba(129, 140, 248, 0.9);
+}
+
+.login-page-wrap :deep(.q-field--outlined .q-field__control) {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.login-page-wrap :deep(.q-field__native::placeholder),
+.login-page-wrap :deep(.q-field__input::placeholder) {
+  color: rgba(226, 232, 240, 0.62);
 }
 
 .auth-mode-toggle :deep(.q-btn) {
   min-height: 34px;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.auth-mode-toggle :deep(.q-btn--active) {
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
 }
 
 .q-btn-github {
   border-color: rgba(255, 255, 255, 0.35);
+}
+
+.auth-link-btn {
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.auth-link-btn:hover {
+  color: #fff;
 }
 
 .debug-icon-btn {

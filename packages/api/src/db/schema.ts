@@ -218,6 +218,7 @@ export const songs = pgTable(
     youtubeUrl: text('youtube_url'),
     thumbnailUrl: text('thumbnail_url'),
     lengthMs: integer('length_ms'),
+    bpm: integer('bpm'),
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
     notes: text('notes'),
     type: text('type').notNull().default('song'), // 'song' | 'pause' | 'tuning' | 'note'

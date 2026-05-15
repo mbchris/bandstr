@@ -53,6 +53,18 @@ if ! command -v corepack >/dev/null 2>&1; then
   exit 1
 fi
 
+resolve_bundle_id() {
+  local bundle_id="${APPLE_BUNDLE_ID:-}"
+  if [[ -z "$bundle_id" ]]; then
+    bundle_id="${APNS_BUNDLE_ID:-}"
+  fi
+  if [[ -z "$bundle_id" && -f "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" ]]; then
+    bundle_id="$(sed -n -E 's/.*"appId"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" | head -n 1 || true)"
+  fi
+  bundle_id="${bundle_id:-org.capacitor.bandstr}"
+  printf '%s\n' "$bundle_id"
+}
+
 stamp_xcode_build_dir() {
   local dir="$1"
   mkdir -p "$dir"
@@ -71,20 +83,36 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
 corepack pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
 
 derived_dir="$ios_dir/build/DerivedData"
+bundle_id="$(resolve_bundle_id)"
+development_team="${APPLE_TEAM_ID:-${APNS_TEAM_ID:-}}"
 
 destination="generic/platform=iOS"
 if [[ -n "$device_id" ]]; then
   destination="id=$device_id"
 fi
 
+echo "Using iOS bundle identifier: $bundle_id"
+if [[ -n "$development_team" ]]; then
+  echo "Using Apple development team: $development_team"
+fi
 echo "Compiling debug app for device destination: $destination"
-xcodebuild \
-  -workspace "$ios_dir/App.xcworkspace" \
-  -scheme App \
-  -configuration Debug \
-  -derivedDataPath "$derived_dir" \
-  -destination "$destination" \
+build_cmd=(
+  xcodebuild
+  -workspace "$ios_dir/App.xcworkspace"
+  -scheme App
+  -configuration Debug
+  -derivedDataPath "$derived_dir"
+  -destination "$destination"
+  -allowProvisioningUpdates
+  PRODUCT_BUNDLE_IDENTIFIER="$bundle_id"
   build
+)
+
+if [[ -n "$development_team" ]]; then
+  build_cmd+=(DEVELOPMENT_TEAM="$development_team")
+fi
+
+"${build_cmd[@]}"
 
 app_path="$(find "$derived_dir/Build/Products" -type d -name 'App.app' | head -n 1 || true)"
 if [[ -z "$app_path" ]]; then

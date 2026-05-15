@@ -266,6 +266,7 @@ export default {
     orderArtist: 'Artist',
     noItems: 'No items in the Setlist. Transfer them from the Voting page!',
     editSong: 'Edit',
+    bpm: 'BPM',
     pitchShift: 'Pitch Shift (Semi-tones)',
     notes: 'Notes (For Setlist view)',
     saveChanges: 'Save Changes',

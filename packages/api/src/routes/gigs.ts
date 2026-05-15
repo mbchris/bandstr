@@ -157,6 +157,7 @@ gigs.get('/:id/songs', async (c) => {
       youtubeUrl: songsTable.youtubeUrl,
       thumbnailUrl: songsTable.thumbnailUrl,
       lengthMs: songsTable.lengthMs,
+      bpm: songsTable.bpm,
       tags: songsTable.tags,
       notes: songsTable.notes,
       position: gigSongs.position,
