@@ -167,6 +167,9 @@
                     </q-icon>
                   </q-item-label>
                   <q-item-label caption>{{ item.artist }}</q-item-label>
+                  <q-item-label v-if="typeof item.bpm === 'number'" caption>
+                    {{ t('setlist.bpm') }}: {{ item.bpm }}
+                  </q-item-label>
                   <div v-if="item.tags?.length" class="row q-gutter-xs q-mt-xs">
                     <q-chip
                       v-for="tag in item.tags"
@@ -323,6 +326,15 @@
             outlined
             dense
             @blur="normalizeAddSongLengthInput"
+          />
+          <q-input
+            v-model.number="addSongForm.bpm"
+            :label="t('setlist.bpm')"
+            type="number"
+            min="1"
+            step="1"
+            outlined
+            dense
           />
           <q-input v-model="addSongForm.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
           <div class="row items-center q-gutter-md">
@@ -507,6 +519,15 @@
               outlined
               dense
               @blur="normalizeEditingSongLengthInput"
+            />
+            <q-input
+              v-model.number="editingItem.bpm"
+              :label="t('setlist.bpm')"
+              type="number"
+              min="1"
+              step="1"
+              outlined
+              dense
             />
             <q-input v-model="editingItem.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
             <div class="row items-center q-gutter-md">
@@ -1077,6 +1098,7 @@ const addSongForm = ref({
   tags: [] as string[],
   notes: '',
   lengthMs: null as number | null,
+  bpm: null as number | null,
   pitch: 0,
 })
 const addSongLookingUp = ref(false)
@@ -1087,7 +1109,7 @@ function openAddSongModal() {
   if (selectedGigId.value) {
     openGigBuilder()
   } else {
-    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', tags: [], notes: '', lengthMs: null, pitch: 0 }
+    addSongForm.value = { title: '', artist: '', spotifyUrl: '', youtubeUrl: '', tags: [], notes: '', lengthMs: null, bpm: null, pitch: 0 }
     addSongLengthInput.value = ''
     addSongLookupError.value = ''
     showAddSongModal.value = true
@@ -1121,6 +1143,7 @@ async function submitAddSong() {
       spotifyUrl: addSongForm.value.spotifyUrl || undefined,
       youtubeUrl: addSongForm.value.youtubeUrl || undefined,
       lengthMs: parsedLengthMs ?? addSongForm.value.lengthMs ?? undefined,
+      bpm: normalizeBpmValue(addSongForm.value.bpm),
       tags: normalizeTagList(addSongForm.value.tags),
       pitch: addSongForm.value.pitch ?? 0,
       notes: addSongForm.value.notes || undefined,
@@ -1368,6 +1391,7 @@ async function saveItemEdit() {
       spotifyUrl: editingItem.value.spotifyUrl,
       youtubeUrl: editingItem.value.youtubeUrl,
       lengthMs: parsedLengthMs ?? editingItem.value.lengthMs,
+      bpm: normalizeBpmValue(editingItem.value.bpm),
       tags: normalizeTagList(editingItem.value.tags),
       pitch: editingItem.value.pitch,
       notes: editingItem.value.notes,
@@ -1395,6 +1419,7 @@ function handleExport() {
           Title: item.title,
           Artist: item.artist,
           Length: item.lengthMs ? formatDuration(item.lengthMs) : '',
+          BPM: typeof item.bpm === 'number' ? item.bpm : '',
           Tags: (item.tags ?? []).join(', '),
           Pitch: item.pitch !== 0 ? (item.pitch > 0 ? '+' : '') + item.pitch : '',
           Notes: item.notes || '',
@@ -1450,6 +1475,14 @@ function normalizeTagList(rawTags: unknown): string[] {
     .map((tag) => tag.trim())
     .filter(Boolean)
   return Array.from(new Set(tags))
+}
+
+function normalizeBpmValue(rawBpm: unknown): number | null {
+  if (rawBpm === '' || rawBpm === null || rawBpm === undefined) return null
+  const bpm = typeof rawBpm === 'number' ? rawBpm : Number(rawBpm)
+  if (!Number.isFinite(bpm)) return null
+  const normalized = Math.trunc(bpm)
+  return normalized > 0 ? normalized : null
 }
 
 onMounted(() => {

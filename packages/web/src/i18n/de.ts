@@ -267,6 +267,7 @@ export default {
     orderArtist: 'Interpret',
     noItems: 'Keine Einträge in der Setlist. Übertrage sie von der Abstimmungsseite!',
     editSong: 'Bearbeiten',
+    bpm: 'BPM',
     pitchShift: 'Tonhöhenverschiebung (Halbtöne)',
     notes: 'Notizen (für Setlist-Ansicht)',
     saveChanges: 'Änderungen speichern',

@@ -85,6 +85,13 @@
       "when": 1777334400000,
       "tag": "0012_push_device_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778866562600,
+      "tag": "0013_song_bpm",
+      "breakpoints": true
     }
   ]
 }

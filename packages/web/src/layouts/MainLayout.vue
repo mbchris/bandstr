@@ -1,6 +1,6 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header bordered class="bg-transparent safe-area-top">
+    <q-header bordered class="bg-transparent" :class="{ 'safe-area-top': !$q.platform.is.ios }">
       <q-toolbar class="q-px-sm q-px-md-md">
         <q-toolbar-title>
           <router-link to="/" class="brand-link">
@@ -438,10 +438,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.safe-area-top {
-  padding-top: env(safe-area-inset-top, 0px);
-}
-
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
