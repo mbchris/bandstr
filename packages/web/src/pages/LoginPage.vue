@@ -70,7 +70,7 @@
         text-color="dark"
         icon="img:https://www.google.com/favicon.ico"
         :label="t('login.google')"
-        class="full-width q-mb-md"
+        class="full-width q-mb-md auth-google-btn"
         unelevated
         size="md"
         :loading="loadingGoogle"
@@ -740,7 +740,6 @@ watch(
 .login-page-wrap :deep(.q-field__native),
 .login-page-wrap :deep(.q-field__input),
 .login-page-wrap :deep(.q-field__marginal),
-.login-page-wrap :deep(.q-btn__content),
 .login-page-wrap :deep(.q-toggle__label) {
   color: rgba(248, 250, 252, 0.96);
 }
@@ -775,6 +774,10 @@ watch(
 
 .q-btn-github {
   border-color: rgba(255, 255, 255, 0.35);
+}
+
+.auth-google-btn :deep(.q-btn__content) {
+  color: rgba(15, 23, 42, 0.92);
 }
 
 .auth-link-btn {
