@@ -158,6 +158,21 @@
   - [x] Allow toggling `isHidden` status in the Admin user management section.
   - [x] Enable editing of the system administrator user (schneider.chris@gmx.de) in the Admin UI.
 
+## TASK-0217: Voting - Filtering & Sorting
+- **Status:** done
+- **Labels:** feature, frontend, voting
+- **Acceptance Criteria:**
+  - [x] Add filter in "Voting" to filter for votings the current user has voted for yet (Voted) and not voted yet.
+  - [x] Add sorting to the voting list by "recently added", "highest vote", "lowest vote", and "alphabetic".
+  - [x] Disable manual drag reordering of songs when a custom sorting option is selected.
+
+## TASK-0218: Bierwart - Beverage Amount & Push Notification
+- **Status:** done
+- **Labels:** feature, frontend, backend, calendar, notification
+- **Acceptance Criteria:**
+  - [x] Display the amount of brought beverages (`beerCount`) for each person in the Bierwart selection modal.
+  - [x] Add a push notification when the Bierwart of a rehearsal event changes, including the name of the new Bierwart.
+
 # Sample Acceptance Criteria (use this for reference)
 
 ## TASK-0000: Example Task
