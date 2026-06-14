@@ -305,6 +305,12 @@
                 </q-avatar>
               </q-item-section>
               <q-item-section><q-item-label class="text-weight-bold">{{ member.name }}</q-item-label></q-item-section>
+              <q-item-section side>
+                <div class="row items-center q-gutter-xs">
+                  <q-icon name="sports_bar" color="orange" size="xs" />
+                  <span class="text-caption text-orange text-weight-bold">{{ member.beerCount ?? 0 }}</span>
+                </div>
+              </q-item-section>
               <q-item-section v-if="member.id === bierwart?.id" side><q-icon name="check_circle" color="orange" /></q-item-section>
             </q-item>
           </q-list>

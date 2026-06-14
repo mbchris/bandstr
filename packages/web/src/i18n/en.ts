@@ -251,6 +251,16 @@ export default {
     oneVoted: '{name} has voted.',
     twoVoted: '{first} and {second} have voted.',
     manyVoted: '{names} and {last} have voted.',
+    filterLabel: 'Status Filter',
+    filterAll: 'All Songs',
+    filterVoted: 'Voted',
+    filterNotVoted: 'Not Voted Yet',
+    sortLabel: 'Sort By',
+    sortDefault: 'Manual / Pinned',
+    sortRecentlyAdded: 'Recently added',
+    sortHighestVote: 'Highest vote',
+    sortLowestVote: 'Lowest vote',
+    sortAlphabetic: 'Alphabetic',
   },
 
   // Setlist page

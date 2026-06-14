@@ -27,10 +27,34 @@
         </q-card-section>
 
         <q-card-section>
-          <div class="row q-gutter-sm q-mb-md">
-            <q-input v-model="searchQuery" dense outlined :placeholder="t('voting.filterSongs')" class="col" clearable>
-              <template #prepend><q-icon name="search" /></template>
-            </q-input>
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-12 col-sm-6">
+              <q-input v-model="searchQuery" dense outlined :placeholder="t('voting.filterSongs')" clearable>
+                <template #prepend><q-icon name="search" /></template>
+              </q-input>
+            </div>
+            <div class="col-12 col-sm-3">
+              <q-select
+                v-model="votingFilter"
+                dense
+                outlined
+                emit-value
+                map-options
+                :options="filterOptions"
+                :label="t('voting.filterLabel')"
+              />
+            </div>
+            <div class="col-12 col-sm-3">
+              <q-select
+                v-model="votingSort"
+                dense
+                outlined
+                emit-value
+                map-options
+                :options="sortOptions"
+                :label="t('voting.sortLabel')"
+              />
+            </div>
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
@@ -38,7 +62,7 @@
               v-for="(song, index) in filteredSongs"
               :key="song.id"
               class="q-pa-sm song-item"
-              :draggable="!searchQuery"
+              :draggable="!searchQuery && votingSort === 'default'"
               @dragstart="onDragStart(index)"
               @dragover.prevent
               @drop="onDrop(index)"
@@ -46,7 +70,7 @@
             >
               <q-item-section side class="song-order-controls">
                 <div class="column items-center q-gutter-xs">
-                  <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                  <q-icon v-if="!searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
                   <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
                 </div>
               </q-item-section>
@@ -273,6 +297,22 @@ const { t } = useI18n()
 
 const searchQuery = ref('')
 const draggingIndex = ref<number | null>(null)
+const votingFilter = ref('all')
+const votingSort = ref('default')
+
+const filterOptions = computed(() => [
+  { label: t('voting.filterAll'), value: 'all' },
+  { label: t('voting.filterVoted'), value: 'voted' },
+  { label: t('voting.filterNotVoted'), value: 'not_voted' },
+])
+
+const sortOptions = computed(() => [
+  { label: t('voting.sortDefault'), value: 'default' },
+  { label: t('voting.sortRecentlyAdded'), value: 'recently_added' },
+  { label: t('voting.sortHighestVote'), value: 'highest_vote' },
+  { label: t('voting.sortLowestVote'), value: 'lowest_vote' },
+  { label: t('voting.sortAlphabetic'), value: 'alphabetic' },
+])
 
 const FREE_SETLIST_LIMIT = 15
 const FREE_POOL_LIMIT = 10
@@ -300,10 +340,44 @@ const filteredSongs = computed(() => {
     const q = searchQuery.value.toLowerCase()
     list = list.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q))
   }
+  if (votingFilter.value === 'voted') {
+    list = list.filter((s) => s.hasVoted !== -1)
+  } else if (votingFilter.value === 'not_voted') {
+    list = list.filter((s) => s.hasVoted === -1)
+  }
   list = [...list].sort((a, b) => {
-    if (a.isPinned && !b.isPinned) return -1
-    if (!a.isPinned && b.isPinned) return 1
-    return a.position - b.position
+    if (votingSort.value === 'default') {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      return a.position - b.position
+    } else if (votingSort.value === 'recently_added') {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      if (timeA !== timeB) return timeB - timeA
+      return a.position - b.position
+    } else if (votingSort.value === 'highest_vote') {
+      const avgA = a.voteAverage ?? 0
+      const avgB = b.voteAverage ?? 0
+      if (avgA !== avgB) return avgB - avgA
+      const countA = a.voteCount ?? 0
+      const countB = b.voteCount ?? 0
+      if (countA !== countB) return countB - countA
+      return a.position - b.position
+    } else if (votingSort.value === 'lowest_vote') {
+      const avgA = a.voteAverage ?? 0
+      const avgB = b.voteAverage ?? 0
+      if (avgA !== avgB) return avgA - avgB
+      const countA = a.voteCount ?? 0
+      const countB = b.voteCount ?? 0
+      if (countA !== countB) return countB - countA
+      return a.position - b.position
+    } else if (votingSort.value === 'alphabetic') {
+      const titleA = a.title.toLowerCase()
+      const titleB = b.title.toLowerCase()
+      if (titleA !== titleB) return titleA.localeCompare(titleB)
+      return a.position - b.position
+    }
+    return 0
   })
   return list
 })
@@ -408,12 +482,12 @@ async function reorderSongs(items: Song[]) {
 }
 
 function onDragStart(index: number) {
-  if (searchQuery.value) return
+  if (searchQuery.value || votingSort.value !== 'default') return
   draggingIndex.value = index
 }
 
 async function onDrop(index: number) {
-  if (searchQuery.value) return
+  if (searchQuery.value || votingSort.value !== 'default') return
   if (draggingIndex.value === null || draggingIndex.value === index) return
   const items = [...filteredSongs.value]
   const [moved] = items.splice(draggingIndex.value, 1)

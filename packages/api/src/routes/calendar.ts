@@ -187,6 +187,7 @@ calendar.put(
         startTime: calendarEvents.startTime,
         endTime: calendarEvents.endTime,
         userId: calendarEvents.userId,
+        bierwartOverrideId: calendarEvents.bierwartOverrideId,
       })
       .from(calendarEvents)
       .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
@@ -245,6 +246,35 @@ calendar.put(
         entityKey: `calendar:${id}`,
         title: 'Rehearsal updated',
         message: `${actor.name} added/updated "${eventTitle}".`,
+        linkPath: '/',
+        linkQuery: '',
+      })
+    }
+
+    const bierwartChanged =
+      body.bierwartOverrideId !== undefined &&
+      body.bierwartOverrideId !== existing.bierwartOverrideId
+
+    if (bierwartChanged) {
+      let newBierwartName = 'None'
+      if (body.bierwartOverrideId) {
+        const [u] = await db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, body.bierwartOverrideId))
+          .limit(1)
+        if (u) {
+          newBierwartName = u.name
+        }
+      }
+
+      await queueBandNotification({
+        bandId,
+        actorUserId: actor.id,
+        eventType: 'rehearsal',
+        entityKey: `bierwart:${id}`,
+        title: 'Bierwart changed',
+        message: `New Bierwart: ${newBierwartName}`,
         linkPath: '/',
         linkQuery: '',
       })
