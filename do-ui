@@ -42,7 +42,7 @@ run_command() {
     7) echo "Running: ./do appstore-checklist production";     ./do appstore-checklist production ;;
     8) echo "Running: ./do deploy-ios local";                  ./do deploy-ios local ;;
     9) echo "Running: ./do deploy-apk production";             ./do deploy-apk production ;;
-    10) echo "Running iOS Simulator Build & Run...";           pnpm --filter @bandstr/web run build:ios --ide && npx --prefix packages/web/src-capacitor cap run ios ;;
+    10) echo "Running iOS Simulator Build & Run...";           pnpm --filter @bandstr/web run build:ios --ide && (cd packages/web/src-capacitor && npx cap run ios) ;;
     0) echo "Exiting."; exit 0 ;;
     *) echo "Invalid option: $num"; return 1 ;;
   esac
