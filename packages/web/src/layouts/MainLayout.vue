@@ -88,6 +88,13 @@
                   <q-item-section>{{ t('nav.dashboard') }}</q-item-section>
                 </q-item>
                 <q-separator />
+                <div class="q-px-md q-py-xs text-caption text-grey-7" style="font-size: 11px; line-height: 1.35;">
+                  {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
+                  <q-btn flat round dense size="xs" icon="content_copy" color="grey-7" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
+                    <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <q-separator />
                 <template v-for="band in authStore.bands" :key="band.id">
                   <q-item
                     clickable
@@ -176,7 +183,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
+import { useQuasar, copyToClipboard } from 'quasar'
 import { useAuthStore } from '../stores/auth'
 import { useBandStore } from '../stores/band'
 import { useNotificationsStore, type AppNotification } from '../stores/notifications'
@@ -277,6 +284,19 @@ function getNavIcon(link: { to: string; iconLight: string; iconDark: string; ico
 
 function toggleDarkMode() {
   $q.dark.set(!$q.dark.isActive)
+}
+
+async function copyWebAppLink() {
+  try {
+    await copyToClipboard('https://bandstr.apps.4ki.app')
+    $q.notify({
+      type: 'positive',
+      message: t('dashboard.linkCopied') || 'Link copied to clipboard',
+      timeout: 2000,
+    })
+  } catch (err) {
+    console.error(err)
+  }
 }
 
 function selectBand(id: number) {
@@ -440,6 +460,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+:global(.q-header) {
+  background: #ffffff !important;
+  background: var(--surface) !important;
+  background-color: #ffffff !important;
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }

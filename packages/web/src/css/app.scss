@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 // ─── Design tokens ───────────────────────────────────────────────
-:root {
+:root, body {
   --brand: #6366f1;
   --brand-light: #818cf8;
   --surface: #ffffff;            // Light mode base background
