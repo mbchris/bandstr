@@ -12,6 +12,7 @@ coverage
 .git
 .gitignore
 .github
+.codex
 
 .env
 .env.*

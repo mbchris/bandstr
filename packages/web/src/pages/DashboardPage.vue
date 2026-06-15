@@ -33,6 +33,12 @@
                 </div>
               </div>
               <div class="text-caption text-grey-7">{{ t('dashboard.selectBandHint') }}</div>
+              <div class="text-caption text-grey-7 q-mt-xs">
+                {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
+                <q-btn flat round dense size="xs" icon="content_copy" color="grey-7" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
+                  <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
+                </q-btn>
+              </div>
             </q-card-section>
             <q-separator />
             <q-list separator>
@@ -606,6 +612,15 @@ function openQr(code: string) {
   selectedInviteCode.value = code
   qrImageUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(buildInviteDeepLink(code))}`
   showQrDialog.value = true
+}
+
+async function copyWebAppLink() {
+  try {
+    await copyToClipboard('https://bandstr.apps.4ki.app')
+    Notify.create({ type: 'positive', message: t('dashboard.linkCopied') })
+  } catch {
+    Notify.create({ type: 'negative', message: t('dashboard.failedCopyInvitationText') })
+  }
 }
 
 async function copyInviteCode(code: string) {
