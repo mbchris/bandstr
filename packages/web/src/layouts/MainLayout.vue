@@ -1,6 +1,8 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header bordered class="bg-transparent" :class="{ 'safe-area-top': !$q.platform.is.ios }">
+    <q-header
+      bordered
+    >
       <q-toolbar class="q-px-sm q-px-md-md">
         <q-toolbar-title>
           <router-link to="/" class="brand-link">
@@ -443,12 +445,14 @@ onBeforeUnmount(() => {
 }
 
 .bottom-nav-footer {
-  background: transparent;
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--surface) !important;
+  background-color: var(--surface) !important;
+  border-top: 1px solid var(--border);
 }
 
 .bottom-nav {
-  background: rgba(250, 251, 253, 0.96);
+  background: var(--surface-raised) !important;
+  background-color: var(--surface-raised) !important;
   --nav-btn-bg: rgba(39, 39, 42, 0.42);
   --nav-btn-border: rgba(15, 23, 42, 0.08);
   --nav-label: #e5e7eb;
@@ -526,7 +530,6 @@ onBeforeUnmount(() => {
 }
 
 :global(body.body--dark) .bottom-nav {
-  background: rgba(24, 24, 27, 0.96);
   --nav-btn-bg: rgba(39, 39, 42, 0.42);
   --nav-btn-border: rgba(255, 255, 255, 0.12);
   --nav-label: #e5e7eb;
@@ -593,5 +596,6 @@ onBeforeUnmount(() => {
     line-height: 1.05;
   }
 }
-
 </style>
+
+

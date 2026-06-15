@@ -5,28 +5,17 @@
 :root {
   --brand: #6366f1;
   --brand-light: #818cf8;
-  --surface: #161b22;            // Dark mode base background
-  --surface-raised: #18181b;     // Zinc-900
-  --surface-overlay: #27272a;    // Zinc-800 — dialogs, dropdowns
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text: #f4f4f5;               // Zinc-100
-  --text-muted: #a1a1aa;         // Zinc-400
+  --surface: #ffffff;            // Light mode base background
+  --surface-raised: #f9fafb;     // Light mode raised background
+  --surface-overlay: #ffffff;    // Light mode dialog/dropdown background
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --text: #111827;               // Light mode text
+  --text-muted: #6b7280;
   --radius: 12px;
   --radius-sm: 8px;
   --radius-xs: 6px;
   --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-// ─── Light-mode token overrides ─────────────────────────────────
-body.body--light {
-  --surface: #ffffff;
-  --surface-raised: #f9fafb;
-  --surface-overlay: #ffffff;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --text: #111827;
-  --text-muted: #6b7280;
 }
 
 // ─── Global typography ───────────────────────────────────────────
@@ -51,6 +40,14 @@ body {
 // ─── Dark background overrides ───────────────────────────────────
 // Quasar dark-mode surfaces → Zinc palette
 body.body--dark {
+  --surface: #161b22;            // Dark mode base background
+  --surface-raised: #18181b;     // Zinc-900
+  --surface-overlay: #27272a;    // Zinc-800 — dialogs, dropdowns
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #f4f4f5;               // Zinc-100
+  --text-muted: #a1a1aa;         // Zinc-400
+
   // Dark-mode button hover overrides
   .q-btn--flat:hover {
     background: rgba(255, 255, 255, 0.06);
@@ -65,7 +62,8 @@ body.body--dark {
     background: var(--surface);
   }
 
-  // Footer & drawer — seamless with background
+  // Header, footer & drawer — seamless with background
+  .q-header,
   .q-footer,
   .q-drawer {
     background: var(--surface) !important;
@@ -206,27 +204,37 @@ body.body--dark {
 }
 
 // Global header background and borders to prevent transparency issues
-.q-header {
+.q-header,
+.bg-header {
   background: var(--surface) !important;
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  opacity: 1 !important;
   border-color: var(--border) !important;
   transition: background var(--transition), border-color var(--transition);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
-// Header actions (theme toggle, locale switch, profile) need contrast in light mode.
-body.body--light .header-action-btn {
-  color: #111827 !important;
+// Ensure header typography stays readable on all backgrounds.
+.q-header .q-toolbar,
+.q-header .q-toolbar__title,
+.q-header .q-item-label[header] {
+  color: var(--text) !important;
 }
 
-body.body--light .header-action-btn.q-btn--flat:hover {
+// Header actions (theme toggle, locale switch, profile)
+.header-action-btn {
+  color: var(--text) !important;
+}
+
+.header-action-btn.q-btn--flat:hover {
   background: rgba(17, 24, 39, 0.08);
 }
 
-// Ensure header typography stays readable on bright backgrounds.
-body.body--light .q-header,
-body.body--light .q-header .q-toolbar,
-body.body--light .q-header .q-toolbar__title,
-body.body--light .q-header .q-item-label[header] {
-  color: #111827;
+body.body--dark .header-action-btn.q-btn--flat:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 // ─── Scrollbar — minimal ─────────────────────────────────────────

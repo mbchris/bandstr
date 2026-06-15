@@ -10,16 +10,19 @@
           <div class="q-pa-lg auth-card">
             <div class="text-center q-mb-lg">
               <div class="text-h4 text-weight-bold text-white auth-title">bandstr</div>
-              <div class="text-body2 text-grey-4 q-mt-xs">Manage. Your. Band.</div>
+              <div class="text-body2 text-grey-4 q-mt-xs">More music. Less chaos. Bandstr!</div>
             </div>
             <p class="text-body2 text-grey-2 q-mb-lg auth-lead">
               Manage your setlists, song votings, calendar entries and keep track of who is bringing the drinks. Bandstr brings the structure you need for focussing on jamming instead of having endless messenger conversations!
             </p>
-            <p class="text-body1 text-grey-3 q-mb-md auth-support-copy">
-            More music. Less chaos. Bandstr!
-            </p>
-            <p class="text-body1 text-grey-3 q-mb-lg auth-support-copy">
+            <p class="text-body2 text-grey-3 q-mb-md auth-support-copy">
             Please login with your account or create a new one to create or join a band and invite your friends. It's free! 
+            </p>
+            <p class="text-body2 text-grey-3 q-mb-lg auth-support-copy">
+              {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
+              <q-btn flat round dense size="xs" icon="content_copy" color="grey-4" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
+                <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
+              </q-btn>
             </p>
             <router-view />
           </div>
@@ -32,6 +35,22 @@
     </q-footer>
   </q-layout>
 </template>
+
+<script setup lang="ts">
+import { Notify, copyToClipboard } from 'quasar'
+import { useI18n } from '../composables/useI18n'
+
+const { t } = useI18n()
+
+async function copyWebAppLink() {
+  try {
+    await copyToClipboard('https://bandstr.apps.4ki.app')
+    Notify.create({ type: 'positive', message: t('dashboard.linkCopied') })
+  } catch {
+    Notify.create({ type: 'negative', message: t('dashboard.failedCopyInvitationText') })
+  }
+}
+</script>
 
 <style scoped>
 .auth-start-page {
