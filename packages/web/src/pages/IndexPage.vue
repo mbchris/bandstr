@@ -184,7 +184,14 @@
 
           <q-card-section v-if="upcomingGigs?.length">
             <q-list separator>
-              <q-item v-for="gig in upcomingGigs" :key="gig.id" class="gig-entry rounded-borders q-my-xs">
+              <q-item
+                v-for="gig in upcomingGigs"
+                :key="gig.id"
+                class="gig-entry rounded-borders q-my-xs"
+                :class="{ 'gig-clickable': gig.gigSetlistId }"
+                :clickable="!!gig.gigSetlistId"
+                @click="gig.gigSetlistId ? goToGigSetlist(gig.gigSetlistId) : null"
+              >
                 <q-item-section side>
                   <div class="text-center" style="min-width: 50px">
                     <div class="text-overline" style="font-size: 10px">{{ new Date(gig.startTime).toLocaleString(dateLocale, { month: 'short' }) }}</div>
@@ -198,6 +205,10 @@
                     <q-badge v-if="gig.isTentative" color="grey" :label="t('calendar.tentative')" class="q-ml-xs" />
                   </q-item-label>
                   <q-item-label caption><markdown-component :content="gig.description" /></q-item-label>
+                </q-item-section>
+                <q-item-section v-if="gig.gigSetlistId" side>
+                  <q-icon name="queue_music" color="primary" size="sm" />
+                  <q-tooltip>{{ t('home.openSetlist') }}</q-tooltip>
                 </q-item-section>
               </q-item>
             </q-list>
@@ -579,6 +590,10 @@ function goToSetlist(songTitle?: string) {
   router.push({ path: '/setlist', query })
 }
 
+function goToGigSetlist(gigSetlistId: number) {
+  router.push({ path: '/setlist', query: { list: `gig:${gigSetlistId}` } })
+}
+
 function attendanceAvatarStyle(status: 'present' | 'absent' | 'open', index: number) {
   const borderColor = status === 'present' ? '#10b981' : status === 'absent' ? '#ef4444' : '#9ca3af'
   return {
@@ -665,6 +680,22 @@ async function confirmBierwart(member: any) {
 .gig-entry {
   background: rgba(148, 163, 184, 0.12);
   border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.gig-clickable {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gig-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  border-color: var(--q-primary);
+  background: rgba(25, 118, 210, 0.08);
+}
+
+:global(body.body--dark) .gig-clickable:hover {
+  background: rgba(25, 118, 210, 0.15);
 }
 
 .option1-vote-row {

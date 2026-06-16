@@ -285,6 +285,7 @@ import { useSongsStore, type Song } from '../stores/songs'
 import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
+import { exportXlsx } from '../utils/export'
 import { getInitials } from '../utils/initials'
 
 const $q = useQuasar()
@@ -639,7 +640,7 @@ async function transferToSetlist() {
 // Export
 function handleExport() {
   // Dynamically import xlsx for Excel export
-  import('xlsx').then(({ utils, writeFile }) => {
+  import('xlsx').then(async ({ utils }) => {
     const data = filteredSongs.value.map((s) => {
       const row: any = { Title: s.title, Artist: s.artist, Average: Number(s.voteAverage || 0).toFixed(1), Votes: s.voteCount }
       visibleMembers.value.forEach((m) => { row[m.name] = voteScore(s, m.id) ?? '-' })
@@ -648,7 +649,11 @@ function handleExport() {
     const ws = utils.json_to_sheet(data)
     const wb = utils.book_new()
     utils.book_append_sheet(wb, ws, 'Voting')
-    writeFile(wb, `bandstr_voting_${new Date().toISOString().split('T')[0]}.xlsx`)
+    try {
+      await exportXlsx(wb, `bandstr_voting_${new Date().toISOString().split('T')[0]}.xlsx`)
+    } catch {
+      $q.notify({ message: 'Failed to export Excel file.', color: 'negative' })
+    }
   })
 }
 

@@ -112,6 +112,17 @@ gigs.put('/:id', zValidator('json', gigSetlistBodySchema), async (c) => {
   if (typeof calendarEventId === 'number') {
     const event = await getCalendarGigForBandOrNull(bandId, calendarEventId)
     if (!event) return c.json({ error: 'Linked calendar gig not found' }, 404)
+
+    // Clear conflict from any other gig setlists of the same band
+    await db
+      .update(gigSetlists)
+      .set({ calendarEventId: null })
+      .where(
+        and(
+          eq(gigSetlists.bandId, bandId),
+          eq(gigSetlists.calendarEventId, calendarEventId),
+        ),
+      )
   }
 
   const [updated] = await db

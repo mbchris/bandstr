@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, and, asc, desc, gte, lt, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { calendarEvents, rehearsalSongs, songs, users, bandMembers, rehearsalAttendance, rehearsalTimeProposals } from '../db/schema.js'
+import { calendarEvents, rehearsalSongs, songs, users, bandMembers, rehearsalAttendance, rehearsalTimeProposals, gigSetlists } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
 import { queueBandNotification } from '../lib/notifications.js'
@@ -66,8 +66,28 @@ rehearsals.get('/next', async (c) => {
     .limit(1)
 
   const upcomingGigs = await db
-    .select()
+    .select({
+      id: calendarEvents.id,
+      bandId: calendarEvents.bandId,
+      title: calendarEvents.title,
+      description: calendarEvents.description,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
+      type: calendarEvents.type,
+      userId: calendarEvents.userId,
+      bierwartOverrideId: calendarEvents.bierwartOverrideId,
+      isTentative: calendarEvents.isTentative,
+      createdAt: calendarEvents.createdAt,
+      gigSetlistId: gigSetlists.id,
+    })
     .from(calendarEvents)
+    .leftJoin(
+      gigSetlists,
+      and(
+        eq(calendarEvents.id, gigSetlists.calendarEventId),
+        eq(calendarEvents.bandId, gigSetlists.bandId),
+      ),
+    )
     .where(
       and(
         eq(calendarEvents.type, 'gig'),
