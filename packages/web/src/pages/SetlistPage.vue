@@ -625,6 +625,7 @@ import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
 import { useI18n } from '../composables/useI18n'
+import { exportXlsx } from '../utils/export'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -911,6 +912,30 @@ async function createGigSetlist() {
 }
 
 async function saveGigMeta() {
+  if (!selectedGigMeta.value) return
+  const newCalendarEventId = selectedGigMeta.value.calendarEventId
+
+  if (newCalendarEventId) {
+    const conflictingGig = gigs.value.find(
+      (g) => g.calendarEventId === newCalendarEventId && g.id !== selectedGigMeta.value!.id
+    )
+    if (conflictingGig) {
+      $q.dialog({
+        title: t('common.warning'),
+        message: t('setlist.calendarGigLinkConflict', { title: conflictingGig.title }),
+        cancel: true,
+        persistent: true,
+      }).onOk(async () => {
+        await executeSaveGigMeta()
+      })
+      return
+    }
+  }
+
+  await executeSaveGigMeta()
+}
+
+async function executeSaveGigMeta() {
   if (!selectedGigMeta.value) return
   isSaving.value = true
   try {
@@ -1411,7 +1436,7 @@ async function saveItemEdit() {
 
 // Export
 function handleExport() {
-  import('xlsx').then(({ utils, writeFile }) => {
+  import('xlsx').then(async ({ utils }) => {
     const data = filteredSongs.value.map((item, idx) => {
       if (item.type === 'song') {
         return {
@@ -1431,7 +1456,11 @@ function handleExport() {
     const ws = utils.json_to_sheet(data)
     const wb = utils.book_new()
     utils.book_append_sheet(wb, ws, 'Setlist')
-    writeFile(wb, `bandstr_setlist_${new Date().toISOString().split('T')[0]}.xlsx`)
+    try {
+      await exportXlsx(wb, `bandstr_setlist_${new Date().toISOString().split('T')[0]}.xlsx`)
+    } catch {
+      $q.notify({ message: 'Failed to export Excel file.', color: 'negative' })
+    }
   })
 }
 

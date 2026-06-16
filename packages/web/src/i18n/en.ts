@@ -43,6 +43,7 @@ export default {
     allRightsReserved: 'All rights reserved.',
     signedIn: 'Signed in',
     title: 'Title',
+    warning: 'Warning',
   },
 
   // Login page
@@ -98,6 +99,7 @@ export default {
     scheduleOne: 'Schedule one',
     viewDetails: 'View Rehearsal Details',
     upcomingGigs: 'Upcoming Gigs',
+    openSetlist: 'Open Setlist',
     noGigs: 'No upcoming gigs booked yet.',
     manageGigs: 'Manage Gigs',
     bierwartMgmt: 'Bierwart Management',
@@ -308,6 +310,7 @@ export default {
     newGigSetlist: 'New Gig Setlist',
     defaultGigSetlistTitle: 'New Gig Setlist',
     linkCalendarGig: 'Linked Calendar Gig',
+    calendarGigLinkConflict: 'This calendar event is already linked to setlist "{title}". Linking it here will remove it from "{title}". Do you want to proceed?',
     unlinked: 'Unlinked',
     deleteGigSetlistConfirm: 'Delete gig setlist "{title}"?',
     noteType: 'Note Type',

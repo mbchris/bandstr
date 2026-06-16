@@ -43,6 +43,7 @@ export default {
     allRightsReserved: 'Alle Rechte vorbehalten.',
     signedIn: 'Eingeloggt',
     title: 'Titel',
+    warning: 'Warnung',
   },
 
   // Login page
@@ -98,6 +99,7 @@ export default {
     scheduleOne: 'Eine planen',
     viewDetails: 'Proben-Details anzeigen',
     upcomingGigs: 'Anstehende Auftritte',
+    openSetlist: 'Setlist öffnen',
     noGigs: 'Noch keine Auftritte gebucht.',
     manageGigs: 'Auftritte verwalten',
     bierwartMgmt: 'Bierwart-Verwaltung',
@@ -309,6 +311,7 @@ export default {
     newGigSetlist: 'Neue Gig-Setlist',
     defaultGigSetlistTitle: 'Neue Gig-Setlist',
     linkCalendarGig: 'Verknüpfter Kalender-Gig',
+    calendarGigLinkConflict: 'Dieser Kalendereintrag ist bereits mit der Setlist "{title}" verknüpft. Das Verknüpfen hier wird die Verknüpfung von "{title}" entfernen. Möchtest du fortfahren?',
     unlinked: 'Nicht verknüpft',
     deleteGigSetlistConfirm: 'Gig-Setlist \"{title}\" löschen?',
     noteType: 'Notiztyp',
