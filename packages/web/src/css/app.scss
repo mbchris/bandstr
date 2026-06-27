@@ -66,6 +66,7 @@ body.body--dark {
   .q-header,
   .q-footer,
   .q-drawer {
+    background: #161b22 !important;
     background: var(--surface) !important;
     border-color: var(--border) !important;
   }
@@ -139,7 +140,8 @@ body.body--dark {
 
   // Select dropdown
   .q-menu {
-    background: var(--surface-overlay);
+    background: #27272a !important;
+    background: var(--surface-overlay) !important;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -206,7 +208,9 @@ body.body--dark {
 // Global header background and borders to prevent transparency issues
 .q-header,
 .bg-header {
+  background: #ffffff !important;
   background: var(--surface) !important;
+  background-color: #ffffff !important;
   background-color: var(--surface) !important;
   color: var(--text) !important;
   opacity: 1 !important;
@@ -215,6 +219,20 @@ body.body--dark {
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+}
+
+// Global dropdown menu styles with solid fallback to prevent translucency in bright mode
+.q-menu {
+  background: #ffffff !important;
+  background: var(--surface-overlay) !important;
+  background-color: #ffffff !important;
+  background-color: var(--surface-overlay) !important;
+}
+
+body.is-android-native {
+  .q-header {
+    padding-top: 25px !important;
+  }
 }
 
 // Ensure header typography stays readable on all backgrounds.

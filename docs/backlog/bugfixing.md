@@ -64,3 +64,11 @@
 - **Acceptance Criteria:**
     - [ ] Error and information overlays are shown at the bottom of the app. This conflicts with the button bar position. They shall be shown in the upper 1/3 of the screen instead.
     - [ ] Error and information overlays shall be shown in a slightly transparent box with rounded corners 
+
+## TASK-9005: New gig creation from Home page upcoming gigs section fails to add
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+  - [x] Adding a new gig from the home page popup and saving works, even if there are already 3+ upcoming gigs.
+  - [x] Editing existing gigs in the popup doesn't fail due to null descriptions.
+

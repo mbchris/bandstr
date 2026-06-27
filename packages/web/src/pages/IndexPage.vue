@@ -625,9 +625,25 @@ async function saveRehearsal() {
 
 const showGigEdit = ref(false)
 const editedGigs = ref<any[]>([])
+let originalGigIds: number[] = []
 
-function openGigEdit() {
-  editedGigs.value = (upcomingGigs.value || []).map((g: any) => ({ ...g, startTimeFormatted: formatForInput(g.startTime), endTimeFormatted: formatForInput(g.endTime || g.startTime) }))
+async function openGigEdit() {
+  try {
+    const events = await apiJson<any[]>('/calendar')
+    const now = new Date()
+    const gigs = events
+      .filter((e) => e.type === 'gig')
+      .filter((g) => new Date(g.endTime || g.startTime) >= now)
+    editedGigs.value = gigs.map((g: any) => ({
+      ...g,
+      startTimeFormatted: formatForInput(g.startTime),
+      endTimeFormatted: formatForInput(g.endTime || g.startTime),
+    }))
+    originalGigIds = gigs.map((g: any) => g.id)
+  } catch (e: any) {
+    editedGigs.value = (upcomingGigs.value || []).map((g: any) => ({ ...g, startTimeFormatted: formatForInput(g.startTime), endTimeFormatted: formatForInput(g.endTime || g.startTime) }))
+    originalGigIds = (upcomingGigs.value || []).map((g: any) => g.id)
+  }
   showGigEdit.value = true
 }
 
@@ -639,9 +655,8 @@ function addNewGig() {
 async function saveGigs() {
   saving.value = true
   try {
-    const origIds = (upcomingGigs.value || []).map((g: any) => g.id)
     const keptIds = editedGigs.value.filter((g) => g.id).map((g) => g.id)
-    for (const id of origIds.filter((id: number) => !keptIds.includes(id))) {
+    for (const id of originalGigIds.filter((id: number) => !keptIds.includes(id))) {
       await apiJson(`/calendar/${id}`, { method: 'DELETE' })
     }
     for (const gig of editedGigs.value) {
