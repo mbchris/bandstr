@@ -25,7 +25,7 @@ to_uppercase() {
 
 is_profile_scoped_command() {
   case "$1" in
-    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|upload-ios|appstore-checklist|push-setup)
+    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|upload-ios|appstore-checklist|push-setup|run-android)
       return 0
       ;;
     *)
@@ -143,6 +143,10 @@ Commands:
     Install an already built APK to a connected device via adb.
     DEVICE_ID can also be set via ANDROID_DEVICE_ID or ADB_DEVICE_ID in env file.
     If the resolved APK is unsigned, it will be signed automatically before install.
+
+  run-android [local|production]
+    Start the Pixel_10 emulator, build, install, and run the Android APK.
+    Default profile: local (if omitted)
 
   build-ios [local|production] [--no-sign]
     Build iOS archive and export IPA on macOS.
@@ -283,6 +287,16 @@ elif [[ "$command" == "deploy-apk" ]]; then
     env_profile="production"
     deploy_apk_device_id="$deploy_arg"
   fi
+elif [[ "$command" == "run-android" ]]; then
+  run_arg="${2:-}"
+  if [[ -z "$run_arg" ]]; then
+    env_profile="local"
+  elif [[ "$run_arg" == "local" || "$run_arg" == "production" ]]; then
+    env_profile="$run_arg"
+  else
+    # Default/fallback to local
+    env_profile="local"
+  fi
 elif [[ "$command" == "deploy-play-console" ]]; then
   deploy_arg="${2:-}"
   if [[ -z "$deploy_arg" ]]; then
@@ -391,7 +405,7 @@ if [[ "$command" == "push-bootstrap-firebase" ]]; then
   exit $?
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" || "$command" == "upload-ios" || "$command" == "appstore-checklist" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" || "$command" == "upload-ios" || "$command" == "appstore-checklist" || "$command" == "run-android" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -446,7 +460,7 @@ get_env_value() {
   printf '%s\n' "$value"
 }
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "build-ios" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "build-ios" || "$command" == "run-android" ]]; then
   apk_api_url="$(get_env_value API_URL "$env_file" || true)"
   if [[ -z "$apk_api_url" ]]; then
     echo "Error: API_URL is not set in $env_file."
@@ -958,6 +972,9 @@ install_android_apk() {
   fi
 
   local device_id="$explicit_device_id"
+  if [[ -z "$device_id" ]]; then
+    device_id="${ANDROID_DEVICE_ID:-${ADB_DEVICE_ID:-}}"
+  fi
   if [[ -z "$device_id" ]]; then
     device_id="$(get_env_value ANDROID_DEVICE_ID "$env_file" || true)"
   fi
@@ -1501,6 +1518,116 @@ deploy_android_apk() {
   install_android_apk "$apk_path" "$explicit_device_id"
 }
 
+run_android_emulator() {
+  local profile="$1"
+
+  export_env_file "$env_file"
+
+  # Resolve SDK path
+  local sdk_path="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+  if [[ -z "$sdk_path" && -d "$HOME/Library/Android/sdk" ]]; then
+    sdk_path="$HOME/Library/Android/sdk"
+  fi
+  if [[ -z "$sdk_path" && -d "$HOME/Library/Android/Sdk" ]]; then
+    sdk_path="$HOME/Library/Android/Sdk"
+  fi
+  if [[ -z "$sdk_path" && -d "$HOME/Android/Sdk" ]]; then
+    sdk_path="$HOME/Android/Sdk"
+  fi
+
+  local emulator_bin="emulator"
+  if [[ -n "$sdk_path" && -f "$sdk_path/emulator/emulator" ]]; then
+    emulator_bin="$sdk_path/emulator/emulator"
+  fi
+
+  # Check if emulator command exists/is accessible
+  if ! command -v "$emulator_bin" >/dev/null 2>&1; then
+    echo "Error: 'emulator' tool not found. Please install Android SDK or set ANDROID_HOME."
+    exit 1
+  fi
+
+  # Check if Pixel_10 exists
+  if ! "$emulator_bin" -list-avds | grep -q "^Pixel_10$"; then
+    echo "Error: Pixel_10 emulator is not available/created."
+    echo "Please create a Pixel_10 AVD in Android Studio first."
+    echo "Available AVDs:"
+    "$emulator_bin" -list-avds || true
+    exit 1
+  fi
+
+  # Check if Pixel_10 emulator is already running
+  if ps aux | grep -i "emulator" | grep -v "grep" | grep -q "Pixel_10"; then
+    echo "Pixel_10 emulator is already running."
+  else
+    echo "Starting Pixel_10 emulator in the background..."
+    "$emulator_bin" -avd Pixel_10 > /dev/null 2>&1 &
+  fi
+
+  if ! command -v adb >/dev/null 2>&1; then
+    echo "Error: adb not found in PATH."
+    echo "Install Android platform-tools."
+    exit 1
+  fi
+
+  echo "Waiting for adb connection..."
+  adb wait-for-device
+
+  # Attempt to find the specific emulator device ID
+  local target_device=""
+  for device in $(adb devices | awk 'NR>1 {print $1}'); do
+    if [[ "$device" == emulator-* ]]; then
+      local name
+      name=$(adb -s "$device" emu avd name 2>/dev/null || true)
+      name=$(echo "$name" | tr -d '\r\n')
+      if [[ "$name" == "Pixel_10" ]]; then
+        target_device="$device"
+        break
+      fi
+    fi
+  done
+
+  # Fallback to the first emulator or default device if not found uniquely
+  if [[ -n "$target_device" ]]; then
+    echo "Targeting emulator device: $target_device"
+    export ANDROID_DEVICE_ID="$target_device"
+    export ADB_DEVICE_ID="$target_device"
+  fi
+
+  echo "Waiting for system boot to complete..."
+  local boot_completed=""
+  local retries=0
+  local max_retries=60 # 2 minutes
+  while [[ "$boot_completed" != "1" && $retries -lt $max_retries ]]; do
+    sleep 2
+    if [[ -n "$target_device" ]]; then
+      boot_completed="$(adb -s "$target_device" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n' || true)"
+    else
+      boot_completed="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n' || true)"
+    fi
+    retries=$((retries + 1))
+  done
+
+  if [[ "$boot_completed" != "1" ]]; then
+    echo "Error: Emulator boot timed out."
+    exit 1
+  fi
+  echo "Emulator is booted and ready."
+
+  # Now build the APK (sign_apk=1, install_apk=1)
+  echo "Building and installing APK..."
+  sync_assets
+  build_android_apk "1" "1"
+
+  # Launch the app
+  local app_id="org.capacitor.bandstr"
+  echo "Launching app $app_id on the emulator..."
+  if [[ -n "$target_device" ]]; then
+    adb -s "$target_device" shell am start -n "$app_id/$app_id.MainActivity"
+  else
+    adb shell am start -n "$app_id/$app_id.MainActivity"
+  fi
+}
+
 deploy_play_console_bundle() {
   local profile="$1"
   local aab_path="${2:-}"
@@ -1603,6 +1730,9 @@ case "$command" in
     ;;
   deploy-apk)
     deploy_android_apk "$env_profile" "$deploy_apk_device_id"
+    ;;
+  run-android)
+    run_android_emulator "$env_profile"
     ;;
   build-ios)
     export_env_file "$env_file"

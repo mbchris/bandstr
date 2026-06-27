@@ -42,7 +42,7 @@ const dateInputSchema = z.union([z.string().datetime(), z.number()]).transform((
 
 const eventBodySchema = z.object({
   title: z.string().min(1),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
   startTime: dateInputSchema,
   endTime: dateInputSchema,
   type: z.enum(['rehearsal', 'gig', 'event', 'unavailability']).default('rehearsal'),

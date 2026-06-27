@@ -194,6 +194,17 @@ app.get('/api/mobile-auth/complete', async (c) => {
     return c.text('Missing appCallbackURL', 400)
   }
 
+  const userAgent = c.req.header('User-Agent') ?? ''
+  const isAndroid = userAgent.includes('Android')
+
+  const getTarget = (rawTarget: string) => {
+    if (isAndroid && rawTarget.startsWith('org.capacitor.bandstr://')) {
+      const remaining = rawTarget.substring('org.capacitor.bandstr://'.length)
+      return `intent://${remaining}#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;end;`
+    }
+    return rawTarget
+  }
+
   try {
     const current = await auth.api.getSession({ headers: c.req.raw.headers })
     const sessionId = current?.session?.id
@@ -202,7 +213,7 @@ app.get('/api/mobile-auth/complete', async (c) => {
         `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}error=missing_session` +
         '&mobileAuth=missing_session'
       console.warn('[mobile-auth/complete] missing session, redirecting to app callback')
-      return c.html(deepLinkRedirectPage(target, 'missing_session'))
+      return c.html(deepLinkRedirectPage(getTarget(target), 'missing_session'))
     }
 
     const row = await db.select({ token: sessions.token }).from(sessions).where(eq(sessions.id, sessionId)).limit(1)
@@ -213,20 +224,20 @@ app.get('/api/mobile-auth/complete', async (c) => {
         `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}error=missing_token` +
         '&mobileAuth=missing_token'
       console.warn('[mobile-auth/complete] missing token row for session, redirecting to app callback')
-      return c.html(deepLinkRedirectPage(target, 'missing_token'))
+      return c.html(deepLinkRedirectPage(getTarget(target), 'missing_token'))
     }
 
     const target =
       `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` +
       '&mobileAuth=ok'
     console.log('[mobile-auth/complete] token issued, redirecting to app callback')
-    return c.html(deepLinkRedirectPage(target, 'token_issued'))
+    return c.html(deepLinkRedirectPage(getTarget(target), 'token_issued'))
   } catch {
     const target =
       `${appCallbackURL}${appCallbackURL.includes('?') ? '&' : '?'}error=token_exchange_failed` +
       '&mobileAuth=token_exchange_failed'
     console.error('[mobile-auth/complete] token exchange failed, redirecting with error')
-    return c.html(deepLinkRedirectPage(target, 'token_exchange_failed'))
+    return c.html(deepLinkRedirectPage(getTarget(target), 'token_exchange_failed'))
   }
 })
 
@@ -251,8 +262,14 @@ app.get('/api/mobile-auth/error', (c) => {
   const separator = appErrorURL.includes('?') ? '&' : '?'
   const target = qs ? `${appErrorURL}${separator}${qs}` : appErrorURL
 
-  console.warn('[mobile-auth/error] redirecting error to app callback:', target)
-  return c.html(deepLinkRedirectPage(target, 'auth_error'))
+  const userAgent = c.req.header('User-Agent') ?? ''
+  const isAndroid = userAgent.includes('Android')
+  const finalTarget = isAndroid && target.startsWith('org.capacitor.bandstr://')
+    ? `intent://${target.substring('org.capacitor.bandstr://'.length)}#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;end;`
+    : target
+
+  console.warn('[mobile-auth/error] redirecting error to app callback:', finalTarget)
+  return c.html(deepLinkRedirectPage(finalTarget, 'auth_error'))
 })
 
 // Explicit bearer-token revocation endpoint used by app logout.
