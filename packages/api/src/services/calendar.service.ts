@@ -18,8 +18,8 @@ export async function syncAbsenceAttendance(params: {
       and(
         eq(calendarEvents.bandId, params.bandId),
         eq(calendarEvents.type, 'rehearsal'),
-        gte(calendarEvents.startTime, params.startTime),
-        lte(calendarEvents.endTime, params.endTime),
+        lte(calendarEvents.startTime, params.endTime),
+        gte(calendarEvents.endTime, params.startTime),
       ),
     )
 
@@ -124,12 +124,12 @@ export const calendarService = {
       .values({
         bandId,
         title: data.title,
-        description: data.description,
+        description: data.description ?? null,
         startTime,
         endTime,
         type: data.type,
         userId,
-        bierwartOverrideId: data.bierwartOverrideId,
+        bierwartOverrideId: data.bierwartOverrideId ?? null,
         isTentative: data.isTentative ?? false,
       })
       .returning()
@@ -209,6 +209,60 @@ export const calendarService = {
 
     if (eventType === 'unavailability') {
       await syncAbsenceAttendance({ bandId, userId: nextUserId, startTime, endTime })
+    }
+
+    const eventTitle = updated?.title ?? existing.title
+    if (eventType === 'gig') {
+      await queueBandNotification({
+        bandId,
+        actorUserId: actor.id,
+        eventType: 'gig',
+        entityKey: `calendar:${id}`,
+        title: 'Gig updated',
+        message: `${actor.name} added/updated "${eventTitle}".`,
+        linkPath: '/calendar',
+        linkQuery: `eventId=${id}`,
+      })
+    } else if (eventType === 'rehearsal') {
+      await queueBandNotification({
+        bandId,
+        actorUserId: actor.id,
+        eventType: 'rehearsal',
+        entityKey: `calendar:${id}`,
+        title: 'Rehearsal updated',
+        message: `${actor.name} added/updated "${eventTitle}".`,
+        linkPath: '/',
+        linkQuery: '',
+      })
+    }
+
+    const bierwartChanged =
+      data.bierwartOverrideId !== undefined &&
+      data.bierwartOverrideId !== existing.bierwartOverrideId
+
+    if (bierwartChanged) {
+      let newBierwartName = 'None'
+      if (data.bierwartOverrideId) {
+        const [u] = await db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, data.bierwartOverrideId))
+          .limit(1)
+        if (u) {
+          newBierwartName = u.name
+        }
+      }
+
+      await queueBandNotification({
+        bandId,
+        actorUserId: actor.id,
+        eventType: 'rehearsal',
+        entityKey: `bierwart:${id}`,
+        title: 'Bierwart changed',
+        message: `New Bierwart: ${newBierwartName}`,
+        linkPath: '/',
+        linkQuery: '',
+      })
     }
 
     return updated
