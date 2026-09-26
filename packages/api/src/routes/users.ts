@@ -112,6 +112,10 @@ usersRouter.post('/', requireRole('admin'), zValidator('json', createMemberSchem
   return c.json(createdMember, 201)
 })
 
+const idParamSchema = z.object({
+  id: z.string().min(1),
+})
+
 // PATCH /users/:id — update band-level member attributes
 const patchMemberSchema = z.object({
   role: z.enum(['owner', 'admin', 'member']).optional(),
@@ -122,10 +126,11 @@ const patchMemberSchema = z.object({
 
 usersRouter.patch(
   '/:id',
+  zValidator('param', idParamSchema),
   zValidator('json', patchMemberSchema),
   async (c) => {
     const bandId = c.get('bandId')
-    const targetUserId = c.req.param('id')
+    const { id: targetUserId } = c.req.valid('param')
     const data = c.req.valid('json')
     const requesterRole = c.get('bandRole') as 'member' | 'admin' | 'owner'
 
@@ -174,9 +179,9 @@ usersRouter.post(
 )
 
 // DELETE /users/:id — remove a member from the current band
-usersRouter.delete('/:id', requireRole('admin'), async (c) => {
+usersRouter.delete('/:id', requireRole('admin'), zValidator('param', idParamSchema), async (c) => {
   const bandId = c.get('bandId')
-  const targetUserId = c.req.param('id')
+  const { id: targetUserId } = c.req.valid('param')
 
   const [membership] = await db
     .select({ role: bandMembers.role })
