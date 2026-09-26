@@ -1,0 +1,136 @@
+name: Deploy Android App (Google Play Store)
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Google Play Console release track'
+        required: true
+        default: 'internal'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+      bump:
+        description: 'Version bump strategy'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - min+
+          - maj+
+
+permissions:
+  contents: read
+
+jobs:
+  build_test_deploy_android:
+    name: Build, Test & Deploy to Google Play (${{ inputs.track || 'internal' }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute Build Metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(git rev-parse --short=8 HEAD)"
+          echo "commit_short=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "SOURCE_COMMIT=$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "GIT_REV=$SHORT_SHA" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Components
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses
+          set -o pipefail
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Setup pnpm via Corepack
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Ensure Gradle Wrapper is Executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packages/web/src-capacitor/android/gradlew
+
+      - name: Test Android App
+        shell: bash
+        working-directory: packages/web/src-capacitor/android
+        run: |
+          set -euo pipefail
+          ./gradlew testReleaseUnitTest
+
+      - name: Build Signed Android App Bundle (.aab)
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+          GIT_REV: ${{ env.GIT_REV }}
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          BUMP="${{ inputs.bump || 'patch' }}"
+          ./do create-apk-bundle production "$BUMP"
+
+      - name: Locate Built Bundle (.aab)
+        id: bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB_FILE="$(find packages/web/src-capacitor/android/app/build/outputs/bundle -name '*.aab' | sort | tail -n 1 || true)"
+          if [[ -z "$AAB_FILE" || ! -f "$AAB_FILE" ]]; then
+            echo "::error::Built AAB file not found."
+            exit 1
+          fi
+          echo "Found bundle: $AAB_FILE"
+          echo "aab_path=$AAB_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Google Play Store Testing Track
+        shell: bash
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64 }}
+          GPLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GPLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_CONSOLE_TRACK: ${{ inputs.track || 'internal' }}
+        run: |
+          set -euo pipefail
+          AAB_PATH="${{ steps.bundle.outputs.aab_path }}"
+          PACKAGE_NAME="${{ vars.GPLAY_PACKAGE_NAME || 'org.capacitor.bandstr' }}"
+          node ./scripts/deploy-play-console.mjs "$AAB_PATH" "$PACKAGE_NAME"
+
+      - name: Upload Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandstr-android-${{ steps.meta.outputs.commit_short }}.aab
+          path: ${{ steps.bundle.outputs.aab_path }}
+          retention-days: 14

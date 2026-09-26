@@ -1,7 +1,7 @@
 name: Build And Release Gate
 
 on:
-  push:
+  workflow_dispatch:
 
 permissions:
   contents: write

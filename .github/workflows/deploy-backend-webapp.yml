@@ -1,0 +1,41 @@
+name: Deploy Backend & WebApp (Coolify)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_backend_webapp:
+    name: Trigger Coolify Backend & WebApp Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Deployment Configuration
+        shell: bash
+        env:
+          COOLIFY_DEPLOY_URL: ${{ secrets.COOLIFY_DEPLOY_URL || vars.COOLIFY_DEPLOY_URL }}
+          COOLIFY_AUTH_TOKEN: ${{ secrets.COOLIFY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COOLIFY_DEPLOY_URL:-}" ]]; then
+            echo "::error::Missing COOLIFY_DEPLOY_URL secret or variable."
+            exit 1
+          fi
+          if [[ -z "${COOLIFY_AUTH_TOKEN:-}" ]]; then
+            echo "::error::Missing COOLIFY_AUTH_TOKEN secret."
+            exit 1
+          fi
+          echo "Coolify deployment credentials validated."
+
+      - name: Trigger Coolify Deployment Webhook
+        shell: bash
+        env:
+          COOLIFY_DEPLOY_URL: ${{ secrets.COOLIFY_DEPLOY_URL || vars.COOLIFY_DEPLOY_URL }}
+          COOLIFY_AUTH_TOKEN: ${{ secrets.COOLIFY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash ./scripts/deploy_main_to_prod.sh "$COOLIFY_DEPLOY_URL" "$COOLIFY_AUTH_TOKEN"
