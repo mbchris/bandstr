@@ -1,3 +1,19 @@
+<script setup lang="ts">
+import { Notify, copyToClipboard } from 'quasar'
+import { useI18n } from '../composables/useI18n'
+
+const { t } = useI18n()
+
+async function copyWebAppLink() {
+  try {
+    await copyToClipboard('https://bandstr.apps.4ki.app')
+    Notify.create({ type: 'positive', message: t('dashboard.linkCopied') })
+  } catch {
+    Notify.create({ type: 'negative', message: t('dashboard.failedCopyInvitationText') })
+  }
+}
+</script>
+
 <template>
   <q-layout view="lHh Lpr lFf">
     <q-page-container>
@@ -36,23 +52,7 @@
   </q-layout>
 </template>
 
-<script setup lang="ts">
-import { Notify, copyToClipboard } from 'quasar'
-import { useI18n } from '../composables/useI18n'
-
-const { t } = useI18n()
-
-async function copyWebAppLink() {
-  try {
-    await copyToClipboard('https://bandstr.apps.4ki.app')
-    Notify.create({ type: 'positive', message: t('dashboard.linkCopied') })
-  } catch {
-    Notify.create({ type: 'negative', message: t('dashboard.failedCopyInvitationText') })
-  }
-}
-</script>
-
-<style scoped>
+<style lang="scss" scoped>
 .auth-start-page {
   position: relative;
   min-height: 100vh;

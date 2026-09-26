@@ -1,6 +1,7 @@
 {
   "name": "@bandstr/web",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "prebuild": "bash ../../scripts/sync-assets.sh",
@@ -10,7 +11,8 @@
     "build:ios": "quasar build -m capacitor -T ios",
     "prebuild:android": "bash ../../scripts/sync-assets.sh",
     "build:android": "quasar build -m capacitor -T android",
-    "lint": "eslint --ext .js,.ts,.vue .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {

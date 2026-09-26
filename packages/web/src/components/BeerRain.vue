@@ -1,28 +1,10 @@
-<template>
-  <div class="beer-rain-container" style="pointer-events: none; position: fixed; inset: 0; z-index: 10000; overflow: hidden">
-    <div
-      v-for="item in items"
-      :key="item.id"
-      class="beer-item"
-      :style="{
-        position: 'absolute',
-        left: item.left + '%',
-        top: '-50px',
-        fontSize: '1.5rem',
-        animationDelay: item.delay + 's',
-        animationDuration: item.duration + 's',
-      }"
-    >
-      {{ item.emoji }}
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 
 const props = defineProps<{ active: boolean }>()
-const emit = defineEmits(['done'])
+const emit = defineEmits<{
+  (e: 'done'): void
+}>()
 
 interface RainItem {
   id: number
@@ -60,7 +42,27 @@ watch(
 )
 </script>
 
-<style scoped>
+<template>
+  <div class="beer-rain-container" style="pointer-events: none; position: fixed; inset: 0; z-index: 10000; overflow: hidden">
+    <div
+      v-for="item in items"
+      :key="item.id"
+      class="beer-item"
+      :style="{
+        position: 'absolute',
+        left: item.left + '%',
+        top: '-50px',
+        fontSize: '1.5rem',
+        animationDelay: item.delay + 's',
+        animationDuration: item.duration + 's',
+      }"
+    >
+      {{ item.emoji }}
+    </div>
+  </div>
+</template>
+
+<style lang="scss" scoped>
 .beer-item {
   animation: drop linear forwards;
 }

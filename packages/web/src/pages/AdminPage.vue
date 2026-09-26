@@ -1,224 +1,3 @@
-<template>
-  <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <div class="row items-center q-gutter-sm q-mb-lg">
-        <q-icon name="settings" size="32px" color="primary" />
-        <div class="text-h5 text-weight-bold">{{ t('admin.heading') }}</div>
-      </div>
-
-      <div class="row q-gutter-lg">
-        <!-- Band Members Table -->
-        <div class="col-12 col-lg-7">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="row items-center justify-between">
-                <div class="text-subtitle1 text-weight-bold">{{ t('admin.bandMembers') }}</div>
-                <q-btn size="sm" color="primary" round dense icon="person_add" @click="showAddModal = true">
-                  <q-tooltip>{{ t('admin.addMember') }}</q-tooltip>
-                </q-btn>
-              </div>
-            </q-card-section>
-            <q-table
-              class="admin-members-table"
-              flat
-              :rows="bandStore.members"
-              :columns="columns"
-              :visible-columns="visibleColumns"
-              row-key="id"
-              :pagination="{ rowsPerPage: 0 }"
-              :dense="$q.screen.lt.md"
-              hide-pagination
-            >
-              <template #body-cell-isHidden="props">
-                <q-td :props="props">
-                  <q-badge v-if="props.row.isHidden" color="grey">{{ t('admin.isHidden') }}</q-badge>
-                  <span v-else>-</span>
-                </q-td>
-              </template>
-              <template #body-cell-actions="props">
-                <q-td :props="props">
-                  <div class="row q-gutter-xs">
-                    <q-btn flat round dense icon="edit" size="sm" @click="openEdit(props.row)" />
-                    <q-btn flat round dense icon="delete" color="red" size="sm" :loading="removingId === props.row.id" @click="removeMember(props.row.id)" />
-                  </div>
-                </q-td>
-              </template>
-            </q-table>
-          </q-card>
-        </div>
-
-        <!-- Sidebar -->
-        <div class="col-12 col-lg">
-          <!-- Band Logo -->
-          <q-card flat bordered class="q-mb-md">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold">{{ t('admin.bandLogo') }}</div>
-            </q-card-section>
-            <q-card-section class="q-gutter-sm">
-              <div class="text-subtitle2 text-weight-medium">{{ t('admin.darkModeLogo') }}</div>
-              <div class="text-caption text-grey q-mb-xs">{{ t('admin.darkModeLogoHint') }}</div>
-              <q-img
-                v-if="logoDarkPreviewSrc"
-                :src="logoDarkPreviewSrc"
-                style="width: 100%; max-width: 420px; aspect-ratio: 830 / 460; border-radius: 10px"
-                fit="contain"
-              />
-              <div v-else class="text-caption text-grey">{{ t('admin.noLogo') }}</div>
-              <div class="row q-col-gutter-sm q-mb-md">
-                <div class="col-12 col-sm-auto">
-                  <q-btn color="primary" round dense icon="image" :loading="logoDarkProcessing" @click="logoDarkInputRef?.click()">
-                    <q-tooltip>{{ pendingLogoDarkDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
-                  </q-btn>
-                </div>
-                <div class="col-12 col-sm-auto" v-if="pendingLogoDarkDataUrl">
-                  <q-btn color="positive" round dense icon="save" :loading="logoDarkUploading" @click="uploadLogo('dark')">
-                    <q-tooltip>{{ t('admin.saveLogo') }}</q-tooltip>
-                  </q-btn>
-                </div>
-                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logoDark">
-                  <q-btn color="negative" outline round dense icon="delete" :loading="logoDarkUploading" @click="removeLogo('dark')">
-                    <q-tooltip>{{ t('admin.removeLogo') }}</q-tooltip>
-                  </q-btn>
-                </div>
-              </div>
-
-              <div class="text-subtitle2 text-weight-medium">{{ t('admin.brightModeLogo') }}</div>
-              <div class="text-caption text-grey q-mb-xs">{{ t('admin.brightModeLogoHint') }}</div>
-              <q-img
-                v-if="logoBrightPreviewSrc"
-                :src="logoBrightPreviewSrc"
-                style="width: 100%; max-width: 420px; aspect-ratio: 830 / 460; border-radius: 10px"
-                fit="contain"
-              />
-              <div v-else class="text-caption text-grey">{{ t('admin.noLogo') }}</div>
-              <div class="row q-col-gutter-sm">
-                <div class="col-12 col-sm-auto">
-                  <q-btn color="primary" round dense icon="image" :loading="logoBrightProcessing" @click="logoBrightInputRef?.click()">
-                    <q-tooltip>{{ pendingLogoBrightDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
-                  </q-btn>
-                </div>
-                <div class="col-12 col-sm-auto" v-if="pendingLogoBrightDataUrl">
-                  <q-btn color="positive" round dense icon="save" :loading="logoBrightUploading" @click="uploadLogo('bright')">
-                    <q-tooltip>{{ t('admin.saveLogo') }}</q-tooltip>
-                  </q-btn>
-                </div>
-                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logoBright">
-                  <q-btn color="negative" outline round dense icon="delete" :loading="logoBrightUploading" @click="removeLogo('bright')">
-                    <q-tooltip>{{ t('admin.removeLogo') }}</q-tooltip>
-                  </q-btn>
-                </div>
-              </div>
-
-              <input ref="logoDarkInputRef" type="file" accept="image/*" class="hidden" style="display:none" @change="(e) => handleLogoSelected(e, 'dark')" />
-              <input ref="logoBrightInputRef" type="file" accept="image/*" class="hidden" style="display:none" @change="(e) => handleLogoSelected(e, 'bright')" />
-              <div class="text-caption text-grey">
-                {{ t('admin.logoHint') }}
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- System Status -->
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold">{{ t('admin.systemStatus') }}</div>
-            </q-card-section>
-            <q-list dense separator>
-              <q-item>
-                <q-item-section>{{ t('admin.database') }}</q-item-section>
-                <q-item-section side><q-badge color="green">{{ t('admin.connected') }}</q-badge></q-item-section>
-              </q-item>
-              <q-item>
-                <q-item-section>OIDC Google</q-item-section>
-                <q-item-section side>
-                  <q-badge :color="sysStatus?.google ? 'green' : 'grey'">{{ sysStatus?.google ? t('admin.connected') : t('admin.pending') }}</q-badge>
-                </q-item-section>
-              </q-item>
-              <q-item>
-                <q-item-section>OIDC GitHub</q-item-section>
-                <q-item-section side>
-                  <q-badge :color="sysStatus?.github ? 'green' : 'grey'">{{ sysStatus?.github ? t('admin.connected') : t('admin.pending') }}</q-badge>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-card>
-
-          <!-- DB Management -->
-          <q-card flat bordered class="q-mt-md">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold">{{ t('admin.dbManagement') }}</div>
-            </q-card-section>
-            <q-card-section class="q-gutter-sm">
-              <q-banner v-if="authStore.isFreePlan" rounded class="bg-orange-1 text-orange-9 q-mb-sm">
-                <template #avatar><q-icon name="lock" color="orange" /></template>
-                PRO feature — upgrade to access import/export
-              </q-banner>
-              <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportDb">{{ t('admin.downloadBackup') }}</q-btn>
-              <q-btn class="full-width" color="orange" outline icon="upload" :loading="isImporting" :disable="authStore.isFreePlan" @click="importInputRef?.click()">{{ t('admin.importBackup') }}</q-btn>
-              <input ref="importInputRef" type="file" accept=".json" class="hidden" style="display:none" @change="handleImport" />
-              <div class="text-caption text-grey text-center">{{ t('admin.backupWarning') }}</div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Calendar Management -->
-          <q-card flat bordered class="q-mt-md">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold">{{ t('admin.calendarMgmt') }}</div>
-            </q-card-section>
-            <q-card-section class="q-gutter-sm">
-              <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportCalendar">{{ t('admin.exportJson') }}</q-btn>
-              <q-btn class="full-width" color="blue" outline icon="upload" :loading="isCalendarImporting" :disable="authStore.isFreePlan" @click="calendarImportRef?.click()">{{ t('admin.importJson') }}</q-btn>
-              <input ref="calendarImportRef" type="file" accept=".json" class="hidden" style="display:none" @change="handleCalendarImport" />
-              <div class="text-caption text-grey text-center">{{ t('admin.jsonHint') }}</div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Member Dialog -->
-    <q-dialog v-model="showAddModal">
-      <q-card style="min-width: 400px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('admin.addMember') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input v-model="newMember.name" :label="t('admin.name')" outlined dense autofocus />
-          <q-input v-model="newMember.email" :label="t('admin.emailWhitelist')" type="email" outlined dense />
-          <q-select v-model="newMember.role" :options="['member', 'admin']" :label="t('admin.role')" outlined dense />
-          <q-toggle v-model="newMember.isHidden" :label="t('admin.isHidden')" />
-          <q-input v-model.number="newMember.beerCount" :label="t('admin.beerCount')" type="number" outlined dense />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.add')" :loading="isSubmitting" @click="addMember" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Edit Member Dialog -->
-    <q-dialog v-model="showEditModal">
-      <q-card v-if="editingMember" style="min-width: 400px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('admin.editMember') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input v-model="editingMember.name" :label="t('admin.name')" outlined dense />
-          <q-input v-model="editingMember.email" :label="t('admin.emailWhitelist')" type="email" outlined dense />
-          <q-select v-model="editingMember.role" :options="['member', 'admin']" :label="t('admin.role')" outlined dense />
-          <q-toggle v-model="editingMember.isHidden" :label="t('admin.isHidden')" />
-          <q-input v-model.number="editingMember.beerCount" :label="t('admin.beerCount')" type="number" outlined dense />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.save')" :loading="isSubmitting" @click="updateMember" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar, type QTableColumn } from 'quasar'
@@ -613,7 +392,228 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<template>
+  <q-page padding>
+    <div style="max-width: 1200px; margin: 0 auto">
+      <div class="row items-center q-gutter-sm q-mb-lg">
+        <q-icon name="settings" size="32px" color="primary" />
+        <div class="text-h5 text-weight-bold">{{ t('admin.heading') }}</div>
+      </div>
+
+      <div class="row q-gutter-lg">
+        <!-- Band Members Table -->
+        <div class="col-12 col-lg-7">
+          <q-card flat bordered>
+            <q-card-section>
+              <div class="row items-center justify-between">
+                <div class="text-subtitle1 text-weight-bold">{{ t('admin.bandMembers') }}</div>
+                <q-btn size="sm" color="primary" round dense icon="person_add" @click="showAddModal = true">
+                  <q-tooltip>{{ t('admin.addMember') }}</q-tooltip>
+                </q-btn>
+              </div>
+            </q-card-section>
+            <q-table
+              class="admin-members-table"
+              flat
+              :rows="bandStore.members"
+              :columns="columns"
+              :visible-columns="visibleColumns"
+              row-key="id"
+              :pagination="{ rowsPerPage: 0 }"
+              :dense="$q.screen.lt.md"
+              hide-pagination
+            >
+              <template #body-cell-isHidden="props">
+                <q-td :props="props">
+                  <q-badge v-if="props.row.isHidden" color="grey">{{ t('admin.isHidden') }}</q-badge>
+                  <span v-else>-</span>
+                </q-td>
+              </template>
+              <template #body-cell-actions="props">
+                <q-td :props="props">
+                  <div class="row q-gutter-xs">
+                    <q-btn flat round dense icon="edit" size="sm" @click="openEdit(props.row)" />
+                    <q-btn flat round dense icon="delete" color="red" size="sm" :loading="removingId === props.row.id" @click="removeMember(props.row.id)" />
+                  </div>
+                </q-td>
+              </template>
+            </q-table>
+          </q-card>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-12 col-lg">
+          <!-- Band Logo -->
+          <q-card flat bordered class="q-mb-md">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold">{{ t('admin.bandLogo') }}</div>
+            </q-card-section>
+            <q-card-section class="q-gutter-sm">
+              <div class="text-subtitle2 text-weight-medium">{{ t('admin.darkModeLogo') }}</div>
+              <div class="text-caption text-grey q-mb-xs">{{ t('admin.darkModeLogoHint') }}</div>
+              <q-img
+                v-if="logoDarkPreviewSrc"
+                :src="logoDarkPreviewSrc"
+                style="width: 100%; max-width: 420px; aspect-ratio: 830 / 460; border-radius: 10px"
+                fit="contain"
+              />
+              <div v-else class="text-caption text-grey">{{ t('admin.noLogo') }}</div>
+              <div class="row q-col-gutter-sm q-mb-md">
+                <div class="col-12 col-sm-auto">
+                  <q-btn color="primary" round dense icon="image" :loading="logoDarkProcessing" @click="logoDarkInputRef?.click()">
+                    <q-tooltip>{{ pendingLogoDarkDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <div class="col-12 col-sm-auto" v-if="pendingLogoDarkDataUrl">
+                  <q-btn color="positive" round dense icon="save" :loading="logoDarkUploading" @click="uploadLogo('dark')">
+                    <q-tooltip>{{ t('admin.saveLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logoDark">
+                  <q-btn color="negative" outline round dense icon="delete" :loading="logoDarkUploading" @click="removeLogo('dark')">
+                    <q-tooltip>{{ t('admin.removeLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+
+              <div class="text-subtitle2 text-weight-medium">{{ t('admin.brightModeLogo') }}</div>
+              <div class="text-caption text-grey q-mb-xs">{{ t('admin.brightModeLogoHint') }}</div>
+              <q-img
+                v-if="logoBrightPreviewSrc"
+                :src="logoBrightPreviewSrc"
+                style="width: 100%; max-width: 420px; aspect-ratio: 830 / 460; border-radius: 10px"
+                fit="contain"
+              />
+              <div v-else class="text-caption text-grey">{{ t('admin.noLogo') }}</div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12 col-sm-auto">
+                  <q-btn color="primary" round dense icon="image" :loading="logoBrightProcessing" @click="logoBrightInputRef?.click()">
+                    <q-tooltip>{{ pendingLogoBrightDataUrl ? t('admin.changeLogo') : t('admin.selectLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <div class="col-12 col-sm-auto" v-if="pendingLogoBrightDataUrl">
+                  <q-btn color="positive" round dense icon="save" :loading="logoBrightUploading" @click="uploadLogo('bright')">
+                    <q-tooltip>{{ t('admin.saveLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <div class="col-12 col-sm-auto" v-if="authStore.activeBand?.logoBright">
+                  <q-btn color="negative" outline round dense icon="delete" :loading="logoBrightUploading" @click="removeLogo('bright')">
+                    <q-tooltip>{{ t('admin.removeLogo') }}</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+
+              <input ref="logoDarkInputRef" type="file" accept="image/*" class="hidden" style="display:none" @change="(e) => handleLogoSelected(e, 'dark')" />
+              <input ref="logoBrightInputRef" type="file" accept="image/*" class="hidden" style="display:none" @change="(e) => handleLogoSelected(e, 'bright')" />
+              <div class="text-caption text-grey">
+                {{ t('admin.logoHint') }}
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- System Status -->
+          <q-card flat bordered>
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold">{{ t('admin.systemStatus') }}</div>
+            </q-card-section>
+            <q-list dense separator>
+              <q-item>
+                <q-item-section>{{ t('admin.database') }}</q-item-section>
+                <q-item-section side><q-badge color="green">{{ t('admin.connected') }}</q-badge></q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>OIDC Google</q-item-section>
+                <q-item-section side>
+                  <q-badge :color="sysStatus?.google ? 'green' : 'grey'">{{ sysStatus?.google ? t('admin.connected') : t('admin.pending') }}</q-badge>
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>OIDC GitHub</q-item-section>
+                <q-item-section side>
+                  <q-badge :color="sysStatus?.github ? 'green' : 'grey'">{{ sysStatus?.github ? t('admin.connected') : t('admin.pending') }}</q-badge>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card>
+
+          <!-- DB Management -->
+          <q-card flat bordered class="q-mt-md">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold">{{ t('admin.dbManagement') }}</div>
+            </q-card-section>
+            <q-card-section class="q-gutter-sm">
+              <q-banner v-if="authStore.isFreePlan" rounded class="bg-orange-1 text-orange-9 q-mb-sm">
+                <template #avatar><q-icon name="lock" color="orange" /></template>
+                PRO feature — upgrade to access import/export
+              </q-banner>
+              <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportDb">{{ t('admin.downloadBackup') }}</q-btn>
+              <q-btn class="full-width" color="orange" outline icon="upload" :loading="isImporting" :disable="authStore.isFreePlan" @click="importInputRef?.click()">{{ t('admin.importBackup') }}</q-btn>
+              <input ref="importInputRef" type="file" accept=".json" class="hidden" style="display:none" @change="handleImport" />
+              <div class="text-caption text-grey text-center">{{ t('admin.backupWarning') }}</div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Calendar Management -->
+          <q-card flat bordered class="q-mt-md">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold">{{ t('admin.calendarMgmt') }}</div>
+            </q-card-section>
+            <q-card-section class="q-gutter-sm">
+              <q-btn class="full-width" color="grey-8" icon="download" :disable="authStore.isFreePlan" @click="exportCalendar">{{ t('admin.exportJson') }}</q-btn>
+              <q-btn class="full-width" color="blue" outline icon="upload" :loading="isCalendarImporting" :disable="authStore.isFreePlan" @click="calendarImportRef?.click()">{{ t('admin.importJson') }}</q-btn>
+              <input ref="calendarImportRef" type="file" accept=".json" class="hidden" style="display:none" @change="handleCalendarImport" />
+              <div class="text-caption text-grey text-center">{{ t('admin.jsonHint') }}</div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Member Dialog -->
+    <q-dialog v-model="showAddModal">
+      <q-card style="min-width: 400px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('admin.addMember') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="newMember.name" :label="t('admin.name')" outlined dense autofocus />
+          <q-input v-model="newMember.email" :label="t('admin.emailWhitelist')" type="email" outlined dense />
+          <q-select v-model="newMember.role" :options="['member', 'admin']" :label="t('admin.role')" outlined dense />
+          <q-toggle v-model="newMember.isHidden" :label="t('admin.isHidden')" />
+          <q-input v-model.number="newMember.beerCount" :label="t('admin.beerCount')" type="number" outlined dense />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.add')" :loading="isSubmitting" @click="addMember" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Edit Member Dialog -->
+    <q-dialog v-model="showEditModal">
+      <q-card v-if="editingMember" style="min-width: 400px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('admin.editMember') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="editingMember.name" :label="t('admin.name')" outlined dense />
+          <q-input v-model="editingMember.email" :label="t('admin.emailWhitelist')" type="email" outlined dense />
+          <q-select v-model="editingMember.role" :options="['member', 'admin']" :label="t('admin.role')" outlined dense />
+          <q-toggle v-model="editingMember.isHidden" :label="t('admin.isHidden')" />
+          <q-input v-model.number="editingMember.beerCount" :label="t('admin.beerCount')" type="number" outlined dense />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.save')" :loading="isSubmitting" @click="updateMember" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 @media (max-width: 600px) {
   .admin-members-table :deep(table) {
     font-size: 0.8rem;

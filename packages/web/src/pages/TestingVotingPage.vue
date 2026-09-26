@@ -1,3 +1,121 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useQuasar } from 'quasar'
+import { useAuthStore } from '../stores/auth'
+import { useSongsStore, type Song } from '../stores/songs'
+import { useBandStore, type BandMember } from '../stores/band'
+import { apiJson } from '../boot/api'
+
+const $q = useQuasar()
+const authStore = useAuthStore()
+const songsStore = useSongsStore()
+const bandStore = useBandStore()
+
+const voteOptions = [
+  { label: '0', value: 0 },
+  { label: '1', value: 1 },
+  { label: '2', value: 2 },
+  { label: '3', value: 3 },
+]
+
+const currentUserId = computed(() => authStore.user?.id ?? '')
+const visibleMembers = computed(() => bandStore.members.filter((member) => !member.isHidden))
+const songs = computed(() =>
+  songsStore.songs
+    .filter((song) => song.type === 'song' && !song.isSetlist)
+    .slice()
+    .sort((a, b) => a.position - b.position),
+)
+const isLoading = computed(() => songsStore.loading || bandStore.loading)
+
+const showVoteDialog = ref(false)
+const showDetailsDialog = ref(false)
+const activeSong = ref<Song | null>(null)
+
+function getInitial(name?: string | null): string {
+  return (name?.trim()?.charAt(0) || '?').toUpperCase()
+}
+
+function getVoteScore(song: Song, userId: string): number | null {
+  const vote = song.allVotes.find((entry) => entry.userId === userId)
+  return vote?.score ?? null
+}
+
+function getCurrentUserVote(song: Song): number | null {
+  if (!currentUserId.value) return null
+  return getVoteScore(song, currentUserId.value)
+}
+
+function votedMembers(song: Song): BandMember[] {
+  const votedIds = new Set(song.allVotes.map((entry) => entry.userId))
+  return visibleMembers.value.filter((member) => votedIds.has(member.id))
+}
+
+function avgLabel(song: Song): string {
+  return Number(song.voteAverage || 0).toFixed(1)
+}
+
+function votedNamesLabel(song: Song): string {
+  const names = votedMembers(song)
+    .map((member) => member.name?.trim())
+    .filter((name): name is string => Boolean(name))
+
+  if (!names.length) return 'No one has voted yet.'
+  if (names.length === 1) return `${names[0]} has voted.`
+  if (names.length === 2) return `${names[0]} and ${names[1]} have voted.`
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have voted.`
+}
+
+function formatDuration(lengthMs?: number | null): string {
+  if (!lengthMs || lengthMs <= 0) return '-'
+  const totalSeconds = Math.floor(lengthMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function openVoteDialog(song: Song) {
+  activeSong.value = song
+  showVoteDialog.value = true
+}
+
+function openDetailsDialog(song: Song) {
+  activeSong.value = song
+  showDetailsDialog.value = true
+}
+
+async function setVote(song: Song, score: number) {
+  if (!currentUserId.value) return
+  try {
+    const current = getCurrentUserVote(song)
+    const remove = current === score
+    await apiJson('/votes', {
+      method: 'POST',
+      body: JSON.stringify({ songId: song.id, score: remove ? undefined : score, remove }),
+    })
+    await songsStore.fetchSongs()
+    if (activeSong.value) {
+      activeSong.value = songsStore.songs.find((entry) => entry.id === activeSong.value?.id) || null
+    }
+  } catch (error) {
+    $q.notify({ color: 'negative', message: error instanceof Error ? error.message : 'Failed to vote' })
+  }
+}
+
+async function onVoteSelect(value: number | null) {
+  if (!activeSong.value || typeof value !== 'number') return
+  await setVote(activeSong.value, value)
+}
+
+async function reloadData() {
+  await Promise.all([songsStore.fetchSongs(), bandStore.fetchMembers()])
+}
+
+onMounted(() => {
+  void reloadData()
+})
+</script>
+
 <template>
   <q-page padding>
     <div class="testing-wrap">
@@ -218,125 +336,7 @@
   </q-page>
 </template>
 
-<script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useQuasar } from 'quasar'
-import { useAuthStore } from '../stores/auth'
-import { useSongsStore, type Song } from '../stores/songs'
-import { useBandStore, type BandMember } from '../stores/band'
-import { apiJson } from '../boot/api'
-
-const $q = useQuasar()
-const authStore = useAuthStore()
-const songsStore = useSongsStore()
-const bandStore = useBandStore()
-
-const voteOptions = [
-  { label: '0', value: 0 },
-  { label: '1', value: 1 },
-  { label: '2', value: 2 },
-  { label: '3', value: 3 },
-]
-
-const currentUserId = computed(() => authStore.user?.id ?? '')
-const visibleMembers = computed(() => bandStore.members.filter((member) => !member.isHidden))
-const songs = computed(() =>
-  songsStore.songs
-    .filter((song) => song.type === 'song' && !song.isSetlist)
-    .slice()
-    .sort((a, b) => a.position - b.position),
-)
-const isLoading = computed(() => songsStore.loading || bandStore.loading)
-
-const showVoteDialog = ref(false)
-const showDetailsDialog = ref(false)
-const activeSong = ref<Song | null>(null)
-
-function getInitial(name?: string | null): string {
-  return (name?.trim()?.charAt(0) || '?').toUpperCase()
-}
-
-function getVoteScore(song: Song, userId: string): number | null {
-  const vote = song.allVotes.find((entry) => entry.userId === userId)
-  return vote?.score ?? null
-}
-
-function getCurrentUserVote(song: Song): number | null {
-  if (!currentUserId.value) return null
-  return getVoteScore(song, currentUserId.value)
-}
-
-function votedMembers(song: Song): BandMember[] {
-  const votedIds = new Set(song.allVotes.map((entry) => entry.userId))
-  return visibleMembers.value.filter((member) => votedIds.has(member.id))
-}
-
-function avgLabel(song: Song): string {
-  return Number(song.voteAverage || 0).toFixed(1)
-}
-
-function votedNamesLabel(song: Song): string {
-  const names = votedMembers(song)
-    .map((member) => member.name?.trim())
-    .filter((name): name is string => Boolean(name))
-
-  if (!names.length) return 'No one has voted yet.'
-  if (names.length === 1) return `${names[0]} has voted.`
-  if (names.length === 2) return `${names[0]} and ${names[1]} have voted.`
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} have voted.`
-}
-
-function formatDuration(lengthMs?: number | null): string {
-  if (!lengthMs || lengthMs <= 0) return '-'
-  const totalSeconds = Math.floor(lengthMs / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
-
-function openVoteDialog(song: Song) {
-  activeSong.value = song
-  showVoteDialog.value = true
-}
-
-function openDetailsDialog(song: Song) {
-  activeSong.value = song
-  showDetailsDialog.value = true
-}
-
-async function setVote(song: Song, score: number) {
-  if (!currentUserId.value) return
-  try {
-    const current = getCurrentUserVote(song)
-    const remove = current === score
-    await apiJson('/votes', {
-      method: 'POST',
-      body: JSON.stringify({ songId: song.id, score: remove ? undefined : score, remove }),
-    })
-    await songsStore.fetchSongs()
-    if (activeSong.value) {
-      activeSong.value = songsStore.songs.find((entry) => entry.id === activeSong.value?.id) || null
-    }
-  } catch (error) {
-    $q.notify({ color: 'negative', message: error instanceof Error ? error.message : 'Failed to vote' })
-  }
-}
-
-async function onVoteSelect(value: number | null) {
-  if (!activeSong.value || typeof value !== 'number') return
-  await setVote(activeSong.value, value)
-}
-
-async function reloadData() {
-  await Promise.all([songsStore.fetchSongs(), bandStore.fetchMembers()])
-}
-
-onMounted(() => {
-  void reloadData()
-})
-</script>
-
-<style scoped>
+<style lang="scss" scoped>
 .testing-wrap {
   max-width: 1240px;
   margin: 0 auto;

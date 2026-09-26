@@ -1,28 +1,3 @@
-<template>
-  <q-page class="impress-page">
-    <div class="impress-content q-pa-md">
-      <div class="row items-center q-mb-md impress-back-row">
-        <q-btn flat icon="arrow_back" label="Back" @click="goBack" />
-      </div>
-      <div class="impress-card">
-        <Markdown :content="impressMarkdown" :breaks="true" />
-      </div>
-      <div class="q-mt-md">
-        <q-btn
-          outline
-          color="primary"
-          icon="privacy_tip"
-          label="Zur Datenschutzerklärung"
-          @click="goToPrivacy"
-        />
-      </div>
-      <div class="impress-rev q-mt-md text-caption text-grey-5">
-        Build: {{ gitRev }} | App Version: {{ appVersion }}
-      </div>
-    </div>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
@@ -86,7 +61,32 @@ Unsere E-Mail-Adresse finden Sie oben im Impressum.
 Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.`
 </script>
 
-<style scoped>
+<template>
+  <q-page class="impress-page">
+    <div class="impress-content q-pa-md">
+      <div class="row items-center q-mb-md impress-back-row">
+        <q-btn flat icon="arrow_back" label="Back" @click="goBack" />
+      </div>
+      <div class="impress-card">
+        <Markdown :content="impressMarkdown" :breaks="true" />
+      </div>
+      <div class="q-mt-md">
+        <q-btn
+          outline
+          color="primary"
+          icon="privacy_tip"
+          label="Zur Datenschutzerklärung"
+          @click="goToPrivacy"
+        />
+      </div>
+      <div class="impress-rev q-mt-md text-caption text-grey-5">
+        Build: {{ gitRev }} | App Version: {{ appVersion }}
+      </div>
+    </div>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .impress-page {
   min-height: 100vh;
   display: flex;

@@ -1,17 +1,3 @@
-<template>
-  <q-page class="gdpr-page">
-    <div class="gdpr-content q-pa-md">
-      <div class="row items-center q-mb-md gdpr-back-row">
-        <q-btn flat icon="arrow_back" label="Back" @click="goBack" />
-      </div>
-      <div class="gdpr-card">
-        <Markdown :content="gdprMarkdown" :breaks="true" />
-      </div>
-      <div class="gdpr-rev q-mt-md text-caption text-grey-5">Build: {{ gitRev }}</div>
-    </div>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -139,7 +125,21 @@ Wir können diese Datenschutzerklärung aktualisieren, wenn sich Funktionen, rec
 `
 </script>
 
-<style scoped>
+<template>
+  <q-page class="gdpr-page">
+    <div class="gdpr-content q-pa-md">
+      <div class="row items-center q-mb-md gdpr-back-row">
+        <q-btn flat icon="arrow_back" label="Back" @click="goBack" />
+      </div>
+      <div class="gdpr-card">
+        <Markdown :content="gdprMarkdown" :breaks="true" />
+      </div>
+      <div class="gdpr-rev q-mt-md text-caption text-grey-5">Build: {{ gitRev }}</div>
+    </div>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .gdpr-page {
   min-height: 100vh;
   display: flex;

@@ -1,3 +1,335 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { useBandStore } from '../stores/band'
+import { apiJson } from '../boot/api'
+import MarkdownComponent from '../components/Markdown.vue'
+import BeerRain from '../components/BeerRain.vue'
+import { useI18n } from '../composables/useI18n'
+import { getInitials } from '../utils/initials'
+
+const $q = useQuasar()
+const router = useRouter()
+const authStore = useAuthStore()
+const bandStore = useBandStore()
+const { t, dateLocale } = useI18n()
+
+type RehearsalData = { nextRehearsal: any | null; upcomingGigs: any[] }
+type RehearsalTimeProposal = {
+  id: number
+  proposerUserId: string
+  proposerName?: string | null
+  proposedStartTime: string
+  proposedEndTime: string
+  comment?: string | null
+  status: 'pending' | 'accepted' | 'rejected'
+}
+
+const rehearsalData = ref<RehearsalData | null>(null)
+const saving = ref(false)
+const beerLoading = ref(false)
+const attendanceLoading = ref(false)
+const beerRainActive = ref(false)
+const personalNotes = ref<any[]>([])
+const showPersonalNotesWidget = ref(false)
+const rehearsalProposals = ref<RehearsalTimeProposal[]>([])
+const showProposalDialog = ref(false)
+const proposalLoading = ref(false)
+const proposalForm = ref({
+  startTime: '',
+  endTime: '',
+  comment: '',
+})
+
+const isAdmin = computed(() => {
+  const band = authStore.activeBand
+  return band && ['owner', 'admin'].includes(band.role)
+})
+
+const nextRehearsal = computed(() => rehearsalData.value?.nextRehearsal ?? null)
+const upcomingGigs = computed(() => rehearsalData.value?.upcomingGigs ?? [])
+const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
+
+const bierwart = computed(() => {
+  if (!nextRehearsal.value || visibleMembers.value.length === 0) return null
+  const effectiveBierwartId = nextRehearsal.value.effectiveBierwartId || nextRehearsal.value.bierwartOverrideId
+  if (effectiveBierwartId) {
+    const m = visibleMembers.value.find((m) => m.id === effectiveBierwartId)
+    if (m) return m
+  }
+  return visibleMembers.value[0]
+})
+
+const attendanceNamesLabel = computed(() => {
+  const rows = nextRehearsal.value?.memberAttendance ?? []
+  if (!rows.length) return ''
+  return rows.map((row: any) => {
+    const status =
+      row.status === 'present'
+        ? t('home.attendanceConfirmed')
+        : row.status === 'absent'
+          ? t('home.attendanceAbsent')
+          : t('home.attendanceUnset')
+    return `${row.userName}: ${status}`
+  }).join(' | ')
+})
+
+const unavailabilityMessages = computed(() => {
+  const rows = nextRehearsal.value?.unavailabilities ?? []
+  return rows.map((row: any) => `${row.displayName || row.userName || row.title} ${t('home.unavailSingle')}`)
+})
+
+async function loadData() {
+  try {
+    rehearsalData.value = await apiJson<RehearsalData>('/rehearsals/next')
+  } catch {
+    rehearsalData.value = null
+  }
+  await Promise.all([bandStore.fetchMembers(), fetchPersonalNotes(), fetchRehearsalProposals()])
+}
+
+onMounted(loadData)
+
+function formatDate(d: string | number) {
+  return new Date(d).toLocaleDateString(dateLocale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function formatTime(d: string | number) {
+  return new Date(d).toLocaleTimeString(dateLocale.value, { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatForInput(d: string | number) {
+  if (!d) return ''
+  const date = new Date(d)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+async function fetchRehearsalProposals() {
+  if (!nextRehearsal.value?.id) {
+    rehearsalProposals.value = []
+    return
+  }
+  try {
+    rehearsalProposals.value = await apiJson<RehearsalTimeProposal[]>(`/rehearsals/${nextRehearsal.value.id}/time-proposals`)
+  } catch {
+    rehearsalProposals.value = []
+  }
+}
+
+async function addBeer() {
+  if (!bierwart.value || beerLoading.value) return
+  beerLoading.value = true
+  try {
+    await apiJson(`/users/${bierwart.value.id}`, { method: 'PATCH', body: JSON.stringify({ beerCount: (bierwart.value.beerCount || 0) + 1 }) })
+    beerRainActive.value = true
+    await bandStore.fetchMembers()
+    $q.notify({ message: t('admin.beerAdded'), icon: 'science', color: 'orange' })
+  } catch (e: any) { $q.notify({ message: e?.message || 'Failed to update beer count', color: 'negative' }) }
+  finally { beerLoading.value = false }
+}
+
+async function removeBeer() {
+  if (!bierwart.value || beerLoading.value || (bierwart.value.beerCount || 0) <= 0) return
+  beerLoading.value = true
+  try {
+    await apiJson(`/users/${bierwart.value.id}`, { method: 'PATCH', body: JSON.stringify({ beerCount: (bierwart.value.beerCount || 0) - 1 }) })
+    await bandStore.fetchMembers()
+  } catch (e: any) {
+    $q.notify({ message: e?.message || 'Failed to update beer count', color: 'negative' })
+  } finally { beerLoading.value = false }
+}
+
+async function fetchPersonalNotes() {
+  try {
+    personalNotes.value = await apiJson<any[]>('/songs/notes')
+  } catch {
+    personalNotes.value = []
+  }
+}
+
+async function setAttendance(status: 'present' | 'absent' | 'reset') {
+  if (!nextRehearsal.value) return
+  attendanceLoading.value = true
+  try {
+    await apiJson(`/rehearsals/${nextRehearsal.value.id}/attendance`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    })
+    await loadData()
+  } catch (e: any) {
+    $q.notify({ message: e?.message || t('home.failedAttendance'), color: 'negative' })
+  } finally {
+    attendanceLoading.value = false
+  }
+}
+
+function openRehearsalProposalDialog() {
+  if (!nextRehearsal.value) return
+  proposalForm.value = {
+    startTime: formatForInput(nextRehearsal.value.startTime),
+    endTime: formatForInput(nextRehearsal.value.endTime || nextRehearsal.value.startTime),
+    comment: '',
+  }
+  showProposalDialog.value = true
+}
+
+async function submitProposal() {
+  if (!nextRehearsal.value) return
+  proposalLoading.value = true
+  try {
+    await apiJson(`/rehearsals/${nextRehearsal.value.id}/time-proposals`, {
+      method: 'POST',
+      body: JSON.stringify({
+        proposedStartTime: new Date(proposalForm.value.startTime).toISOString(),
+        proposedEndTime: new Date(proposalForm.value.endTime).toISOString(),
+        comment: proposalForm.value.comment || undefined,
+      }),
+    })
+    showProposalDialog.value = false
+    await fetchRehearsalProposals()
+    $q.notify({ type: 'positive', message: t('home.proposalSubmitted') })
+  } catch (error: any) {
+    $q.notify({ type: 'negative', message: error?.message || t('home.failedProposalSubmit') })
+  } finally {
+    proposalLoading.value = false
+  }
+}
+
+async function decideProposal(proposalId: number, decision: 'accepted' | 'rejected') {
+  $q.dialog({
+    title: decision === 'accepted' ? t('home.acceptProposal') : t('home.rejectProposal'),
+    message: t('home.decisionCommentPrompt'),
+    prompt: {
+      model: '',
+      type: 'text',
+      isValid: () => true,
+    },
+    cancel: true,
+  }).onOk(async (comment) => {
+    try {
+      await apiJson(`/rehearsals/time-proposals/${proposalId}/decision`, {
+        method: 'POST',
+        body: JSON.stringify({ decision, comment: String(comment || '').trim() || undefined }),
+      })
+      await loadData()
+      $q.notify({
+        type: 'positive',
+        message: decision === 'accepted' ? t('home.proposalAccepted') : t('home.proposalRejected'),
+      })
+    } catch (error: any) {
+      $q.notify({ type: 'negative', message: error?.message || t('home.failedProposalDecision') })
+    }
+  })
+}
+
+function goToSetlist(songTitle?: string) {
+  const query = songTitle ? { q: songTitle, list: 'user' } : { list: 'user' }
+  router.push({ path: '/setlist', query })
+}
+
+function goToGigSetlist(gigSetlistId: number) {
+  router.push({ path: '/setlist', query: { list: `gig:${gigSetlistId}` } })
+}
+
+function attendanceAvatarStyle(status: 'present' | 'absent' | 'open', index: number) {
+  const borderColor = status === 'present' ? '#10b981' : status === 'absent' ? '#ef4444' : '#9ca3af'
+  return {
+    marginLeft: index === 0 ? '0px' : '-8px',
+    border: `2px solid ${borderColor}`,
+    boxSizing: 'border-box',
+  }
+}
+
+const showRehearsalEdit = ref(false)
+const editForm = ref({ title: '', startTime: '', endTime: '', description: '' })
+
+function openRehearsalEdit() {
+  if (!nextRehearsal.value) return
+  const r = nextRehearsal.value
+  editForm.value = { title: r.title, startTime: formatForInput(r.startTime), endTime: formatForInput(r.endTime || r.startTime), description: r.description || '' }
+  showRehearsalEdit.value = true
+}
+
+async function saveRehearsal() {
+  saving.value = true
+  try {
+    await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ title: editForm.value.title, description: editForm.value.description, startTime: new Date(editForm.value.startTime).toISOString(), endTime: new Date(editForm.value.endTime).toISOString() }) })
+    await loadData()
+    showRehearsalEdit.value = false
+  } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
+  finally { saving.value = false }
+}
+
+const showGigEdit = ref(false)
+const editedGigs = ref<any[]>([])
+let originalGigIds: number[] = []
+
+async function openGigEdit() {
+  try {
+    const events = await apiJson<any[]>('/calendar')
+    const now = new Date()
+    const gigs = events
+      .filter((e) => e.type === 'gig')
+      .filter((g) => new Date(g.endTime || g.startTime) >= now)
+    editedGigs.value = gigs.map((g: any) => ({
+      ...g,
+      startTimeFormatted: formatForInput(g.startTime),
+      endTimeFormatted: formatForInput(g.endTime || g.startTime),
+    }))
+    originalGigIds = gigs.map((g: any) => g.id)
+  } catch {
+    editedGigs.value = (upcomingGigs.value || []).map((g: any) => ({ ...g, startTimeFormatted: formatForInput(g.startTime), endTimeFormatted: formatForInput(g.endTime || g.startTime) }))
+    originalGigIds = (upcomingGigs.value || []).map((g: any) => g.id)
+  }
+  showGigEdit.value = true
+}
+
+function addNewGig() {
+  const future = new Date(Date.now() + 7 * 86400000)
+  editedGigs.value.push({ title: 'New Gig', description: '', type: 'gig', startTimeFormatted: formatForInput(future.toISOString()), endTimeFormatted: formatForInput(new Date(future.getTime() + 7200000).toISOString()) })
+}
+
+async function saveGigs() {
+  saving.value = true
+  try {
+    const keptIds = editedGigs.value.filter((g) => g.id).map((g) => g.id)
+    for (const id of originalGigIds.filter((id: number) => !keptIds.includes(id))) {
+      await apiJson(`/calendar/${id}`, { method: 'DELETE' })
+    }
+    for (const gig of editedGigs.value) {
+      const body = { title: gig.title, description: gig.description, startTime: new Date(gig.startTimeFormatted).toISOString(), endTime: new Date(gig.endTimeFormatted).toISOString(), type: 'gig' }
+      if (gig.id) await apiJson(`/calendar/${gig.id}`, { method: 'PUT', body: JSON.stringify(body) })
+      else await apiJson('/calendar', { method: 'POST', body: JSON.stringify(body) })
+    }
+    await loadData()
+    showGigEdit.value = false
+  } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
+  finally { saving.value = false }
+}
+
+const showBierwartModal = ref(false)
+function openBierwartModal() { showBierwartModal.value = true }
+
+async function confirmBierwart(member: any) {
+  if (!nextRehearsal.value) return
+  $q.dialog({
+    title: t('common.confirm'),
+    message: `${t('home.confirmBierwartChange')} ${member.name}`,
+    cancel: true,
+  }).onOk(async () => {
+    saving.value = true
+    try {
+      await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ bierwartOverrideId: member.id }) })
+      await loadData()
+      showBierwartModal.value = false
+    } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
+    finally { saving.value = false }
+  })
+}
+</script>
+
 <template>
   <q-page padding>
     <div class="row q-col-gutter-lg" style="max-width: 1200px; margin: 0 auto">
@@ -359,339 +691,7 @@
   </q-page>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useQuasar } from 'quasar'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { useBandStore } from '../stores/band'
-import { apiJson } from '../boot/api'
-import MarkdownComponent from '../components/Markdown.vue'
-import BeerRain from '../components/BeerRain.vue'
-import { useI18n } from '../composables/useI18n'
-import { getInitials } from '../utils/initials'
-
-const $q = useQuasar()
-const router = useRouter()
-const authStore = useAuthStore()
-const bandStore = useBandStore()
-const { t, dateLocale } = useI18n()
-
-type RehearsalData = { nextRehearsal: any | null; upcomingGigs: any[] }
-type RehearsalTimeProposal = {
-  id: number
-  proposerUserId: string
-  proposerName?: string | null
-  proposedStartTime: string
-  proposedEndTime: string
-  comment?: string | null
-  status: 'pending' | 'accepted' | 'rejected'
-}
-
-const rehearsalData = ref<RehearsalData | null>(null)
-const saving = ref(false)
-const beerLoading = ref(false)
-const attendanceLoading = ref(false)
-const beerRainActive = ref(false)
-const personalNotes = ref<any[]>([])
-const showPersonalNotesWidget = ref(false)
-const rehearsalProposals = ref<RehearsalTimeProposal[]>([])
-const showProposalDialog = ref(false)
-const proposalLoading = ref(false)
-const proposalForm = ref({
-  startTime: '',
-  endTime: '',
-  comment: '',
-})
-
-const isAdmin = computed(() => {
-  const band = authStore.activeBand
-  return band && ['owner', 'admin'].includes(band.role)
-})
-
-const nextRehearsal = computed(() => rehearsalData.value?.nextRehearsal ?? null)
-const upcomingGigs = computed(() => rehearsalData.value?.upcomingGigs ?? [])
-const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
-
-const bierwart = computed(() => {
-  if (!nextRehearsal.value || visibleMembers.value.length === 0) return null
-  const effectiveBierwartId = nextRehearsal.value.effectiveBierwartId || nextRehearsal.value.bierwartOverrideId
-  if (effectiveBierwartId) {
-    const m = visibleMembers.value.find((m) => m.id === effectiveBierwartId)
-    if (m) return m
-  }
-  return visibleMembers.value[0]
-})
-
-const attendanceNamesLabel = computed(() => {
-  const rows = nextRehearsal.value?.memberAttendance ?? []
-  if (!rows.length) return ''
-  return rows.map((row: any) => {
-    const status =
-      row.status === 'present'
-        ? t('home.attendanceConfirmed')
-        : row.status === 'absent'
-          ? t('home.attendanceAbsent')
-          : t('home.attendanceUnset')
-    return `${row.userName}: ${status}`
-  }).join(' | ')
-})
-
-const unavailabilityMessages = computed(() => {
-  const rows = nextRehearsal.value?.unavailabilities ?? []
-  return rows.map((row: any) => `${row.displayName || row.userName || row.title} ${t('home.unavailSingle')}`)
-})
-
-async function loadData() {
-  try {
-    rehearsalData.value = await apiJson<RehearsalData>('/rehearsals/next')
-  } catch {
-    rehearsalData.value = null
-  }
-  await Promise.all([bandStore.fetchMembers(), fetchPersonalNotes(), fetchRehearsalProposals()])
-}
-
-onMounted(loadData)
-
-function formatDate(d: string | number) {
-  return new Date(d).toLocaleDateString(dateLocale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-function formatTime(d: string | number) {
-  return new Date(d).toLocaleTimeString(dateLocale.value, { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatForInput(d: string | number) {
-  if (!d) return ''
-  const date = new Date(d)
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}
-
-async function fetchRehearsalProposals() {
-  if (!nextRehearsal.value?.id) {
-    rehearsalProposals.value = []
-    return
-  }
-  try {
-    rehearsalProposals.value = await apiJson<RehearsalTimeProposal[]>(`/rehearsals/${nextRehearsal.value.id}/time-proposals`)
-  } catch {
-    rehearsalProposals.value = []
-  }
-}
-
-async function addBeer() {
-  if (!bierwart.value || beerLoading.value) return
-  beerLoading.value = true
-  try {
-    await apiJson(`/users/${bierwart.value.id}`, { method: 'PATCH', body: JSON.stringify({ beerCount: (bierwart.value.beerCount || 0) + 1 }) })
-    beerRainActive.value = true
-    await bandStore.fetchMembers()
-    $q.notify({ message: t('admin.beerAdded'), icon: 'science', color: 'orange' })
-  } catch (e: any) { $q.notify({ message: e?.message || 'Failed to update beer count', color: 'negative' }) }
-  finally { beerLoading.value = false }
-}
-
-async function removeBeer() {
-  if (!bierwart.value || beerLoading.value || (bierwart.value.beerCount || 0) <= 0) return
-  beerLoading.value = true
-  try {
-    await apiJson(`/users/${bierwart.value.id}`, { method: 'PATCH', body: JSON.stringify({ beerCount: (bierwart.value.beerCount || 0) - 1 }) })
-    await bandStore.fetchMembers()
-  } catch (e: any) {
-    $q.notify({ message: e?.message || 'Failed to update beer count', color: 'negative' })
-  } finally { beerLoading.value = false }
-}
-
-async function fetchPersonalNotes() {
-  try {
-    personalNotes.value = await apiJson<any[]>('/songs/notes')
-  } catch {
-    personalNotes.value = []
-  }
-}
-
-async function setAttendance(status: 'present' | 'absent' | 'reset') {
-  if (!nextRehearsal.value) return
-  attendanceLoading.value = true
-  try {
-    await apiJson(`/rehearsals/${nextRehearsal.value.id}/attendance`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    })
-    await loadData()
-  } catch (e: any) {
-    $q.notify({ message: e?.message || t('home.failedAttendance'), color: 'negative' })
-  } finally {
-    attendanceLoading.value = false
-  }
-}
-
-function openRehearsalProposalDialog() {
-  if (!nextRehearsal.value) return
-  proposalForm.value = {
-    startTime: formatForInput(nextRehearsal.value.startTime),
-    endTime: formatForInput(nextRehearsal.value.endTime || nextRehearsal.value.startTime),
-    comment: '',
-  }
-  showProposalDialog.value = true
-}
-
-async function submitProposal() {
-  if (!nextRehearsal.value) return
-  proposalLoading.value = true
-  try {
-    await apiJson(`/rehearsals/${nextRehearsal.value.id}/time-proposals`, {
-      method: 'POST',
-      body: JSON.stringify({
-        proposedStartTime: new Date(proposalForm.value.startTime).toISOString(),
-        proposedEndTime: new Date(proposalForm.value.endTime).toISOString(),
-        comment: proposalForm.value.comment || undefined,
-      }),
-    })
-    showProposalDialog.value = false
-    await fetchRehearsalProposals()
-    $q.notify({ type: 'positive', message: t('home.proposalSubmitted') })
-  } catch (error: any) {
-    $q.notify({ type: 'negative', message: error?.message || t('home.failedProposalSubmit') })
-  } finally {
-    proposalLoading.value = false
-  }
-}
-
-async function decideProposal(proposalId: number, decision: 'accepted' | 'rejected') {
-  $q.dialog({
-    title: decision === 'accepted' ? t('home.acceptProposal') : t('home.rejectProposal'),
-    message: t('home.decisionCommentPrompt'),
-    prompt: {
-      model: '',
-      type: 'text',
-      isValid: () => true,
-    },
-    cancel: true,
-  }).onOk(async (comment) => {
-    try {
-      await apiJson(`/rehearsals/time-proposals/${proposalId}/decision`, {
-        method: 'POST',
-        body: JSON.stringify({ decision, comment: String(comment || '').trim() || undefined }),
-      })
-      await loadData()
-      $q.notify({
-        type: 'positive',
-        message: decision === 'accepted' ? t('home.proposalAccepted') : t('home.proposalRejected'),
-      })
-    } catch (error: any) {
-      $q.notify({ type: 'negative', message: error?.message || t('home.failedProposalDecision') })
-    }
-  })
-}
-
-function goToSetlist(songTitle?: string) {
-  const query = songTitle ? { q: songTitle, list: 'user' } : { list: 'user' }
-  router.push({ path: '/setlist', query })
-}
-
-function goToGigSetlist(gigSetlistId: number) {
-  router.push({ path: '/setlist', query: { list: `gig:${gigSetlistId}` } })
-}
-
-function attendanceAvatarStyle(status: 'present' | 'absent' | 'open', index: number) {
-  const borderColor = status === 'present' ? '#10b981' : status === 'absent' ? '#ef4444' : '#9ca3af'
-  return {
-    marginLeft: index === 0 ? '0px' : '-8px',
-    border: `2px solid ${borderColor}`,
-    boxSizing: 'border-box',
-  }
-}
-
-const showRehearsalEdit = ref(false)
-const editForm = ref({ title: '', startTime: '', endTime: '', description: '' })
-
-function openRehearsalEdit() {
-  if (!nextRehearsal.value) return
-  const r = nextRehearsal.value
-  editForm.value = { title: r.title, startTime: formatForInput(r.startTime), endTime: formatForInput(r.endTime || r.startTime), description: r.description || '' }
-  showRehearsalEdit.value = true
-}
-
-async function saveRehearsal() {
-  saving.value = true
-  try {
-    await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ title: editForm.value.title, description: editForm.value.description, startTime: new Date(editForm.value.startTime).toISOString(), endTime: new Date(editForm.value.endTime).toISOString() }) })
-    await loadData()
-    showRehearsalEdit.value = false
-  } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
-  finally { saving.value = false }
-}
-
-const showGigEdit = ref(false)
-const editedGigs = ref<any[]>([])
-let originalGigIds: number[] = []
-
-async function openGigEdit() {
-  try {
-    const events = await apiJson<any[]>('/calendar')
-    const now = new Date()
-    const gigs = events
-      .filter((e) => e.type === 'gig')
-      .filter((g) => new Date(g.endTime || g.startTime) >= now)
-    editedGigs.value = gigs.map((g: any) => ({
-      ...g,
-      startTimeFormatted: formatForInput(g.startTime),
-      endTimeFormatted: formatForInput(g.endTime || g.startTime),
-    }))
-    originalGigIds = gigs.map((g: any) => g.id)
-  } catch (e: any) {
-    editedGigs.value = (upcomingGigs.value || []).map((g: any) => ({ ...g, startTimeFormatted: formatForInput(g.startTime), endTimeFormatted: formatForInput(g.endTime || g.startTime) }))
-    originalGigIds = (upcomingGigs.value || []).map((g: any) => g.id)
-  }
-  showGigEdit.value = true
-}
-
-function addNewGig() {
-  const future = new Date(Date.now() + 7 * 86400000)
-  editedGigs.value.push({ title: 'New Gig', description: '', type: 'gig', startTimeFormatted: formatForInput(future.toISOString()), endTimeFormatted: formatForInput(new Date(future.getTime() + 7200000).toISOString()) })
-}
-
-async function saveGigs() {
-  saving.value = true
-  try {
-    const keptIds = editedGigs.value.filter((g) => g.id).map((g) => g.id)
-    for (const id of originalGigIds.filter((id: number) => !keptIds.includes(id))) {
-      await apiJson(`/calendar/${id}`, { method: 'DELETE' })
-    }
-    for (const gig of editedGigs.value) {
-      const body = { title: gig.title, description: gig.description, startTime: new Date(gig.startTimeFormatted).toISOString(), endTime: new Date(gig.endTimeFormatted).toISOString(), type: 'gig' }
-      if (gig.id) await apiJson(`/calendar/${gig.id}`, { method: 'PUT', body: JSON.stringify(body) })
-      else await apiJson('/calendar', { method: 'POST', body: JSON.stringify(body) })
-    }
-    await loadData()
-    showGigEdit.value = false
-  } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
-  finally { saving.value = false }
-}
-
-const showBierwartModal = ref(false)
-function openBierwartModal() { showBierwartModal.value = true }
-
-async function confirmBierwart(member: any) {
-  if (!nextRehearsal.value) return
-  $q.dialog({
-    title: t('common.confirm'),
-    message: `${t('home.confirmBierwartChange')} ${member.name}`,
-    cancel: true,
-  }).onOk(async () => {
-    saving.value = true
-    try {
-      await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ bierwartOverrideId: member.id }) })
-      await loadData()
-      showBierwartModal.value = false
-    } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
-    finally { saving.value = false }
-  })
-}
-</script>
-
-<style scoped>
+<style lang="scss" scoped>
 .gig-entry {
   background: rgba(148, 163, 184, 0.12);
   border: 1px solid rgba(148, 163, 184, 0.28);

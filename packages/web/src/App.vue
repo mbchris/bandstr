@@ -1,7 +1,3 @@
-<template>
-  <router-view />
-</template>
-
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { Capacitor } from '@capacitor/core'
@@ -12,3 +8,7 @@ onMounted(() => {
   }
 })
 </script>
+
+<template>
+  <router-view />
+</template>

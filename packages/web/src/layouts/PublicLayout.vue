@@ -1,3 +1,7 @@
+<script setup lang="ts">
+// Public layout
+</script>
+
 <template>
   <q-layout view="lHh Lpr lFf">
     <q-page-container>
@@ -14,7 +18,7 @@
   </q-layout>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
 .impress-footer {
   min-height: 28px;
   display: flex;
