@@ -1,345 +1,3 @@
-<template>
-  <q-page padding>
-    <div class="dashboard-wrap">
-      <div class="row items-center q-col-gutter-sm q-mb-lg">
-        <div class="col-12 col-md">
-          <div class="text-h4 text-weight-bold">{{ t('dashboard.title') }}</div>
-          <div class="text-body2 text-grey-7">{{ t('dashboard.subtitle') }}</div>
-          <div class="text-caption text-grey-8 q-mt-xs">{{ t('dashboard.loggedInAs', { identity: userIdentity }) }}</div>
-        </div>
-      </div>
-
-      <div class="row q-col-gutter-lg">
-        <div class="col-12 col-lg-7">
-          <q-card flat bordered class="q-mb-lg">
-            <q-card-section class="q-gutter-sm">
-              <div class="row items-center justify-between">
-                <div class="text-h6">{{ t('dashboard.manageBands') }}</div>
-                <div class="row q-gutter-xs">
-                  <q-btn flat round dense icon="refresh" @click="refreshBands">
-                    <q-tooltip>{{ t('dashboard.refresh') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    color="primary"
-                    round
-                    dense
-                    icon="add"
-                    :disable="!canCreateBand"
-                    :title="canCreateBand ? t('dashboard.createBandHint') : t('dashboard.freePlanOneBand')"
-                    @click="showCreateBandDialog = true"
-                  >
-                    <q-tooltip>{{ t('dashboard.createBand') }}</q-tooltip>
-                  </q-btn>
-                </div>
-              </div>
-              <div class="text-caption text-grey-7">{{ t('dashboard.selectBandHint') }}</div>
-              <div class="text-caption text-grey-7 q-mt-xs">
-                {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
-                <q-btn flat round dense size="xs" icon="content_copy" color="grey-7" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
-                  <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
-                </q-btn>
-              </div>
-            </q-card-section>
-            <q-separator />
-            <q-list separator>
-              <q-item v-for="band in authStore.bands" :key="band.id">
-                <q-item-section>
-                  <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
-                  <div class="row items-center q-gutter-xs q-mt-xs">
-                    <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
-                    <q-badge v-if="authStore.activeBandId === band.id" color="primary" :label="t('dashboard.active')" />
-                  </div>
-                </q-item-section>
-                <q-item-section side>
-                  <div class="row q-gutter-xs">
-                    <q-btn
-                      v-if="canManageBand(band.role)"
-                      flat
-                      round
-                      dense
-                      icon="qr_code_2"
-                      @click="openInviteManager(band)"
-                    >
-                      <q-tooltip>{{ t('dashboard.invite') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn
-                      v-if="canManageBand(band.role)"
-                      flat
-                      round
-                      dense
-                      icon="edit"
-                      @click="openEdit(band)"
-                    >
-                      <q-tooltip>{{ t('dashboard.editBand') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="check_circle" @click="selectBandOnly(band.id)">
-                      <q-tooltip>{{ t('dashboard.selectBand') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn
-                      v-if="canDeleteBand(band.role)"
-                      flat
-                      round
-                      dense
-                      color="negative"
-                      icon="delete"
-                      @click="deleteBand(band.id)"
-                    >
-                      <q-tooltip>{{ t('dashboard.deleteBand') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn color="primary" round dense icon="launch" @click="selectBandAndOpen(band.id)">
-                      <q-tooltip>{{ t('dashboard.openApp') }}</q-tooltip>
-                    </q-btn>
-                  </div>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-card>
-
-          <q-card flat bordered>
-            <q-card-section class="row items-center justify-between">
-              <div>
-                <div class="text-h6">{{ t('dashboard.joinBand') }}</div>
-                <div class="text-caption text-grey-7">{{ t('dashboard.joinBandHint') }}</div>
-              </div>
-            </q-card-section>
-            <q-separator />
-            <q-card-section>
-              <div class="row items-center q-gutter-sm">
-                <div class="col">
-                  <q-input
-                    v-model="joinCode"
-                    :label="t('dashboard.invitationCode')"
-                    outlined
-                    dense
-                    :placeholder="t('dashboard.invitationCodePlaceholder')"
-                    @keyup.enter="joinBand"
-                  />
-                </div>
-                <div>
-                  <q-btn color="primary" dense :label="t('dashboard.join')" :loading="joining" @click="joinBand" />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-lg-5">
-          <q-card flat bordered class="q-mb-lg">
-            <q-card-section class="row items-center justify-between">
-              <div>
-                <div class="text-h6">{{ t('dashboard.manageSubscriptions') }}</div>
-                <div class="text-caption text-grey-7">{{ t('dashboard.currentPlan', { plan: activePlanLabel }) }}</div>
-                <div class="text-caption text-grey-7">{{ t('dashboard.statusLabel', { status: activeSubscriptionStatusLabel }) }}</div>
-                <div v-if="activeSubscriptionProvider === 'google_play'" class="text-caption text-grey-7">
-                  {{ t('dashboard.providerGoogle') }}
-                </div>
-                <div v-else-if="activeSubscriptionProvider === 'app_store'" class="text-caption text-grey-7">
-                  {{ t('dashboard.providerApple') }}
-                </div>
-                <div v-else-if="activeSubscriptionProvider === 'stripe'" class="text-caption text-grey-7">
-                  {{ t('dashboard.providerStripe') }}
-                </div>
-              </div>
-              <div class="column q-gutter-xs items-end">
-                <q-btn
-                  v-if="activeSubscriptionProvider === 'google_play'"
-                  color="primary"
-                  round
-                  dense
-                  icon="open_in_new"
-                  :loading="loadingManage"
-                  @click="openGooglePlayManagement"
-                >
-                  <q-tooltip>{{ t('dashboard.manageInGooglePlay') }}</q-tooltip>
-                </q-btn>
-                <q-btn color="primary" round dense icon="payments" @click="router.push('/billing')">
-                  <q-tooltip>{{ t('dashboard.openBilling') }}</q-tooltip>
-                </q-btn>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <q-card flat bordered class="q-mb-lg">
-            <q-card-section class="row items-center justify-between">
-              <div>
-                <div class="text-h6">{{ t('dashboard.manageAccount') }}</div>
-                <div class="text-caption text-grey-7">{{ t('dashboard.manageAccountHint') }}</div>
-              </div>
-              <q-btn color="primary" round dense icon="manage_accounts" @click="router.push('/account/security')">
-                <q-tooltip>{{ t('dashboard.openAccountSettings') }}</q-tooltip>
-              </q-btn>
-            </q-card-section>
-          </q-card>
-
-          <q-card flat bordered class="q-mb-lg">
-            <q-card-section>
-              <div class="text-h6">{{ t('dashboard.pushNotifications') }}</div>
-              <div class="text-caption text-grey-7 q-mb-md">{{ t('dashboard.pushNotificationsHint') }}</div>
-              <div v-if="notificationSettings" class="column q-gutter-sm">
-                <q-toggle
-                  :model-value="notificationSettings.notifyAbsence"
-                  :disable="updatingNotifications"
-                  :label="t('dashboard.notifyAbsence')"
-                  @update:model-value="(value) => toggleNotificationSetting('notifyAbsence', !!value)"
-                />
-                <q-toggle
-                  :model-value="notificationSettings.notifyGig"
-                  :disable="updatingNotifications"
-                  :label="t('dashboard.notifyGig')"
-                  @update:model-value="(value) => toggleNotificationSetting('notifyGig', !!value)"
-                />
-                <q-toggle
-                  :model-value="notificationSettings.notifyRehearsal"
-                  :disable="updatingNotifications"
-                  :label="t('dashboard.notifyRehearsal')"
-                  @update:model-value="(value) => toggleNotificationSetting('notifyRehearsal', !!value)"
-                />
-                <q-toggle
-                  :model-value="notificationSettings.notifySongSuggestion"
-                  :disable="updatingNotifications"
-                  :label="t('dashboard.notifySongSuggestion')"
-                  @update:model-value="(value) => toggleNotificationSetting('notifySongSuggestion', !!value)"
-                />
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <q-card flat bordered>
-            <q-card-section class="row items-center justify-between">
-              <div>
-                <div class="text-h6">{{ t('dashboard.deleteAccount') }}</div>
-                <div class="text-caption text-grey-7">{{ t('dashboard.deleteAccountHint') }}</div>
-              </div>
-              <q-btn color="negative" round dense icon="delete_forever" @click="router.push('/delete-account')">
-                <q-tooltip>{{ t('dashboard.openDeleteAccount') }}</q-tooltip>
-              </q-btn>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-    </div>
-
-    <q-dialog v-model="showCreateBandDialog">
-      <q-card style="min-width: 420px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('dashboard.createBand') }}</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <q-input v-model="newBandName" :label="t('dashboard.bandName')" outlined dense autofocus />
-          <div class="text-caption text-grey-7 q-mt-sm">{{ t('dashboard.slugAuto') }}</div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.add')" :loading="creatingBand" :disable="!newBandName.trim()" @click="createBand" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showEditModal">
-      <q-card style="min-width: 420px" v-if="editForm">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('dashboard.editBand') }}</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input v-model="editForm.name" :label="t('dashboard.bandName')" outlined dense />
-          <q-banner class="bg-widget-surface rounded-borders">
-            {{ t('dashboard.slugImmutable') }}
-          </q-banner>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.save')" :loading="creatingBand" @click="saveBand" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showInvitesModal">
-      <q-card style="min-width: 760px; max-width: 95vw">
-        <q-card-section class="row items-center justify-between">
-          <div>
-            <div class="text-h6">{{ t('dashboard.invitationCodes') }}</div>
-            <div class="text-caption text-grey-7">{{ t('dashboard.inviteBandRow', { band: inviteBand?.name ?? '-', days: 30 }) }}</div>
-          </div>
-          <div class="row q-gutter-xs">
-            <q-btn flat round dense icon="refresh" :disable="!inviteBand" @click="refreshInviteCodes">
-              <q-tooltip>{{ t('dashboard.refresh') }}</q-tooltip>
-            </q-btn>
-            <q-btn color="primary" round dense icon="add" :loading="creatingInvite" :disable="!inviteBand" @click="createInviteCode">
-              <q-tooltip>{{ t('dashboard.createCode') }}</q-tooltip>
-            </q-btn>
-            <q-btn flat round dense icon="close" v-close-popup />
-          </div>
-        </q-card-section>
-        <q-separator />
-        <q-list separator>
-          <q-item v-for="code in inviteCodes" :key="code.id">
-            <q-item-section>
-              <q-item-label class="text-weight-medium">{{ code.code }}</q-item-label>
-              <q-item-label caption>
-                {{ t('dashboard.createdAt', { value: formatDateTime(code.createdAt) }) }}
-                | {{ t('dashboard.expiresAt', { value: formatDateTime(code.expiresAt) }) }}
-                <span v-if="code.usedAt"> | {{ t('dashboard.usedAt', { value: formatDateTime(code.usedAt) }) }}</span>
-                <span v-if="code.invalidatedAt"> | {{ t('dashboard.invalidatedAt', { value: formatDateTime(code.invalidatedAt) }) }}</span>
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <div class="row q-gutter-xs">
-                <q-badge v-if="code.usedAt" color="positive" :label="t('dashboard.used')" />
-                <q-badge v-else-if="code.invalidatedAt" color="negative" :label="t('dashboard.invalidated')" />
-                <q-badge v-else-if="code.expired" color="warning" text-color="dark" :label="t('dashboard.expired')" />
-                <q-badge v-else color="info" :label="t('dashboard.active')" />
-                <q-btn flat round dense icon="qr_code_2" @click="openQr(code.code)">
-                  <q-tooltip>{{ t('dashboard.showQr') }}</q-tooltip>
-                </q-btn>
-                <q-btn flat round dense icon="content_copy" @click="copyInviteCode(code.code)">
-                  <q-tooltip>{{ t('dashboard.copyInviteText') }}</q-tooltip>
-                </q-btn>
-                <q-btn flat round dense icon="share" @click="shareInviteCode(code.code)">
-                  <q-tooltip>{{ t('dashboard.shareInvite') }}</q-tooltip>
-                </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="negative"
-                  icon="block"
-                  :disable="!inviteBand || !!code.usedAt || !!code.invalidatedAt || !!code.expired"
-                  @click="invalidateInviteCode(code.id)"
-                >
-                  <q-tooltip>{{ t('dashboard.invalidate') }}</q-tooltip>
-                </q-btn>
-              </div>
-            </q-item-section>
-          </q-item>
-          <q-item v-if="inviteCodes.length === 0">
-            <q-item-section>
-              <q-item-label caption>{{ t('dashboard.noInvitationCodes') }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showQrDialog">
-      <q-card style="min-width: 340px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('dashboard.invitationQrCode') }}</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="text-center">
-          <img v-if="qrImageUrl" :src="qrImageUrl" alt="Invitation QR" class="qr-img" />
-          <div class="text-body2 q-mt-sm">{{ selectedInviteCode }}</div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -724,7 +382,349 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<template>
+  <q-page padding>
+    <div class="dashboard-wrap">
+      <div class="row items-center q-col-gutter-sm q-mb-lg">
+        <div class="col-12 col-md">
+          <div class="text-h4 text-weight-bold">{{ t('dashboard.title') }}</div>
+          <div class="text-body2 text-grey-7">{{ t('dashboard.subtitle') }}</div>
+          <div class="text-caption text-grey-8 q-mt-xs">{{ t('dashboard.loggedInAs', { identity: userIdentity }) }}</div>
+        </div>
+      </div>
+
+      <div class="row q-col-gutter-lg">
+        <div class="col-12 col-lg-7">
+          <q-card flat bordered class="q-mb-lg">
+            <q-card-section class="q-gutter-sm">
+              <div class="row items-center justify-between">
+                <div class="text-h6">{{ t('dashboard.manageBands') }}</div>
+                <div class="row q-gutter-xs">
+                  <q-btn flat round dense icon="refresh" @click="refreshBands">
+                    <q-tooltip>{{ t('dashboard.refresh') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    color="primary"
+                    round
+                    dense
+                    icon="add"
+                    :disable="!canCreateBand"
+                    :title="canCreateBand ? t('dashboard.createBandHint') : t('dashboard.freePlanOneBand')"
+                    @click="showCreateBandDialog = true"
+                  >
+                    <q-tooltip>{{ t('dashboard.createBand') }}</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+              <div class="text-caption text-grey-7">{{ t('dashboard.selectBandHint') }}</div>
+              <div class="text-caption text-grey-7 q-mt-xs">
+                {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
+                <q-btn flat round dense size="xs" icon="content_copy" color="grey-7" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
+                  <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
+                </q-btn>
+              </div>
+            </q-card-section>
+            <q-separator />
+            <q-list separator>
+              <q-item v-for="band in authStore.bands" :key="band.id">
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
+                  <div class="row items-center q-gutter-xs q-mt-xs">
+                    <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
+                    <q-badge v-if="authStore.activeBandId === band.id" color="primary" :label="t('dashboard.active')" />
+                  </div>
+                </q-item-section>
+                <q-item-section side>
+                  <div class="row q-gutter-xs">
+                    <q-btn
+                      v-if="canManageBand(band.role)"
+                      flat
+                      round
+                      dense
+                      icon="qr_code_2"
+                      @click="openInviteManager(band)"
+                    >
+                      <q-tooltip>{{ t('dashboard.invite') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      v-if="canManageBand(band.role)"
+                      flat
+                      round
+                      dense
+                      icon="edit"
+                      @click="openEdit(band)"
+                    >
+                      <q-tooltip>{{ t('dashboard.editBand') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense icon="check_circle" @click="selectBandOnly(band.id)">
+                      <q-tooltip>{{ t('dashboard.selectBand') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      v-if="canDeleteBand(band.role)"
+                      flat
+                      round
+                      dense
+                      color="negative"
+                      icon="delete"
+                      @click="deleteBand(band.id)"
+                    >
+                      <q-tooltip>{{ t('dashboard.deleteBand') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn color="primary" round dense icon="launch" @click="selectBandAndOpen(band.id)">
+                      <q-tooltip>{{ t('dashboard.openApp') }}</q-tooltip>
+                    </q-btn>
+                  </div>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card>
+
+          <q-card flat bordered>
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <div class="text-h6">{{ t('dashboard.joinBand') }}</div>
+                <div class="text-caption text-grey-7">{{ t('dashboard.joinBandHint') }}</div>
+              </div>
+            </q-card-section>
+            <q-separator />
+            <q-card-section>
+              <div class="row items-center q-gutter-sm">
+                <div class="col">
+                  <q-input
+                    v-model="joinCode"
+                    :label="t('dashboard.invitationCode')"
+                    outlined
+                    dense
+                    :placeholder="t('dashboard.invitationCodePlaceholder')"
+                    @keyup.enter="joinBand"
+                  />
+                </div>
+                <div>
+                  <q-btn color="primary" dense :label="t('dashboard.join')" :loading="joining" @click="joinBand" />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <div class="col-12 col-lg-5">
+          <q-card flat bordered class="q-mb-lg">
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <div class="text-h6">{{ t('dashboard.manageSubscriptions') }}</div>
+                <div class="text-caption text-grey-7">{{ t('dashboard.currentPlan', { plan: activePlanLabel }) }}</div>
+                <div class="text-caption text-grey-7">{{ t('dashboard.statusLabel', { status: activeSubscriptionStatusLabel }) }}</div>
+                <div v-if="activeSubscriptionProvider === 'google_play'" class="text-caption text-grey-7">
+                  {{ t('dashboard.providerGoogle') }}
+                </div>
+                <div v-else-if="activeSubscriptionProvider === 'app_store'" class="text-caption text-grey-7">
+                  {{ t('dashboard.providerApple') }}
+                </div>
+                <div v-else-if="activeSubscriptionProvider === 'stripe'" class="text-caption text-grey-7">
+                  {{ t('dashboard.providerStripe') }}
+                </div>
+              </div>
+              <div class="column q-gutter-xs items-end">
+                <q-btn
+                  v-if="activeSubscriptionProvider === 'google_play'"
+                  color="primary"
+                  round
+                  dense
+                  icon="open_in_new"
+                  :loading="loadingManage"
+                  @click="openGooglePlayManagement"
+                >
+                  <q-tooltip>{{ t('dashboard.manageInGooglePlay') }}</q-tooltip>
+                </q-btn>
+                <q-btn color="primary" round dense icon="payments" @click="router.push('/billing')">
+                  <q-tooltip>{{ t('dashboard.openBilling') }}</q-tooltip>
+                </q-btn>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <q-card flat bordered class="q-mb-lg">
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <div class="text-h6">{{ t('dashboard.manageAccount') }}</div>
+                <div class="text-caption text-grey-7">{{ t('dashboard.manageAccountHint') }}</div>
+              </div>
+              <q-btn color="primary" round dense icon="manage_accounts" @click="router.push('/account/security')">
+                <q-tooltip>{{ t('dashboard.openAccountSettings') }}</q-tooltip>
+              </q-btn>
+            </q-card-section>
+          </q-card>
+
+          <q-card flat bordered class="q-mb-lg">
+            <q-card-section>
+              <div class="text-h6">{{ t('dashboard.pushNotifications') }}</div>
+              <div class="text-caption text-grey-7 q-mb-md">{{ t('dashboard.pushNotificationsHint') }}</div>
+              <div v-if="notificationSettings" class="column q-gutter-sm">
+                <q-toggle
+                  :model-value="notificationSettings.notifyAbsence"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifyAbsence')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifyAbsence', !!value)"
+                />
+                <q-toggle
+                  :model-value="notificationSettings.notifyGig"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifyGig')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifyGig', !!value)"
+                />
+                <q-toggle
+                  :model-value="notificationSettings.notifyRehearsal"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifyRehearsal')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifyRehearsal', !!value)"
+                />
+                <q-toggle
+                  :model-value="notificationSettings.notifySongSuggestion"
+                  :disable="updatingNotifications"
+                  :label="t('dashboard.notifySongSuggestion')"
+                  @update:model-value="(value) => toggleNotificationSetting('notifySongSuggestion', !!value)"
+                />
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <q-card flat bordered>
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <div class="text-h6">{{ t('dashboard.deleteAccount') }}</div>
+                <div class="text-caption text-grey-7">{{ t('dashboard.deleteAccountHint') }}</div>
+              </div>
+              <q-btn color="negative" round dense icon="delete_forever" @click="router.push('/delete-account')">
+                <q-tooltip>{{ t('dashboard.openDeleteAccount') }}</q-tooltip>
+              </q-btn>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+    </div>
+
+    <q-dialog v-model="showCreateBandDialog">
+      <q-card style="min-width: 420px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('dashboard.createBand') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section>
+          <q-input v-model="newBandName" :label="t('dashboard.bandName')" outlined dense autofocus />
+          <div class="text-caption text-grey-7 q-mt-sm">{{ t('dashboard.slugAuto') }}</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.add')" :loading="creatingBand" :disable="!newBandName.trim()" @click="createBand" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showEditModal">
+      <q-card style="min-width: 420px" v-if="editForm">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('dashboard.editBand') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="editForm.name" :label="t('dashboard.bandName')" outlined dense />
+          <q-banner class="bg-widget-surface rounded-borders">
+            {{ t('dashboard.slugImmutable') }}
+          </q-banner>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.save')" :loading="creatingBand" @click="saveBand" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showInvitesModal">
+      <q-card style="min-width: 760px; max-width: 95vw">
+        <q-card-section class="row items-center justify-between">
+          <div>
+            <div class="text-h6">{{ t('dashboard.invitationCodes') }}</div>
+            <div class="text-caption text-grey-7">{{ t('dashboard.inviteBandRow', { band: inviteBand?.name ?? '-', days: 30 }) }}</div>
+          </div>
+          <div class="row q-gutter-xs">
+            <q-btn flat round dense icon="refresh" :disable="!inviteBand" @click="refreshInviteCodes">
+              <q-tooltip>{{ t('dashboard.refresh') }}</q-tooltip>
+            </q-btn>
+            <q-btn color="primary" round dense icon="add" :loading="creatingInvite" :disable="!inviteBand" @click="createInviteCode">
+              <q-tooltip>{{ t('dashboard.createCode') }}</q-tooltip>
+            </q-btn>
+            <q-btn flat round dense icon="close" v-close-popup />
+          </div>
+        </q-card-section>
+        <q-separator />
+        <q-list separator>
+          <q-item v-for="code in inviteCodes" :key="code.id">
+            <q-item-section>
+              <q-item-label class="text-weight-medium">{{ code.code }}</q-item-label>
+              <q-item-label caption>
+                {{ t('dashboard.createdAt', { value: formatDateTime(code.createdAt) }) }}
+                | {{ t('dashboard.expiresAt', { value: formatDateTime(code.expiresAt) }) }}
+                <span v-if="code.usedAt"> | {{ t('dashboard.usedAt', { value: formatDateTime(code.usedAt) }) }}</span>
+                <span v-if="code.invalidatedAt"> | {{ t('dashboard.invalidatedAt', { value: formatDateTime(code.invalidatedAt) }) }}</span>
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row q-gutter-xs">
+                <q-badge v-if="code.usedAt" color="positive" :label="t('dashboard.used')" />
+                <q-badge v-else-if="code.invalidatedAt" color="negative" :label="t('dashboard.invalidated')" />
+                <q-badge v-else-if="code.expired" color="warning" text-color="dark" :label="t('dashboard.expired')" />
+                <q-badge v-else color="info" :label="t('dashboard.active')" />
+                <q-btn flat round dense icon="qr_code_2" @click="openQr(code.code)">
+                  <q-tooltip>{{ t('dashboard.showQr') }}</q-tooltip>
+                </q-btn>
+                <q-btn flat round dense icon="content_copy" @click="copyInviteCode(code.code)">
+                  <q-tooltip>{{ t('dashboard.copyInviteText') }}</q-tooltip>
+                </q-btn>
+                <q-btn flat round dense icon="share" @click="shareInviteCode(code.code)">
+                  <q-tooltip>{{ t('dashboard.shareInvite') }}</q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  color="negative"
+                  icon="block"
+                  :disable="!inviteBand || !!code.usedAt || !!code.invalidatedAt || !!code.expired"
+                  @click="invalidateInviteCode(code.id)"
+                >
+                  <q-tooltip>{{ t('dashboard.invalidate') }}</q-tooltip>
+                </q-btn>
+              </div>
+            </q-item-section>
+          </q-item>
+          <q-item v-if="inviteCodes.length === 0">
+            <q-item-section>
+              <q-item-label caption>{{ t('dashboard.noInvitationCodes') }}</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showQrDialog">
+      <q-card style="min-width: 340px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('dashboard.invitationQrCode') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="text-center">
+          <img v-if="qrImageUrl" :src="qrImageUrl" alt="Invitation QR" class="qr-img" />
+          <div class="text-body2 q-mt-sm">{{ selectedInviteCode }}</div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .dashboard-wrap {
   max-width: 1240px;
   margin: 0 auto;

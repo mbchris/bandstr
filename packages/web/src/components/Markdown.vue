@@ -1,7 +1,3 @@
-<template>
-  <div v-if="content" v-html="rendered" class="markdown-content" />
-</template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import { marked } from 'marked'
@@ -89,3 +85,7 @@ const rendered = computed(() => {
   return sanitizeHtml(html)
 })
 </script>
+
+<template>
+  <div v-if="content" v-html="rendered" class="markdown-content" />
+</template>

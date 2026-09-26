@@ -1,3 +1,93 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+type TrackMetadata = {
+  spotifyUrl: string
+  spotifyTrackId: string
+  title: string | null
+  artist: string | null
+  thumbnail: string | null
+  spotifyDurationMs: number | null
+  trackTimeMillis: number | null
+  durationMs: number | null
+  durationSource: 'itunes' | 'spotify' | null
+  queriedAt: string
+}
+
+type LookupResponse = {
+  metadata?: TrackMetadata
+  error?: string
+}
+
+const router = useRouter()
+const spotifyUrl = ref('')
+const trackData = ref<TrackMetadata | null>(null)
+const errorMsg = ref('')
+const isLoading = ref(false)
+const defaultEntries = [
+  {
+    label: '1',
+    url: 'https://open.spotify.com/track/1De425SCFJULIHbcmeebUw?si=2dc6f63d666a4d7e',
+  },
+  {
+    label: '2',
+    url: 'https://open.spotify.com/track/2fKDO6U8g5pi0HZqXZ4EF0?si=97e28fab049b4bfc',
+  },
+]
+
+const rawJson = computed(() => (trackData.value ? JSON.stringify(trackData.value, null, 2) : ''))
+
+function goBackToImpress() {
+  void router.push('/impress')
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms === null) return 'Unknown'
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function setDefaultEntry(url: string) {
+  spotifyUrl.value = url
+}
+
+async function fetchTrackData() {
+  errorMsg.value = ''
+  trackData.value = null
+
+  const trimmed = spotifyUrl.value.trim()
+  if (!trimmed) {
+    errorMsg.value = 'Please enter a Spotify track URL.'
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    const base = (process.env.API_URL ?? '').replace(/\/+$/, '').replace(/\/api$/, '')
+    const endpoint = `${base}/api/spotify/lookup?url=${encodeURIComponent(trimmed)}`
+    const response = await fetch(endpoint)
+    const payload = (await response.json()) as LookupResponse
+
+    if (!response.ok) {
+      throw new Error(payload.error || 'Lookup failed.')
+    }
+
+    if (!payload.metadata) {
+      throw new Error('No metadata returned.')
+    }
+
+    trackData.value = payload.metadata
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : 'Lookup failed.'
+  } finally {
+    isLoading.value = false
+  }
+}
+</script>
+
 <template>
   <q-page class="spotify-lookup-page q-pa-md">
     <div class="spotify-lookup-content">
@@ -95,97 +185,7 @@
   </q-page>
 </template>
 
-<script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-
-type TrackMetadata = {
-  spotifyUrl: string
-  spotifyTrackId: string
-  title: string | null
-  artist: string | null
-  thumbnail: string | null
-  spotifyDurationMs: number | null
-  trackTimeMillis: number | null
-  durationMs: number | null
-  durationSource: 'itunes' | 'spotify' | null
-  queriedAt: string
-}
-
-type LookupResponse = {
-  metadata?: TrackMetadata
-  error?: string
-}
-
-const router = useRouter()
-const spotifyUrl = ref('')
-const trackData = ref<TrackMetadata | null>(null)
-const errorMsg = ref('')
-const isLoading = ref(false)
-const defaultEntries = [
-  {
-    label: '1',
-    url: 'https://open.spotify.com/track/1De425SCFJULIHbcmeebUw?si=2dc6f63d666a4d7e',
-  },
-  {
-    label: '2',
-    url: 'https://open.spotify.com/track/2fKDO6U8g5pi0HZqXZ4EF0?si=97e28fab049b4bfc',
-  },
-]
-
-const rawJson = computed(() => (trackData.value ? JSON.stringify(trackData.value, null, 2) : ''))
-
-function goBackToImpress() {
-  void router.push('/impress')
-}
-
-function formatDuration(ms: number | null): string {
-  if (ms === null) return 'Unknown'
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.floor((ms % 60000) / 1000)
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
-
-function setDefaultEntry(url: string) {
-  spotifyUrl.value = url
-}
-
-async function fetchTrackData() {
-  errorMsg.value = ''
-  trackData.value = null
-
-  const trimmed = spotifyUrl.value.trim()
-  if (!trimmed) {
-    errorMsg.value = 'Please enter a Spotify track URL.'
-    return
-  }
-
-  isLoading.value = true
-
-  try {
-    const base = (process.env.API_URL ?? '').replace(/\/+$/, '').replace(/\/api$/, '')
-    const endpoint = `${base}/api/spotify/lookup?url=${encodeURIComponent(trimmed)}`
-    const response = await fetch(endpoint)
-    const payload = (await response.json()) as LookupResponse
-
-    if (!response.ok) {
-      throw new Error(payload.error || 'Lookup failed.')
-    }
-
-    if (!payload.metadata) {
-      throw new Error('No metadata returned.')
-    }
-
-    trackData.value = payload.metadata
-  } catch (error) {
-    errorMsg.value = error instanceof Error ? error.message : 'Lookup failed.'
-  } finally {
-    isLoading.value = false
-  }
-}
-</script>
-
-<style scoped>
+<style lang="scss" scoped>
 .spotify-lookup-page {
   min-height: 100vh;
 }

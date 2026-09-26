@@ -1,161 +1,3 @@
-<template>
-  <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <q-card flat bordered>
-        <q-card-section>
-          <div class="row items-center justify-between">
-            <div class="text-h5 text-weight-bold">{{ t('nav.calendar') }}</div>
-            <q-btn flat dense :label="t('calendar.today')" @click="goToToday" />
-          </div>
-        </q-card-section>
-
-        <q-card-section>
-          <!-- Month navigation -->
-          <div class="row items-center justify-center q-mb-lg q-gutter-md">
-            <q-btn flat round icon="chevron_left" @click="prevMonth" />
-            <div class="text-h6 text-center" style="min-width: 200px">{{ monthName }} {{ currentYear }}</div>
-            <q-btn flat round icon="chevron_right" @click="nextMonth" />
-          </div>
-
-          <!-- Calendar grid -->
-          <div class="calendar-grid">
-            <!-- Day headers -->
-            <div v-for="d in dayHeaders" :key="d" class="text-center text-caption text-weight-bold text-grey q-pb-sm">{{ d }}</div>
-
-            <!-- Day cells -->
-            <div
-              v-for="dayData in allDays"
-              :key="dayData.year + '-' + dayData.month + '-' + dayData.day"
-              class="calendar-cell q-pa-xs cursor-pointer"
-              :class="{ 'opacity-40': !dayData.isCurrentMonth }"
-              @click="handleDayClick(dayData)"
-            >
-              <div class="text-caption text-weight-medium" :class="{ 'text-primary text-weight-black': isToday(dayData.year, dayData.month, dayData.day) }">
-                {{ dayData.day }}
-              </div>
-              <div class="column q-gutter-xs q-mt-xs" style="overflow: hidden; max-height: 60px">
-                <template v-for="(event, eIdx) in getEvents(dayData.year, dayData.month, dayData.day)" :key="event.id">
-                  <div
-                    v-if="eIdx < 3"
-                    class="event-chip text-caption ellipsis"
-                    :class="eventClass(event)"
-                    @click.stop="editEvent(event)"
-                  >
-                    {{ event.title }}
-                    <span v-if="event.isTentative" class="q-ml-xs">?</span>
-                  </div>
-                </template>
-                <div v-if="getEvents(dayData.year, dayData.month, dayData.day).length > 3" class="text-caption text-grey" style="font-size: 9px">
-                  {{ t('calendar.more', { n: getEvents(dayData.year, dayData.month, dayData.day).length - 3 }) }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </div>
-
-    <!-- Event Create/Edit Dialog -->
-    <q-dialog v-model="showEventModal">
-      <q-card style="min-width: 450px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ editingEvent ? t('calendar.editEvent') : t('calendar.createEvent') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input v-model="form.title" :label="t('common.title')" outlined dense autofocus />
-
-          <div class="row q-gutter-sm">
-            <q-select
-              v-model="form.type"
-              :options="typeOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              :label="t('calendar.typeLabel')"
-              class="col"
-            />
-            <q-select
-              v-model="form.userId"
-              :options="ownerOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              :label="t('calendar.ownerLabel')"
-              class="col"
-            />
-          </div>
-
-          <div class="row q-gutter-sm">
-            <q-input v-model="form.startTime" :label="t('calendar.startTime')" type="datetime-local" outlined dense class="col" />
-            <q-input v-model="form.endTime" :label="t('calendar.endTime')" type="datetime-local" outlined dense class="col" />
-          </div>
-
-          <q-input v-model="form.description" :label="t('calendar.description')" :placeholder="t('calendar.descPlaceholder')" type="textarea" outlined dense autogrow />
-
-          <q-toggle v-model="form.isTentative" :label="t('calendar.tentativeLabel')" />
-        </q-card-section>
-        <q-card-actions class="row justify-between">
-          <div class="row q-gutter-sm">
-            <q-btn v-if="editingEvent" flat icon="delete" color="red" :label="t('common.delete')" @click="handleDeleteEvent" />
-            <q-btn v-if="editingEvent" flat icon="download" :label="t('calendar.exportIcal')" @click="exportIcal(editingEvent)" />
-          </div>
-          <div class="row q-gutter-sm">
-            <q-btn flat :label="t('common.cancel')" v-close-popup />
-            <q-btn color="primary" :label="t('common.save')" :loading="isSaving" @click="saveEvent" />
-          </div>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Day View Dialog -->
-    <q-dialog v-model="showDayViewModal">
-      <q-card v-if="selectedDayData" style="min-width: 400px">
-        <q-card-section>
-          <div class="text-overline text-grey">
-            {{ new Date(selectedDayData.year, selectedDayData.month, selectedDayData.day).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) }}
-          </div>
-          <div class="text-h5 text-weight-black">
-            {{ new Date(selectedDayData.year, selectedDayData.month, selectedDayData.day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric' }) }}
-          </div>
-        </q-card-section>
-
-        <q-list v-if="selectedDayEvents.length" separator>
-          <q-item v-for="event in selectedDayEvents" :key="event.id" clickable @click="openEditFromDayView(event)">
-            <q-item-section side>
-              <q-badge :color="eventDotColor(event)" rounded />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="text-weight-bold">
-                {{ event.title }}
-                <q-badge v-if="event.isTentative" color="grey" outline class="q-ml-xs">?</q-badge>
-              </q-item-label>
-              <q-item-label caption>
-                <q-icon name="schedule" size="xs" class="q-mr-xs" />
-                {{ formatTime(event.startTime) }}
-                <template v-if="event.endTime"> — {{ formatTime(event.endTime) }}</template>
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-icon name="chevron_right" color="grey" />
-            </q-item-section>
-          </q-item>
-        </q-list>
-        <q-card-section v-else class="text-center text-grey q-pa-lg">
-          <q-icon name="event" size="48px" class="q-mb-sm" style="opacity: 0.2" />
-          <div>{{ t('calendar.noEventsDay') }}</div>
-        </q-card-section>
-
-        <q-card-actions>
-          <q-btn class="full-width" color="primary" icon="add" :label="t('calendar.createEvent')" @click="openCreateFromDayView" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -406,7 +248,165 @@ watch(
 )
 </script>
 
-<style scoped>
+<template>
+  <q-page padding>
+    <div style="max-width: 1200px; margin: 0 auto">
+      <q-card flat bordered>
+        <q-card-section>
+          <div class="row items-center justify-between">
+            <div class="text-h5 text-weight-bold">{{ t('nav.calendar') }}</div>
+            <q-btn flat dense :label="t('calendar.today')" @click="goToToday" />
+          </div>
+        </q-card-section>
+
+        <q-card-section>
+          <!-- Month navigation -->
+          <div class="row items-center justify-center q-mb-lg q-gutter-md">
+            <q-btn flat round icon="chevron_left" @click="prevMonth" />
+            <div class="text-h6 text-center" style="min-width: 200px">{{ monthName }} {{ currentYear }}</div>
+            <q-btn flat round icon="chevron_right" @click="nextMonth" />
+          </div>
+
+          <!-- Calendar grid -->
+          <div class="calendar-grid">
+            <!-- Day headers -->
+            <div v-for="d in dayHeaders" :key="d" class="text-center text-caption text-weight-bold text-grey q-pb-sm">{{ d }}</div>
+
+            <!-- Day cells -->
+            <div
+              v-for="dayData in allDays"
+              :key="dayData.year + '-' + dayData.month + '-' + dayData.day"
+              class="calendar-cell q-pa-xs cursor-pointer"
+              :class="{ 'opacity-40': !dayData.isCurrentMonth }"
+              @click="handleDayClick(dayData)"
+            >
+              <div class="text-caption text-weight-medium" :class="{ 'text-primary text-weight-black': isToday(dayData.year, dayData.month, dayData.day) }">
+                {{ dayData.day }}
+              </div>
+              <div class="column q-gutter-xs q-mt-xs" style="overflow: hidden; max-height: 60px">
+                <template v-for="(event, eIdx) in getEvents(dayData.year, dayData.month, dayData.day)" :key="event.id">
+                  <div
+                    v-if="eIdx < 3"
+                    class="event-chip text-caption ellipsis"
+                    :class="eventClass(event)"
+                    @click.stop="editEvent(event)"
+                  >
+                    {{ event.title }}
+                    <span v-if="event.isTentative" class="q-ml-xs">?</span>
+                  </div>
+                </template>
+                <div v-if="getEvents(dayData.year, dayData.month, dayData.day).length > 3" class="text-caption text-grey" style="font-size: 9px">
+                  {{ t('calendar.more', { n: getEvents(dayData.year, dayData.month, dayData.day).length - 3 }) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </div>
+
+    <!-- Event Create/Edit Dialog -->
+    <q-dialog v-model="showEventModal">
+      <q-card style="min-width: 450px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ editingEvent ? t('calendar.editEvent') : t('calendar.createEvent') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="form.title" :label="t('common.title')" outlined dense autofocus />
+
+          <div class="row q-gutter-sm">
+            <q-select
+              v-model="form.type"
+              :options="typeOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="t('calendar.typeLabel')"
+              class="col"
+            />
+            <q-select
+              v-model="form.userId"
+              :options="ownerOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="t('calendar.ownerLabel')"
+              class="col"
+            />
+          </div>
+
+          <div class="row q-gutter-sm">
+            <q-input v-model="form.startTime" :label="t('calendar.startTime')" type="datetime-local" outlined dense class="col" />
+            <q-input v-model="form.endTime" :label="t('calendar.endTime')" type="datetime-local" outlined dense class="col" />
+          </div>
+
+          <q-input v-model="form.description" :label="t('calendar.description')" :placeholder="t('calendar.descPlaceholder')" type="textarea" outlined dense autogrow />
+
+          <q-toggle v-model="form.isTentative" :label="t('calendar.tentativeLabel')" />
+        </q-card-section>
+        <q-card-actions class="row justify-between">
+          <div class="row q-gutter-sm">
+            <q-btn v-if="editingEvent" flat icon="delete" color="red" :label="t('common.delete')" @click="handleDeleteEvent" />
+            <q-btn v-if="editingEvent" flat icon="download" :label="t('calendar.exportIcal')" @click="exportIcal(editingEvent)" />
+          </div>
+          <div class="row q-gutter-sm">
+            <q-btn flat :label="t('common.cancel')" v-close-popup />
+            <q-btn color="primary" :label="t('common.save')" :loading="isSaving" @click="saveEvent" />
+          </div>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Day View Dialog -->
+    <q-dialog v-model="showDayViewModal">
+      <q-card v-if="selectedDayData" style="min-width: 400px">
+        <q-card-section>
+          <div class="text-overline text-grey">
+            {{ new Date(selectedDayData.year, selectedDayData.month, selectedDayData.day).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) }}
+          </div>
+          <div class="text-h5 text-weight-black">
+            {{ new Date(selectedDayData.year, selectedDayData.month, selectedDayData.day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric' }) }}
+          </div>
+        </q-card-section>
+
+        <q-list v-if="selectedDayEvents.length" separator>
+          <q-item v-for="event in selectedDayEvents" :key="event.id" clickable @click="openEditFromDayView(event)">
+            <q-item-section side>
+              <q-badge :color="eventDotColor(event)" rounded />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="text-weight-bold">
+                {{ event.title }}
+                <q-badge v-if="event.isTentative" color="grey" outline class="q-ml-xs">?</q-badge>
+              </q-item-label>
+              <q-item-label caption>
+                <q-icon name="schedule" size="xs" class="q-mr-xs" />
+                {{ formatTime(event.startTime) }}
+                <template v-if="event.endTime"> — {{ formatTime(event.endTime) }}</template>
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-icon name="chevron_right" color="grey" />
+            </q-item-section>
+          </q-item>
+        </q-list>
+        <q-card-section v-else class="text-center text-grey q-pa-lg">
+          <q-icon name="event" size="48px" class="q-mb-sm" style="opacity: 0.2" />
+          <div>{{ t('calendar.noEventsDay') }}</div>
+        </q-card-section>
+
+        <q-card-actions>
+          <q-btn class="full-width" color="primary" icon="add" :label="t('calendar.createEvent')" @click="openCreateFromDayView" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

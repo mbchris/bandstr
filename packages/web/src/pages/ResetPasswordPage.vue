@@ -1,48 +1,3 @@
-<template>
-  <div class="reset-password-wrap">
-    <q-card flat bordered class="q-pa-lg">
-      <div class="text-h6 q-mb-sm">Reset password</div>
-      <div class="text-body2 text-grey-6 q-mb-md">
-        Set a new password for your account.
-      </div>
-
-      <q-form class="column q-gutter-md" @submit.prevent="submitReset">
-        <q-input
-          v-model="newPassword"
-          label="New password"
-          type="password"
-          outlined
-          dense
-          autocomplete="new-password"
-          :rules="[requiredRule, minPasswordRule]"
-        />
-        <q-input
-          v-model="confirmPassword"
-          label="Confirm new password"
-          type="password"
-          outlined
-          dense
-          autocomplete="new-password"
-          :rules="[requiredRule, confirmRule]"
-        />
-
-        <q-banner v-if="error" dense rounded class="bg-negative text-white">
-          {{ error }}
-        </q-banner>
-
-        <q-banner v-if="success" dense rounded class="bg-positive text-white">
-          {{ success }}
-        </q-banner>
-
-        <div class="row justify-end q-gutter-sm">
-          <q-btn flat label="Back to login" @click="router.push('/login')" />
-          <q-btn color="primary" label="Save new password" type="submit" :loading="loading" />
-        </div>
-      </q-form>
-    </q-card>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -111,7 +66,52 @@ async function submitReset() {
 }
 </script>
 
-<style scoped>
+<template>
+  <div class="reset-password-wrap">
+    <q-card flat bordered class="q-pa-lg">
+      <div class="text-h6 q-mb-sm">Reset password</div>
+      <div class="text-body2 text-grey-6 q-mb-md">
+        Set a new password for your account.
+      </div>
+
+      <q-form class="column q-gutter-md" @submit.prevent="submitReset">
+        <q-input
+          v-model="newPassword"
+          label="New password"
+          type="password"
+          outlined
+          dense
+          autocomplete="new-password"
+          :rules="[requiredRule, minPasswordRule]"
+        />
+        <q-input
+          v-model="confirmPassword"
+          label="Confirm new password"
+          type="password"
+          outlined
+          dense
+          autocomplete="new-password"
+          :rules="[requiredRule, confirmRule]"
+        />
+
+        <q-banner v-if="error" dense rounded class="bg-negative text-white">
+          {{ error }}
+        </q-banner>
+
+        <q-banner v-if="success" dense rounded class="bg-positive text-white">
+          {{ success }}
+        </q-banner>
+
+        <div class="row justify-end q-gutter-sm">
+          <q-btn flat label="Back to login" @click="router.push('/login')" />
+          <q-btn color="primary" label="Save new password" type="submit" :loading="loading" />
+        </div>
+      </q-form>
+    </q-card>
+  </div>
+</template>
+
+<style lang="scss" scoped>
 .reset-password-wrap {
   max-width: 480px;
 }

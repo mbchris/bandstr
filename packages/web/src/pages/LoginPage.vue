@@ -1,187 +1,3 @@
-<template>
-  <div class="login-page-wrap">
-    <div v-if="processingToken" class="column items-center justify-center q-pa-xl">
-      <q-spinner-orbit color="white" size="56px" />
-      <div class="text-grey-4 q-mt-md text-body2">{{ t('login.signingIn') }}</div>
-    </div>
-
-    <template v-else>
-      <q-btn
-        v-if="isDebugMode"
-        class="debug-icon-btn"
-        icon="bug_report"
-        round
-        dense
-        flat
-        color="grey-4"
-        @click="showDebugDialog = true"
-      />
-
-      <q-btn-toggle
-        v-model="authMode"
-        spread
-        unelevated
-        class="q-mb-md auth-mode-toggle"
-        toggle-color="primary"
-        :options="modeOptions"
-      />
-
-      <q-form v-if="authMode === 'signin'" class="column q-gutter-sm q-mb-md" @submit.prevent="signInWithEmail">
-        <q-input v-model="signinEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
-        <q-input
-          v-model="signinPassword"
-          type="password"
-          outlined
-          dense
-          autocomplete="current-password"
-          :label="t('login.password')"
-          :rules="[requiredRule]"
-        />
-        <q-btn color="primary" :label="t('login.signInEmail')" type="submit" :loading="loadingEmailSignIn" />
-      </q-form>
-
-      <q-form v-if="authMode === 'signup'" class="column q-gutter-sm q-mb-md" @submit.prevent="signUpWithEmail">
-        <q-input v-model="signupName" outlined dense autocomplete="name" :label="t('login.name')" :rules="[requiredRule]" />
-        <q-input v-model="signupEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
-        <q-input
-          v-model="signupPassword"
-          type="password"
-          outlined
-          dense
-          autocomplete="new-password"
-          :label="t('login.password')"
-          :rules="[requiredRule, minPasswordRule]"
-        />
-        <q-btn color="primary" :label="t('login.createAccount')" type="submit" :loading="loadingEmailSignUp" />
-      </q-form>
-
-      <q-form v-if="authMode === 'forgot'" class="column q-gutter-sm q-mb-md" @submit.prevent="requestPasswordReset">
-        <q-input v-model="forgotEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
-        <q-btn color="primary" :label="t('login.sendResetLink')" type="submit" :loading="loadingPasswordReset" />
-        <div class="text-caption text-grey-5">
-          {{ t('login.resetLinkHint') }}
-        </div>
-      </q-form>
-
-      <q-separator dark spaced />
-
-      <q-btn
-        color="white"
-        text-color="dark"
-        icon="img:https://www.google.com/favicon.ico"
-        :label="t('login.google')"
-        class="full-width q-mb-md auth-google-btn"
-        unelevated
-        size="md"
-        :loading="loadingGoogle"
-        @click="loginGoogle"
-      />
-
-      <q-btn
-        color="dark"
-        text-color="white"
-        icon="img:https://github.com/favicon.ico"
-        :label="t('login.github')"
-        class="full-width q-btn-github"
-        outline
-        size="md"
-        :loading="loadingGithub"
-        @click="loginGithub"
-      />
-
-      <div class="row justify-between items-center q-mt-sm">
-        <q-btn flat dense class="auth-link-btn" :label="t('login.forgotPassword')" @click="authMode = 'forgot'" />
-        <q-btn flat dense class="auth-link-btn" :label="t('login.backToSignIn')" @click="authMode = 'signin'" />
-      </div>
-
-      <div v-if="error" class="q-mt-md text-negative text-center text-body2">
-        {{ error }}
-      </div>
-      <div v-if="info" class="q-mt-md text-positive text-center text-body2">
-        {{ info }}
-      </div>
-      <div v-if="copyStatus" class="q-mt-sm text-center text-caption">
-        {{ copyStatus }}
-      </div>
-
-      <q-dialog v-if="isDebugMode" v-model="showDebugDialog">
-        <q-card class="debug-card">
-          <q-card-section class="row items-center q-pb-sm">
-            <div class="text-subtitle1">Debug Info</div>
-            <q-space />
-            <q-btn dense flat icon="content_copy" label="Copy Debug" @click="copyDebugToClipboard" />
-            <q-btn dense flat round icon="close" @click="showDebugDialog = false" />
-          </q-card-section>
-          <q-separator />
-          <q-card-section class="debug-content text-caption">
-            <div>DEBUG_MODE (raw): {{ debugModeRaw }}</div>
-            <div>Native platform: {{ isNative }}</div>
-            <div>Platform: {{ platform }}</div>
-            <div>Window origin: {{ windowOrigin }}</div>
-            <div>Window href: {{ windowHref }}</div>
-            <div>Route redirect (raw): {{ routeRedirectRaw }}</div>
-            <div>Route token (raw): {{ routeTokenRaw ? '(present)' : '(absent)' }}</div>
-            <div>Route mobileAuth (raw): {{ routeMobileAuthRaw }}</div>
-            <div>Route error (raw): {{ routeErrorRaw }}</div>
-            <div>Redirect path (sanitized): {{ redirectPath }}</div>
-            <div>API_URL (raw): {{ debugApiUrlRaw }}</div>
-            <div>API base (effective): {{ debugApiBase }}</div>
-            <div>Auth URL (effective): {{ debugAuthUrl }}</div>
-            <div>MOBILE_CALLBACK_URL (raw): {{ debugMobileCallbackUrlRaw }}</div>
-            <div>Native app callback (effective): {{ nativeAppCallbackUrl }}</div>
-            <div>Native bridge callback (effective): {{ nativeBridgeCallbackUrl || '(missing API_URL)' }}</div>
-            <div>Web callback (effective): {{ webCallbackUrl }}</div>
-            <div>Social callback (effective): {{ socialCallbackUrl }}</div>
-            <div>User agent: {{ userAgent }}</div>
-          </q-card-section>
-          <q-card-section class="q-pt-none">
-            <div class="row q-col-gutter-sm">
-              <div class="col-12 col-sm-6">
-                <q-btn
-                  class="full-width"
-                  color="primary"
-                  outline
-                  size="sm"
-                  :loading="testingAuth"
-                  label="Test Auth Endpoint"
-                  @click="testAuthEndpoint"
-                />
-              </div>
-              <div class="col-12 col-sm-6">
-                <q-btn
-                  class="full-width"
-                  color="secondary"
-                  outline
-                  size="sm"
-                  :loading="testingBands"
-                  label="Test Bands Endpoint"
-                  @click="testBandsEndpoint"
-                />
-              </div>
-              <div class="col-12">
-                <q-btn
-                  class="full-width"
-                  color="accent"
-                  outline
-                  size="sm"
-                  :loading="testingSession"
-                  label="Probe Session + CORS"
-                  @click="probeSessionAndCors"
-                />
-              </div>
-            </div>
-          </q-card-section>
-          <q-card-section v-if="debugOutput" class="q-pt-none">
-            <div class="debug-output">
-              {{ debugOutput }}
-            </div>
-          </q-card-section>
-        </q-card>
-      </q-dialog>
-    </template>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Capacitor } from '@capacitor/core'
@@ -730,7 +546,191 @@ watch(
 )
 </script>
 
-<style scoped>
+<template>
+  <div class="login-page-wrap">
+    <div v-if="processingToken" class="column items-center justify-center q-pa-xl">
+      <q-spinner-orbit color="white" size="56px" />
+      <div class="text-grey-4 q-mt-md text-body2">{{ t('login.signingIn') }}</div>
+    </div>
+
+    <template v-else>
+      <q-btn
+        v-if="isDebugMode"
+        class="debug-icon-btn"
+        icon="bug_report"
+        round
+        dense
+        flat
+        color="grey-4"
+        @click="showDebugDialog = true"
+      />
+
+      <q-btn-toggle
+        v-model="authMode"
+        spread
+        unelevated
+        class="q-mb-md auth-mode-toggle"
+        toggle-color="primary"
+        :options="modeOptions"
+      />
+
+      <q-form v-if="authMode === 'signin'" class="column q-gutter-sm q-mb-md" @submit.prevent="signInWithEmail">
+        <q-input v-model="signinEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
+        <q-input
+          v-model="signinPassword"
+          type="password"
+          outlined
+          dense
+          autocomplete="current-password"
+          :label="t('login.password')"
+          :rules="[requiredRule]"
+        />
+        <q-btn color="primary" :label="t('login.signInEmail')" type="submit" :loading="loadingEmailSignIn" />
+      </q-form>
+
+      <q-form v-if="authMode === 'signup'" class="column q-gutter-sm q-mb-md" @submit.prevent="signUpWithEmail">
+        <q-input v-model="signupName" outlined dense autocomplete="name" :label="t('login.name')" :rules="[requiredRule]" />
+        <q-input v-model="signupEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
+        <q-input
+          v-model="signupPassword"
+          type="password"
+          outlined
+          dense
+          autocomplete="new-password"
+          :label="t('login.password')"
+          :rules="[requiredRule, minPasswordRule]"
+        />
+        <q-btn color="primary" :label="t('login.createAccount')" type="submit" :loading="loadingEmailSignUp" />
+      </q-form>
+
+      <q-form v-if="authMode === 'forgot'" class="column q-gutter-sm q-mb-md" @submit.prevent="requestPasswordReset">
+        <q-input v-model="forgotEmail" type="email" outlined dense autocomplete="email" :label="t('login.email')" :rules="[requiredRule, emailRule]" />
+        <q-btn color="primary" :label="t('login.sendResetLink')" type="submit" :loading="loadingPasswordReset" />
+        <div class="text-caption text-grey-5">
+          {{ t('login.resetLinkHint') }}
+        </div>
+      </q-form>
+
+      <q-separator dark spaced />
+
+      <q-btn
+        color="white"
+        text-color="dark"
+        icon="img:https://www.google.com/favicon.ico"
+        :label="t('login.google')"
+        class="full-width q-mb-md auth-google-btn"
+        unelevated
+        size="md"
+        :loading="loadingGoogle"
+        @click="loginGoogle"
+      />
+
+      <q-btn
+        color="dark"
+        text-color="white"
+        icon="img:https://github.com/favicon.ico"
+        :label="t('login.github')"
+        class="full-width q-btn-github"
+        outline
+        size="md"
+        :loading="loadingGithub"
+        @click="loginGithub"
+      />
+
+      <div class="row justify-between items-center q-mt-sm">
+        <q-btn flat dense class="auth-link-btn" :label="t('login.forgotPassword')" @click="authMode = 'forgot'" />
+        <q-btn flat dense class="auth-link-btn" :label="t('login.backToSignIn')" @click="authMode = 'signin'" />
+      </div>
+
+      <div v-if="error" class="q-mt-md text-negative text-center text-body2">
+        {{ error }}
+      </div>
+      <div v-if="info" class="q-mt-md text-positive text-center text-body2">
+        {{ info }}
+      </div>
+      <div v-if="copyStatus" class="q-mt-sm text-center text-caption">
+        {{ copyStatus }}
+      </div>
+
+      <q-dialog v-if="isDebugMode" v-model="showDebugDialog">
+        <q-card class="debug-card">
+          <q-card-section class="row items-center q-pb-sm">
+            <div class="text-subtitle1">Debug Info</div>
+            <q-space />
+            <q-btn dense flat icon="content_copy" label="Copy Debug" @click="copyDebugToClipboard" />
+            <q-btn dense flat round icon="close" @click="showDebugDialog = false" />
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="debug-content text-caption">
+            <div>DEBUG_MODE (raw): {{ debugModeRaw }}</div>
+            <div>Native platform: {{ isNative }}</div>
+            <div>Platform: {{ platform }}</div>
+            <div>Window origin: {{ windowOrigin }}</div>
+            <div>Window href: {{ windowHref }}</div>
+            <div>Route redirect (raw): {{ routeRedirectRaw }}</div>
+            <div>Route token (raw): {{ routeTokenRaw ? '(present)' : '(absent)' }}</div>
+            <div>Route mobileAuth (raw): {{ routeMobileAuthRaw }}</div>
+            <div>Route error (raw): {{ routeErrorRaw }}</div>
+            <div>Redirect path (sanitized): {{ redirectPath }}</div>
+            <div>API_URL (raw): {{ debugApiUrlRaw }}</div>
+            <div>API base (effective): {{ debugApiBase }}</div>
+            <div>Auth URL (effective): {{ debugAuthUrl }}</div>
+            <div>MOBILE_CALLBACK_URL (raw): {{ debugMobileCallbackUrlRaw }}</div>
+            <div>Native app callback (effective): {{ nativeAppCallbackUrl }}</div>
+            <div>Native bridge callback (effective): {{ nativeBridgeCallbackUrl || '(missing API_URL)' }}</div>
+            <div>Web callback (effective): {{ webCallbackUrl }}</div>
+            <div>Social callback (effective): {{ socialCallbackUrl }}</div>
+            <div>User agent: {{ userAgent }}</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-btn
+                  class="full-width"
+                  color="primary"
+                  outline
+                  size="sm"
+                  :loading="testingAuth"
+                  label="Test Auth Endpoint"
+                  @click="testAuthEndpoint"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-btn
+                  class="full-width"
+                  color="secondary"
+                  outline
+                  size="sm"
+                  :loading="testingBands"
+                  label="Test Bands Endpoint"
+                  @click="testBandsEndpoint"
+                />
+              </div>
+              <div class="col-12">
+                <q-btn
+                  class="full-width"
+                  color="accent"
+                  outline
+                  size="sm"
+                  :loading="testingSession"
+                  label="Probe Session + CORS"
+                  @click="probeSessionAndCors"
+                />
+              </div>
+            </div>
+          </q-card-section>
+          <q-card-section v-if="debugOutput" class="q-pt-none">
+            <div class="debug-output">
+              {{ debugOutput }}
+            </div>
+          </q-card-section>
+        </q-card>
+      </q-dialog>
+    </template>
+  </div>
+</template>
+
+<style lang="scss" scoped>
 .login-page-wrap {
   position: relative;
   color: rgba(248, 250, 252, 0.96);

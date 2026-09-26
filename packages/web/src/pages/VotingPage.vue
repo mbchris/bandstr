@@ -1,281 +1,3 @@
-<template>
-  <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <q-card flat bordered>
-        <q-card-section>
-          <div class="row items-center justify-between">
-            <div class="text-h5 text-weight-bold">{{ t('voting.heading') }}</div>
-            <div class="row q-gutter-sm items-center">
-              <q-btn flat round icon="download" @click="handleExport" />
-              <span v-if="authStore.isFreePlan" class="text-caption text-grey-6">
-                {{ poolSongCount }}/{{ FREE_POOL_LIMIT }}
-              </span>
-              <q-btn
-                round
-                :color="atPoolLimit ? 'grey' : 'primary'"
-                icon="add"
-                class="round-add-btn"
-                :disable="atPoolLimit"
-                @click="openAddModal"
-              >
-                <q-tooltip v-if="atPoolLimit">
-                  {{ t('voting.proPoolLimitTooltip', { limit: FREE_POOL_LIMIT }) }}
-                </q-tooltip>
-              </q-btn>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-section>
-          <div class="row q-col-gutter-sm q-mb-md">
-            <div class="col-12 col-sm-6">
-              <q-input v-model="searchQuery" dense outlined :placeholder="t('voting.filterSongs')" clearable>
-                <template #prepend><q-icon name="search" /></template>
-              </q-input>
-            </div>
-            <div class="col-12 col-sm-3">
-              <q-select
-                v-model="votingFilter"
-                dense
-                outlined
-                emit-value
-                map-options
-                :options="filterOptions"
-                :label="t('voting.filterLabel')"
-              />
-            </div>
-            <div class="col-12 col-sm-3">
-              <q-select
-                v-model="votingSort"
-                dense
-                outlined
-                emit-value
-                map-options
-                :options="sortOptions"
-                :label="t('voting.sortLabel')"
-              />
-            </div>
-          </div>
-
-          <q-list v-if="filteredSongs.length" separator>
-            <q-item
-              v-for="(song, index) in filteredSongs"
-              :key="song.id"
-              class="q-pa-sm song-item"
-              :draggable="!searchQuery && votingSort === 'default'"
-              @dragstart="onDragStart(index)"
-              @dragover.prevent
-              @drop="onDrop(index)"
-              @dragend="onDragEnd"
-            >
-              <q-item-section side class="song-order-controls">
-                <div class="column items-center q-gutter-xs">
-                  <q-icon v-if="!searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
-                  <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
-                </div>
-              </q-item-section>
-
-              <!-- Thumbnail -->
-              <q-item-section side class="song-order-thumb">
-                <div v-if="song.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
-                  Pitch {{ song.pitch > 0 ? '+' : '' }}{{ song.pitch }}
-                </div>
-                <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank">
-                  <q-avatar rounded size="48px"><img :src="song.thumbnailUrl" /></q-avatar>
-                </a>
-                <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
-              </q-item-section>
-
-              <!-- Info -->
-              <q-item-section class="song-order-info">
-                <q-item-label class="text-weight-bold">
-                  {{ song.title }}
-                  <q-icon v-if="song.notes" name="info" color="grey" size="xs" class="cursor-pointer">
-                    <q-tooltip>{{ song.notes }}</q-tooltip>
-                  </q-icon>
-                </q-item-label>
-                <q-item-label caption>{{ song.artist }}</q-item-label>
-                <div class="row q-gutter-xs q-mt-xs">
-                  <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.spotifyLabel') }}</a>
-                  <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.youtubeLabel') }}</a>
-                </div>
-                <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
-                  {{ t('voting.lengthLabel') }}: {{ formatDuration(song.lengthMs) }}
-                </div>
-                <div class="option1-vote-row q-mt-sm">
-                  <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
-                    <q-avatar
-                      v-for="(member, i) in votedMembers(song)"
-                      :key="`${song.id}-voted-${member.id}`"
-                      size="24px"
-                      class="stack-avatar"
-                      :style="stackedAvatarStyle(song, member.id, i)"
-                      color="primary"
-                      text-color="white"
-                    >
-                      <span>{{ getInitials(member.name) }}</span>
-                    </q-avatar>
-                    <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
-                    <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
-                  </div>
-                  <div class="row items-center q-gutter-xs option1-actions">
-                    <q-badge outline color="primary">{{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}</q-badge>
-                    <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
-                    <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
-                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn dense flat icon="visibility" @click="openDetailsDialog(song)">
-                      <q-tooltip>{{ t('voting.details') }}</q-tooltip>
-                    </q-btn>
-                  </div>
-                </div>
-              </q-item-section>
-
-              <!-- Actions -->
-              <q-item-section side class="song-order-actions">
-                <div class="column q-gutter-xs song-actions">
-                  <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
-                    <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
-                  <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
-                </div>
-              </q-item-section>
-            </q-item>
-          </q-list>
-
-          <q-banner v-else rounded class="bg-widget-surface">{{ t('voting.noSongs') }}</q-banner>
-        </q-card-section>
-      </q-card>
-    </div>
-
-    <!-- Add/Edit Song Dialog -->
-    <q-dialog v-model="showSongModal">
-      <q-card style="min-width: 450px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ modalSong.id ? t('voting.editSong') : t('voting.suggestNew') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <div class="row q-gutter-sm">
-            <q-input v-model="modalSong.spotifyUrl" :label="t('voting.spotifyUrl')" outlined dense class="col" @paste="onSpotifyPaste" />
-            <q-btn color="green" icon="search" :loading="lookingUp" :disable="!modalSong.spotifyUrl" @click="lookupSpotify(true)">{{ t('voting.spotifyLookup') }}</q-btn>
-          </div>
-          <div v-if="lookupError" class="text-red text-caption">{{ lookupError }}</div>
-          <q-input v-model="modalSong.title" :label="t('voting.songTitle')" outlined dense />
-          <q-input v-model="modalSong.artist" :label="t('voting.artist')" outlined dense />
-          <q-input
-            v-model="modalSongLengthInput"
-            :label="t('voting.lengthInputLabel')"
-            :hint="t('voting.lengthInputHint')"
-            outlined
-            dense
-            @blur="normalizeVotingLengthInput"
-          />
-          <q-input v-model="modalSong.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
-          <div class="row items-center q-gutter-md">
-            <span class="text-caption">{{ t('voting.pitchLabel') }}</span>
-            <q-slider v-model="modalSong.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
-            <q-badge color="grey-8" class="text-body2">
-              {{ modalSong.pitch > 0 ? '+' : '' }}{{ modalSong.pitch }}
-            </q-badge>
-            <q-badge v-if="authStore.isFreePlan" color="orange" :label="t('voting.proFeature')" />
-          </div>
-          <div v-if="authStore.isFreePlan" class="row items-center q-gutter-sm">
-            <q-input v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow disable class="col" />
-            <q-badge color="orange" :label="t('voting.proFeature')" />
-          </div>
-          <q-input v-else v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="modalSong.id ? t('voting.updateBtn') : t('voting.suggestSong')" :loading="submitting" @click="submitSong" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Transfer Dialog -->
-    <q-dialog v-model="showTransferModal">
-      <q-card style="min-width: 350px">
-        <q-card-section>
-          <div class="text-h6">{{ t('voting.sendToSetlist') }}</div>
-        </q-card-section>
-        <q-card-section v-if="songToTransfer">
-          <p>{{ t('voting.confirmTransfer', { title: songToTransfer.title, artist: songToTransfer.artist }) }}</p>
-          <p class="text-caption text-grey">{{ t('voting.currentScore', { score: Number(songToTransfer.voteAverage || 0).toFixed(1) }) }}</p>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('voting.confirmBtn')" @click="transferToSetlist" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Vote Picker -->
-    <q-dialog v-model="showVotePicker">
-      <q-card class="vote-picker-card">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('voting.chooseYourVote') }}</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-separator />
-        <q-list separator>
-          <q-item clickable v-ripple @click="selectOwnVote(0)">
-            <q-item-section>{{ t('voting.voteOptionVeto') }}</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple @click="selectOwnVote(1)">
-            <q-item-section>{{ t('voting.voteOptionOk') }}</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple @click="selectOwnVote(2)">
-            <q-item-section>{{ t('voting.voteOptionGood') }}</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple @click="selectOwnVote(3)">
-            <q-item-section>{{ t('voting.voteOptionGreat') }}</q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
-    </q-dialog>
-
-    <!-- Vote Details -->
-    <q-dialog v-model="showDetailsDialog">
-      <q-card style="min-width: 360px; max-width: 96vw">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('voting.details') }}</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-separator />
-        <q-card-section v-if="detailsSong">
-          <div class="text-subtitle2">{{ detailsSong.title }} - {{ detailsSong.artist }}</div>
-          <div class="text-caption text-grey-7 q-mt-xs">{{ t('voting.avg') }}: {{ Number(detailsSong.voteAverage || 0).toFixed(1) }} | {{ t('voting.votes') }}: {{ detailsSong.voteCount }}</div>
-          <q-list class="q-mt-sm" dense bordered separator>
-            <q-item v-for="member in visibleMembers" :key="`d-${detailsSong.id}-${member.id}`">
-              <q-item-section avatar>
-                <q-avatar
-                  size="24px"
-                  color="grey-7"
-                  text-color="white"
-                  class="details-avatar"
-                  :style="detailsAvatarStyle(detailsSong, member.id)"
-                >
-                  <span>{{ getInitials(member.name) }}</span>
-                </q-avatar>
-              </q-item-section>
-              <q-item-section>{{ member.name }}</q-item-section>
-              <q-item-section side>
-                <q-badge :color="voteScore(detailsSong, member.id) === null ? 'grey-6' : 'primary'">
-                  {{ voteScore(detailsSong, member.id) === null ? '-' : voteScore(detailsSong, member.id) }}
-                </q-badge>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -671,7 +393,285 @@ watch(
 )
 </script>
 
-<style scoped>
+<template>
+  <q-page padding>
+    <div style="max-width: 1200px; margin: 0 auto">
+      <q-card flat bordered>
+        <q-card-section>
+          <div class="row items-center justify-between">
+            <div class="text-h5 text-weight-bold">{{ t('voting.heading') }}</div>
+            <div class="row q-gutter-sm items-center">
+              <q-btn flat round icon="download" @click="handleExport" />
+              <span v-if="authStore.isFreePlan" class="text-caption text-grey-6">
+                {{ poolSongCount }}/{{ FREE_POOL_LIMIT }}
+              </span>
+              <q-btn
+                round
+                :color="atPoolLimit ? 'grey' : 'primary'"
+                icon="add"
+                class="round-add-btn"
+                :disable="atPoolLimit"
+                @click="openAddModal"
+              >
+                <q-tooltip v-if="atPoolLimit">
+                  {{ t('voting.proPoolLimitTooltip', { limit: FREE_POOL_LIMIT }) }}
+                </q-tooltip>
+              </q-btn>
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-section>
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-12 col-sm-6">
+              <q-input v-model="searchQuery" dense outlined :placeholder="t('voting.filterSongs')" clearable>
+                <template #prepend><q-icon name="search" /></template>
+              </q-input>
+            </div>
+            <div class="col-12 col-sm-3">
+              <q-select
+                v-model="votingFilter"
+                dense
+                outlined
+                emit-value
+                map-options
+                :options="filterOptions"
+                :label="t('voting.filterLabel')"
+              />
+            </div>
+            <div class="col-12 col-sm-3">
+              <q-select
+                v-model="votingSort"
+                dense
+                outlined
+                emit-value
+                map-options
+                :options="sortOptions"
+                :label="t('voting.sortLabel')"
+              />
+            </div>
+          </div>
+
+          <q-list v-if="filteredSongs.length" separator>
+            <q-item
+              v-for="(song, index) in filteredSongs"
+              :key="song.id"
+              class="q-pa-sm song-item"
+              :draggable="!searchQuery && votingSort === 'default'"
+              @dragstart="onDragStart(index)"
+              @dragover.prevent
+              @drop="onDrop(index)"
+              @dragend="onDragEnd"
+            >
+              <q-item-section side class="song-order-controls">
+                <div class="column items-center q-gutter-xs">
+                  <q-icon v-if="!searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                  <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
+                </div>
+              </q-item-section>
+
+              <!-- Thumbnail -->
+              <q-item-section side class="song-order-thumb">
+                <div v-if="song.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
+                  Pitch {{ song.pitch > 0 ? '+' : '' }}{{ song.pitch }}
+                </div>
+                <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank">
+                  <q-avatar rounded size="48px"><img :src="song.thumbnailUrl" /></q-avatar>
+                </a>
+                <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
+              </q-item-section>
+
+              <!-- Info -->
+              <q-item-section class="song-order-info">
+                <q-item-label class="text-weight-bold">
+                  {{ song.title }}
+                  <q-icon v-if="song.notes" name="info" color="grey" size="xs" class="cursor-pointer">
+                    <q-tooltip>{{ song.notes }}</q-tooltip>
+                  </q-icon>
+                </q-item-label>
+                <q-item-label caption>{{ song.artist }}</q-item-label>
+                <div class="row q-gutter-xs q-mt-xs">
+                  <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.spotifyLabel') }}</a>
+                  <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.youtubeLabel') }}</a>
+                </div>
+                <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
+                  {{ t('voting.lengthLabel') }}: {{ formatDuration(song.lengthMs) }}
+                </div>
+                <div class="option1-vote-row q-mt-sm">
+                  <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
+                    <q-avatar
+                      v-for="(member, i) in votedMembers(song)"
+                      :key="`${song.id}-voted-${member.id}`"
+                      size="24px"
+                      class="stack-avatar"
+                      :style="stackedAvatarStyle(song, member.id, i)"
+                      color="primary"
+                      text-color="white"
+                    >
+                      <span>{{ getInitials(member.name) }}</span>
+                    </q-avatar>
+                    <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
+                    <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
+                  </div>
+                  <div class="row items-center q-gutter-xs option1-actions">
+                    <q-badge outline color="primary">{{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}</q-badge>
+                    <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
+                    <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
+                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn dense flat icon="visibility" @click="openDetailsDialog(song)">
+                      <q-tooltip>{{ t('voting.details') }}</q-tooltip>
+                    </q-btn>
+                  </div>
+                </div>
+              </q-item-section>
+
+              <!-- Actions -->
+              <q-item-section side class="song-order-actions">
+                <div class="column q-gutter-xs song-actions">
+                  <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
+                    <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
+                  <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
+                </div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <q-banner v-else rounded class="bg-widget-surface">{{ t('voting.noSongs') }}</q-banner>
+        </q-card-section>
+      </q-card>
+    </div>
+
+    <!-- Add/Edit Song Dialog -->
+    <q-dialog v-model="showSongModal">
+      <q-card style="min-width: 450px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ modalSong.id ? t('voting.editSong') : t('voting.suggestNew') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <div class="row q-gutter-sm">
+            <q-input v-model="modalSong.spotifyUrl" :label="t('voting.spotifyUrl')" outlined dense class="col" @paste="onSpotifyPaste" />
+            <q-btn color="green" icon="search" :loading="lookingUp" :disable="!modalSong.spotifyUrl" @click="lookupSpotify(true)">{{ t('voting.spotifyLookup') }}</q-btn>
+          </div>
+          <div v-if="lookupError" class="text-red text-caption">{{ lookupError }}</div>
+          <q-input v-model="modalSong.title" :label="t('voting.songTitle')" outlined dense />
+          <q-input v-model="modalSong.artist" :label="t('voting.artist')" outlined dense />
+          <q-input
+            v-model="modalSongLengthInput"
+            :label="t('voting.lengthInputLabel')"
+            :hint="t('voting.lengthInputHint')"
+            outlined
+            dense
+            @blur="normalizeVotingLengthInput"
+          />
+          <q-input v-model="modalSong.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
+          <div class="row items-center q-gutter-md">
+            <span class="text-caption">{{ t('voting.pitchLabel') }}</span>
+            <q-slider v-model="modalSong.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
+            <q-badge color="grey-8" class="text-body2">
+              {{ modalSong.pitch > 0 ? '+' : '' }}{{ modalSong.pitch }}
+            </q-badge>
+            <q-badge v-if="authStore.isFreePlan" color="orange" :label="t('voting.proFeature')" />
+          </div>
+          <div v-if="authStore.isFreePlan" class="row items-center q-gutter-sm">
+            <q-input v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow disable class="col" />
+            <q-badge color="orange" :label="t('voting.proFeature')" />
+          </div>
+          <q-input v-else v-model="modalSong.notes" :label="t('setlist.notes')" type="textarea" outlined dense autogrow />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="modalSong.id ? t('voting.updateBtn') : t('voting.suggestSong')" :loading="submitting" @click="submitSong" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Transfer Dialog -->
+    <q-dialog v-model="showTransferModal">
+      <q-card style="min-width: 350px">
+        <q-card-section>
+          <div class="text-h6">{{ t('voting.sendToSetlist') }}</div>
+        </q-card-section>
+        <q-card-section v-if="songToTransfer">
+          <p>{{ t('voting.confirmTransfer', { title: songToTransfer.title, artist: songToTransfer.artist }) }}</p>
+          <p class="text-caption text-grey">{{ t('voting.currentScore', { score: Number(songToTransfer.voteAverage || 0).toFixed(1) }) }}</p>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('voting.confirmBtn')" @click="transferToSetlist" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Vote Picker -->
+    <q-dialog v-model="showVotePicker">
+      <q-card class="vote-picker-card">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('voting.chooseYourVote') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-separator />
+        <q-list separator>
+          <q-item clickable v-ripple @click="selectOwnVote(0)">
+            <q-item-section>{{ t('voting.voteOptionVeto') }}</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple @click="selectOwnVote(1)">
+            <q-item-section>{{ t('voting.voteOptionOk') }}</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple @click="selectOwnVote(2)">
+            <q-item-section>{{ t('voting.voteOptionGood') }}</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple @click="selectOwnVote(3)">
+            <q-item-section>{{ t('voting.voteOptionGreat') }}</q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+    </q-dialog>
+
+    <!-- Vote Details -->
+    <q-dialog v-model="showDetailsDialog">
+      <q-card style="min-width: 360px; max-width: 96vw">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('voting.details') }}</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-separator />
+        <q-card-section v-if="detailsSong">
+          <div class="text-subtitle2">{{ detailsSong.title }} - {{ detailsSong.artist }}</div>
+          <div class="text-caption text-grey-7 q-mt-xs">{{ t('voting.avg') }}: {{ Number(detailsSong.voteAverage || 0).toFixed(1) }} | {{ t('voting.votes') }}: {{ detailsSong.voteCount }}</div>
+          <q-list class="q-mt-sm" dense bordered separator>
+            <q-item v-for="member in visibleMembers" :key="`d-${detailsSong.id}-${member.id}`">
+              <q-item-section avatar>
+                <q-avatar
+                  size="24px"
+                  color="grey-7"
+                  text-color="white"
+                  class="details-avatar"
+                  :style="detailsAvatarStyle(detailsSong, member.id)"
+                >
+                  <span>{{ getInitials(member.name) }}</span>
+                </q-avatar>
+              </q-item-section>
+              <q-item-section>{{ member.name }}</q-item-section>
+              <q-item-section side>
+                <q-badge :color="voteScore(detailsSong, member.id) === null ? 'grey-6' : 'primary'">
+                  {{ voteScore(detailsSong, member.id) === null ? '-' : voteScore(detailsSong, member.id) }}
+                </q-badge>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .option1-vote-row {
   display: flex;
   flex-wrap: wrap;

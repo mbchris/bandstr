@@ -1,185 +1,3 @@
-<template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header
-      bordered
-    >
-      <q-toolbar class="q-px-sm q-px-md-md">
-        <q-toolbar-title>
-          <router-link to="/" class="brand-link">
-            <img :src="activeLogoSrc" alt="bandstr logo" class="brand-logo" />
-          </router-link>
-        </q-toolbar-title>
-
-        <div class="row items-center q-gutter-xs q-gutter-sm-md no-wrap">
-          <q-btn flat round dense class="header-action-btn" icon="notifications">
-            <q-badge
-              v-if="notificationsStore.unreadCount > 0"
-              floating
-              rounded
-              color="negative"
-              :label="String(Math.min(notificationsStore.unreadCount, 99))"
-            />
-            <q-menu anchor="bottom right" self="top right">
-              <q-list style="min-width: 320px; max-width: 92vw">
-                <q-item>
-                  <q-item-section>
-                    <q-item-label class="text-weight-bold">{{ t('nav.notifications') }}</q-item-label>
-                    <q-item-label caption>{{ t('nav.notificationsUnread', { count: notificationsStore.unreadCount }) }}</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <q-btn
-                      flat
-                      dense
-                      size="sm"
-                      icon="done_all"
-                      :label="t('nav.markAllRead')"
-                      :disable="notificationsStore.unreadCount === 0"
-                      @click="markAllNotificationsRead"
-                    />
-                  </q-item-section>
-                </q-item>
-                <q-separator />
-                <q-item v-if="notificationsStore.items.length === 0" dense>
-                  <q-item-section>
-                    <q-item-label caption>{{ t('nav.noNotifications') }}</q-item-label>
-                  </q-item-section>
-                </q-item>
-                <q-item
-                  v-for="item in notificationsStore.items.slice(0, 8)"
-                  :key="item.id"
-                  clickable
-                  v-close-popup
-                  @click="openNotification(item)"
-                >
-                  <q-item-section>
-                    <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
-                    <q-item-label caption lines="2">{{ item.message }}</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <q-badge v-if="!item.isRead" color="primary" rounded />
-                  </q-item-section>
-                </q-item>
-              </q-list>
-            </q-menu>
-          </q-btn>
-
-          <q-btn
-            flat
-            round
-            dense
-            class="header-action-btn"
-            :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'"
-            @click="toggleDarkMode"
-            :title="$q.dark.isActive ? 'Switch to light mode' : 'Switch to dark mode'"
-          />
-
-          <q-btn
-            flat
-            dense
-            class="text-weight-bold header-action-btn"
-            :label="locale === 'en' ? 'DE' : 'EN'"
-            @click="toggleLocale"
-          />
-
-          <q-btn flat round dense class="header-action-btn" icon="account_circle">
-            <q-menu anchor="bottom right" self="top right">
-              <q-list style="min-width: 260px">
-                <q-item clickable v-close-popup @click="goDashboard">
-                  <q-item-section>{{ t('nav.dashboard') }}</q-item-section>
-                </q-item>
-                <q-separator />
-                <div class="q-px-md q-py-xs text-caption text-grey-7" style="font-size: 11px; line-height: 1.35;">
-                  {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
-                  <q-btn flat round dense size="xs" icon="content_copy" color="grey-7" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
-                    <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
-                  </q-btn>
-                </div>
-                <q-separator />
-                <template v-for="band in authStore.bands" :key="band.id">
-                  <q-item
-                    clickable
-                    v-close-popup
-                    class="band-menu-item"
-                    @click="selectBand(band.id)"
-                  >
-                    <q-item-section>
-                      <q-item-label>{{ band.name }}</q-item-label>
-                      <q-item-label v-if="activeBandId === band.id" caption class="text-primary text-weight-medium">
-                        {{ t('nav.active') }}
-                      </q-item-label>
-                    </q-item-section>
-                  </q-item>
-                  <q-separator />
-                </template>
-
-                <q-separator />
-                <q-item clickable v-close-popup @click="router.push('/billing')">
-                  <q-item-section>
-                    <q-item-label>{{ t('nav.billing') }}</q-item-label>
-                    <q-item-label caption class="text-primary text-weight-medium">{{ effectivePlanLabel }}</q-item-label>
-                  </q-item-section>
-                </q-item>
-                <q-separator />
-                <q-item clickable v-close-popup @click="goSupport">
-                  <q-item-section>{{ t('nav.support') }}</q-item-section>
-                </q-item>
-                <q-item clickable v-close-popup @click="router.push('/impress')">
-                  <q-item-section>{{ t('nav.impress') }}</q-item-section>
-                </q-item>
-                <q-item clickable v-close-popup @click="handleLogout">
-                  <q-item-section>{{ t('nav.signOut') }}</q-item-section>
-                </q-item>
-                <q-separator class="account-menu-separator" />
-                <q-item disable>
-                  <q-item-section>
-                    <q-item-label>{{ t('nav.loggedInAs') }}: {{ truncatedActiveUserName }}</q-item-label>
-                    <q-item-label caption>{{ activeUserEmail }} ({{ activeBandRole }})</q-item-label>
-                  </q-item-section>
-                </q-item>
-              </q-list>
-            </q-menu>
-          </q-btn>
-        </div>
-      </q-toolbar>
-    </q-header>
-
-    <q-page-container>
-      <router-view :key="routerViewKey" />
-    </q-page-container>
-
-    <q-footer bordered class="bottom-nav-footer safe-area-bottom">
-      <div v-if="showTopNav" class="bottom-nav q-px-sm q-py-xs">
-        <div class="row items-center no-wrap bottom-nav-scroll justify-center">
-          <q-btn
-            v-for="link in navLinks"
-            :key="link.to"
-            flat
-            dense
-            :to="link.to"
-            class="bottom-nav-btn q-mr-xs"
-            :class="{ 'bottom-nav-btn--active': isActiveRoute(link.to) }"
-            :aria-label="link.label"
-            :title="link.label"
-          >
-            <span class="bottom-nav-content">
-              <img
-                :src="getNavIcon(link)"
-                :alt="link.label"
-                class="bottom-nav-icon"
-                :class="{
-                  'bottom-nav-icon--inactive': !isActiveRoute(link.to),
-                  'bottom-nav-icon--admin-dark': $q.dark.isActive && link.to === '/admin'
-                }"
-              />
-              <span class="bottom-nav-label">{{ link.label }}</span>
-            </span>
-          </q-btn>
-        </div>
-      </div>
-    </q-footer>
-  </q-layout>
-</template>
-
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -198,7 +16,6 @@ import setlistBl from '../assets/icons/setlist_bl.webp'
 import setlistWh from '../assets/icons/setlist_wh.webp'
 import calendarBl from '../assets/icons/calendar_bl.webp'
 import calendarWh from '../assets/icons/calendar_wh.webp'
-import bendastandWh from '../assets/icons/bendastand_wh.webp'
 import adminBl from '../assets/icons/admin_bl.webp'
 
 const authStore = useAuthStore()
@@ -459,7 +276,189 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<template>
+  <q-layout view="lHh Lpr lFf">
+    <q-header
+      bordered
+    >
+      <q-toolbar class="q-px-sm q-px-md-md">
+        <q-toolbar-title>
+          <router-link to="/" class="brand-link">
+            <img :src="activeLogoSrc" alt="bandstr logo" class="brand-logo" />
+          </router-link>
+        </q-toolbar-title>
+
+        <div class="row items-center q-gutter-xs q-gutter-sm-md no-wrap">
+          <q-btn flat round dense class="header-action-btn" icon="notifications">
+            <q-badge
+              v-if="notificationsStore.unreadCount > 0"
+              floating
+              rounded
+              color="negative"
+              :label="String(Math.min(notificationsStore.unreadCount, 99))"
+            />
+            <q-menu anchor="bottom right" self="top right">
+              <q-list style="min-width: 320px; max-width: 92vw">
+                <q-item>
+                  <q-item-section>
+                    <q-item-label class="text-weight-bold">{{ t('nav.notifications') }}</q-item-label>
+                    <q-item-label caption>{{ t('nav.notificationsUnread', { count: notificationsStore.unreadCount }) }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-btn
+                      flat
+                      dense
+                      size="sm"
+                      icon="done_all"
+                      :label="t('nav.markAllRead')"
+                      :disable="notificationsStore.unreadCount === 0"
+                      @click="markAllNotificationsRead"
+                    />
+                  </q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item v-if="notificationsStore.items.length === 0" dense>
+                  <q-item-section>
+                    <q-item-label caption>{{ t('nav.noNotifications') }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-item
+                  v-for="item in notificationsStore.items.slice(0, 8)"
+                  :key="item.id"
+                  clickable
+                  v-close-popup
+                  @click="openNotification(item)"
+                >
+                  <q-item-section>
+                    <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
+                    <q-item-label caption lines="2">{{ item.message }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-badge v-if="!item.isRead" color="primary" rounded />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </q-btn>
+
+          <q-btn
+            flat
+            round
+            dense
+            class="header-action-btn"
+            :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'"
+            @click="toggleDarkMode"
+            :title="$q.dark.isActive ? 'Switch to light mode' : 'Switch to dark mode'"
+          />
+
+          <q-btn
+            flat
+            dense
+            class="text-weight-bold header-action-btn"
+            :label="locale === 'en' ? 'DE' : 'EN'"
+            @click="toggleLocale"
+          />
+
+          <q-btn flat round dense class="header-action-btn" icon="account_circle">
+            <q-menu anchor="bottom right" self="top right">
+              <q-list style="min-width: 260px">
+                <q-item clickable v-close-popup @click="goDashboard">
+                  <q-item-section>{{ t('nav.dashboard') }}</q-item-section>
+                </q-item>
+                <q-separator />
+                <div class="q-px-md q-py-xs text-caption text-grey-7" style="font-size: 11px; line-height: 1.35;">
+                  {{ t('dashboard.shareWebAppPCPreLink') }}<a href="https://bandstr.apps.4ki.app" target="_blank" class="text-primary text-weight-medium" style="text-decoration: underline;">{{ t('dashboard.shareWebAppPCLinkText') }}</a>{{ t('dashboard.shareWebAppPCPostLink') }}
+                  <q-btn flat round dense size="xs" icon="content_copy" color="grey-7" @click="copyWebAppLink" style="display: inline-flex; vertical-align: middle; margin-left: 4px;">
+                    <q-tooltip>{{ t('dashboard.copyTooltip') }}</q-tooltip>
+                  </q-btn>
+                </div>
+                <q-separator />
+                <template v-for="band in authStore.bands" :key="band.id">
+                  <q-item
+                    clickable
+                    v-close-popup
+                    class="band-menu-item"
+                    @click="selectBand(band.id)"
+                  >
+                    <q-item-section>
+                      <q-item-label>{{ band.name }}</q-item-label>
+                      <q-item-label v-if="activeBandId === band.id" caption class="text-primary text-weight-medium">
+                        {{ t('nav.active') }}
+                      </q-item-label>
+                    </q-item-section>
+                  </q-item>
+                  <q-separator />
+                </template>
+
+                <q-separator />
+                <q-item clickable v-close-popup @click="router.push('/billing')">
+                  <q-item-section>
+                    <q-item-label>{{ t('nav.billing') }}</q-item-label>
+                    <q-item-label caption class="text-primary text-weight-medium">{{ effectivePlanLabel }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable v-close-popup @click="goSupport">
+                  <q-item-section>{{ t('nav.support') }}</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup @click="router.push('/impress')">
+                  <q-item-section>{{ t('nav.impress') }}</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup @click="handleLogout">
+                  <q-item-section>{{ t('nav.signOut') }}</q-item-section>
+                </q-item>
+                <q-separator class="account-menu-separator" />
+                <q-item disable>
+                  <q-item-section>
+                    <q-item-label>{{ t('nav.loggedInAs') }}: {{ truncatedActiveUserName }}</q-item-label>
+                    <q-item-label caption>{{ activeUserEmail }} ({{ activeBandRole }})</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </q-btn>
+        </div>
+      </q-toolbar>
+    </q-header>
+
+    <q-page-container>
+      <router-view :key="routerViewKey" />
+    </q-page-container>
+
+    <q-footer bordered class="bottom-nav-footer safe-area-bottom">
+      <div v-if="showTopNav" class="bottom-nav q-px-sm q-py-xs">
+        <div class="row items-center no-wrap bottom-nav-scroll justify-center">
+          <q-btn
+            v-for="link in navLinks"
+            :key="link.to"
+            flat
+            dense
+            :to="link.to"
+            class="bottom-nav-btn q-mr-xs"
+            :class="{ 'bottom-nav-btn--active': isActiveRoute(link.to) }"
+            :aria-label="link.label"
+            :title="link.label"
+          >
+            <span class="bottom-nav-content">
+              <img
+                :src="getNavIcon(link)"
+                :alt="link.label"
+                class="bottom-nav-icon"
+                :class="{
+                  'bottom-nav-icon--inactive': !isActiveRoute(link.to),
+                  'bottom-nav-icon--admin-dark': $q.dark.isActive && link.to === '/admin'
+                }"
+              />
+              <span class="bottom-nav-label">{{ link.label }}</span>
+            </span>
+          </q-btn>
+        </div>
+      </div>
+    </q-footer>
+  </q-layout>
+</template>
+
+<style lang="scss" scoped>
 :global(.q-header) {
   background: #ffffff !important;
   background: var(--surface) !important;
