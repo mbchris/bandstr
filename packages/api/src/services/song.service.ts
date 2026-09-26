@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import {
   songs as songsTable,
@@ -291,5 +291,212 @@ export const songService = {
       .values({ bandId, songId, userId, score, comment })
       .returning()
     return created
+  },
+
+  async getUserSetlist(bandId: number, userId: string) {
+    return db
+      .select({
+        id: songsTable.id,
+        bandId: songsTable.bandId,
+        title: songsTable.title,
+        artist: songsTable.artist,
+        spotifyUrl: songsTable.spotifyUrl,
+        youtubeUrl: songsTable.youtubeUrl,
+        thumbnailUrl: songsTable.thumbnailUrl,
+        lengthMs: songsTable.lengthMs,
+        bpm: songsTable.bpm,
+        tags: songsTable.tags,
+        notes: songsTable.notes,
+        type: songsTable.type,
+        pitch: songsTable.pitch,
+        isSetlist: songsTable.isSetlist,
+        position: songsTable.position,
+        isPinned: songsTable.isPinned,
+        addedBy: songsTable.addedBy,
+        createdAt: songsTable.createdAt,
+        userSetlistPosition: userSetlistSongsTable.position,
+        userSetlistPinned: userSetlistSongsTable.isPinned,
+      })
+      .from(userSetlistSongsTable)
+      .innerJoin(songsTable, eq(userSetlistSongsTable.songId, songsTable.id))
+      .where(and(eq(userSetlistSongsTable.bandId, bandId), eq(userSetlistSongsTable.userId, userId)))
+      .orderBy(asc(userSetlistSongsTable.position), asc(songsTable.id))
+  },
+
+  async addUserSetlistSong(params: {
+    bandId: number
+    userId: string
+    songId: number
+    position?: number
+    isPinned?: boolean
+  }) {
+    const { bandId, userId, songId, position, isPinned } = params
+
+    const [song] = await db
+      .select({ id: songsTable.id, type: songsTable.type })
+      .from(songsTable)
+      .where(and(eq(songsTable.id, songId), eq(songsTable.bandId, bandId)))
+      .limit(1)
+
+    if (!song) return { error: 'Song not found', status: 404 as const }
+    if (song.type !== 'song') return { error: 'Only songs can be added to personal setlist.', status: 400 as const }
+
+    const [maxRow] = await db
+      .select({ maxPosition: sql<number>`coalesce(max(${userSetlistSongsTable.position}), -1)` })
+      .from(userSetlistSongsTable)
+      .where(and(eq(userSetlistSongsTable.bandId, bandId), eq(userSetlistSongsTable.userId, userId)))
+
+    const nextPosition = typeof position === 'number' ? position : Number(maxRow?.maxPosition ?? -1) + 1
+
+    await db
+      .insert(userSetlistSongsTable)
+      .values({
+        bandId,
+        userId,
+        songId,
+        position: nextPosition,
+        isPinned: isPinned ?? false,
+      })
+      .onConflictDoUpdate({
+        target: [userSetlistSongsTable.bandId, userSetlistSongsTable.userId, userSetlistSongsTable.songId],
+        set: {
+          position: nextPosition,
+          isPinned: isPinned ?? false,
+        },
+      })
+
+    return { success: true, status: 201 as const }
+  },
+
+  async updateUserSetlistSong(params: {
+    bandId: number
+    userId: string
+    songId: number
+    data: { position?: number; isPinned?: boolean }
+  }) {
+    const { bandId, userId, songId, data } = params
+    await db
+      .update(userSetlistSongsTable)
+      .set({
+        position: data.position,
+        isPinned: data.isPinned,
+      })
+      .where(
+        and(
+          eq(userSetlistSongsTable.bandId, bandId),
+          eq(userSetlistSongsTable.userId, userId),
+          eq(userSetlistSongsTable.songId, songId),
+        ),
+      )
+
+    return { success: true }
+  },
+
+  async deleteUserSetlistSong(bandId: number, userId: string, songId: number) {
+    await db
+      .delete(userSetlistSongsTable)
+      .where(
+        and(
+          eq(userSetlistSongsTable.bandId, bandId),
+          eq(userSetlistSongsTable.userId, userId),
+          eq(userSetlistSongsTable.songId, songId),
+        ),
+      )
+
+    return { success: true }
+  },
+
+  async reorderUserSetlistSongs(
+    bandId: number,
+    userId: string,
+    order: Array<{ songId: number; position: number }>,
+  ) {
+    await Promise.all(
+      order.map(({ songId, position }) =>
+        db
+          .update(userSetlistSongsTable)
+          .set({ position })
+          .where(
+            and(
+              eq(userSetlistSongsTable.bandId, bandId),
+              eq(userSetlistSongsTable.userId, userId),
+              eq(userSetlistSongsTable.songId, songId),
+            ),
+          ),
+      ),
+    )
+
+    return { success: true }
+  },
+
+  async listPersonalNotes(bandId: number, userId: string) {
+    return db
+      .select({
+        id: personalNotesTable.id,
+        songId: personalNotesTable.songId,
+        content: personalNotesTable.content,
+        createdAt: personalNotesTable.createdAt,
+        songTitle: songsTable.title,
+        songArtist: songsTable.artist,
+        spotifyUrl: songsTable.spotifyUrl,
+        youtubeUrl: songsTable.youtubeUrl,
+      })
+      .from(personalNotesTable)
+      .innerJoin(songsTable, eq(personalNotesTable.songId, songsTable.id))
+      .where(and(eq(personalNotesTable.userId, userId), eq(personalNotesTable.bandId, bandId)))
+      .orderBy(asc(songsTable.title))
+  },
+
+  async getPersonalNote(bandId: number, userId: string, songId: number) {
+    const [note] = await db
+      .select()
+      .from(personalNotesTable)
+      .where(
+        and(
+          eq(personalNotesTable.songId, songId),
+          eq(personalNotesTable.userId, userId),
+          eq(personalNotesTable.bandId, bandId),
+        ),
+      )
+      .limit(1)
+
+    return note ?? null
+  },
+
+  async savePersonalNote(params: {
+    bandId: number
+    userId: string
+    songId: number
+    content: string
+  }) {
+    const { bandId, userId, songId, content } = params
+    const existing = await db
+      .select()
+      .from(personalNotesTable)
+      .where(
+        and(
+          eq(personalNotesTable.songId, songId),
+          eq(personalNotesTable.userId, userId),
+          eq(personalNotesTable.bandId, bandId),
+        ),
+      )
+      .limit(1)
+
+    if (existing.length > 0) {
+      await db
+        .update(personalNotesTable)
+        .set({ content })
+        .where(
+          and(
+            eq(personalNotesTable.songId, songId),
+            eq(personalNotesTable.userId, userId),
+            eq(personalNotesTable.bandId, bandId),
+          ),
+        )
+    } else {
+      await db.insert(personalNotesTable).values({ bandId, songId, userId, content })
+    }
+
+    return { success: true }
   },
 }
