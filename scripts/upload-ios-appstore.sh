@@ -56,10 +56,20 @@ if [[ -n "$key_path" ]]; then
 fi
 
 echo "Uploading IPA to App Store Connect: $ipa_path"
-xcrun iTMSTransporter \
-  -m upload \
-  -assetFile "$ipa_path" \
-  -apiKey "$api_key_id" \
-  -apiIssuer "$issuer_id"
+# Xcode 26+ no longer bundles iTMSTransporter (it moved into Transporter.app);
+# altool still ships with Xcode and finds the key in ~/.appstoreconnect/private_keys.
+if xcrun --find altool >/dev/null 2>&1; then
+  xcrun altool --upload-app \
+    -f "$ipa_path" \
+    -t ios \
+    --apiKey "$api_key_id" \
+    --apiIssuer "$issuer_id"
+else
+  xcrun iTMSTransporter \
+    -m upload \
+    -assetFile "$ipa_path" \
+    -apiKey "$api_key_id" \
+    -apiIssuer "$issuer_id"
+fi
 
 echo "Upload submitted successfully."

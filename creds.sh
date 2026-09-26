@@ -23,7 +23,7 @@ bw_session() {
   local rc=0
 
   while true; do
-    if output="$(bw -w-nointeraction --session "$BW_SESSION" "$@" 2>&1)"; then
+    if output="$(bw --nointeraction --session "$BW_SESSION" "$@" 2>&1)"; then
       printf '%s' "$output"
       return 0
     fi
