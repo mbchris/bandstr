@@ -13,7 +13,9 @@
     "build:android": "quasar build -m capacitor -T android",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@bandstr/shared": "workspace:*",
@@ -37,10 +39,14 @@
     "@capacitor/ios": "^7.2.0",
     "@quasar/app-vite": "2.1.4",
     "@types/node": "^22.15.18",
+    "@vitejs/plugin-vue": "^6.0.9",
     "@vue/eslint-config-typescript": "^14.5.0",
+    "@vue/test-utils": "^2.5.1",
     "eslint": "^9.28.0",
     "eslint-plugin-vue": "^10.1.0",
+    "happy-dom": "^20.14.5",
     "typescript": "^5.8.3",
+    "vitest": "^5.0.2",
     "vue-tsc": "^2.2.10"
   },
   "engines": {

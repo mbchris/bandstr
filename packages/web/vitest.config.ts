@@ -1,0 +1,23 @@
+import { defineConfig } from 'vitest/config'
+import vue from '@vitejs/plugin-vue'
+import path from 'node:path'
+
+export default defineConfig({
+  plugins: [vue()],
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+  },
+  resolve: {
+    alias: {
+      src: path.resolve(__dirname, './src'),
+      components: path.resolve(__dirname, './src/components'),
+      layouts: path.resolve(__dirname, './src/layouts'),
+      pages: path.resolve(__dirname, './src/pages'),
+      assets: path.resolve(__dirname, './src/assets'),
+      boot: path.resolve(__dirname, './src/boot'),
+      stores: path.resolve(__dirname, './src/stores'),
+      '@bandstr/shared': path.resolve(__dirname, '../shared/src/index.ts'),
+    },
+  },
+})

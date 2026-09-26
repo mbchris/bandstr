@@ -174,8 +174,8 @@ export const notificationService = {
 
   async registerDevice(params: {
     userId: string
-    platform: 'android' | 'ios'
-    tokenType: 'fcm' | 'apns'
+    platform: 'android' | 'ios' | 'web'
+    tokenType: 'fcm' | 'apns' | 'web_push'
     token: string
   }) {
     const { userId, platform, tokenType, token } = params

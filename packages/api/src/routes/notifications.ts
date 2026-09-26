@@ -24,8 +24,8 @@ const settingsUpdateSchema = z.object({
 })
 
 const registerDeviceSchema = z.object({
-  platform: z.enum(['android', 'ios']),
-  tokenType: z.enum(['fcm', 'apns']),
+  platform: z.enum(['android', 'ios', 'web']),
+  tokenType: z.enum(['fcm', 'apns', 'web_push']),
   token: z.string().min(10),
 })
 

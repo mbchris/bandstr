@@ -192,7 +192,12 @@ export async function flushDueBandNotifications(bandId: number) {
         if (devices.length === 0) return
         await Promise.all(
           devices.map(async (device) => {
-            const tokenType = device.tokenType === 'apns' ? 'apns' : 'fcm'
+            const tokenType =
+              device.tokenType === 'apns'
+                ? 'apns'
+                : device.tokenType === 'web_push'
+                  ? 'web_push'
+                  : 'fcm'
             await sendPushToDevice({
               tokenType,
               token: device.token,
