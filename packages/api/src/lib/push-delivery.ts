@@ -1,4 +1,5 @@
 import { createSign, createPrivateKey } from 'node:crypto'
+import webpush from 'web-push'
 
 type PushPayload = {
   token: string
@@ -15,7 +16,7 @@ type PushLogContext = {
 }
 
 type PushDeliveryResult = {
-  provider: 'fcm' | 'apns'
+  provider: 'fcm' | 'apns' | 'web_push'
   ok: boolean
   status: number | null
   error: string | null
@@ -371,8 +372,68 @@ async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
   }
 }
 
+async function sendWebPush(payload: PushPayload): Promise<PushDeliveryResult> {
+  const vapidPublicKey = (process.env.VAPID_PUBLIC_KEY ?? '').trim()
+  const vapidPrivateKey = (process.env.VAPID_PRIVATE_KEY ?? '').trim()
+  const vapidSubject = (process.env.VAPID_SUBJECT ?? 'mailto:admin@bandstr.com').trim()
+
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return {
+      provider: 'web_push',
+      ok: false,
+      status: null,
+      error: 'Missing VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY',
+      responseBody: null,
+    }
+  }
+
+  let subscription: webpush.PushSubscription
+  try {
+    subscription = JSON.parse(payload.token)
+  } catch {
+    return {
+      provider: 'web_push',
+      ok: false,
+      status: null,
+      error: 'Invalid Web Push subscription token JSON',
+      responseBody: null,
+    }
+  }
+
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
+
+  try {
+    const response = await webpush.sendNotification(
+      subscription,
+      JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        path: payload.path,
+        query: payload.query,
+      }),
+    )
+
+    return {
+      provider: 'web_push',
+      ok: response.statusCode >= 200 && response.statusCode < 300,
+      status: response.statusCode,
+      error: null,
+      responseBody: response.body || null,
+    }
+  } catch (error: unknown) {
+    const err = error as { statusCode?: number; body?: string }
+    return {
+      provider: 'web_push',
+      ok: false,
+      status: err.statusCode ?? null,
+      error: normalizeError(error),
+      responseBody: err.body ?? null,
+    }
+  }
+}
+
 export async function sendPushToDevice(args: {
-  tokenType: 'fcm' | 'apns'
+  tokenType: 'fcm' | 'apns' | 'web_push'
   token: string
   title: string
   body: string
@@ -394,7 +455,13 @@ export async function sendPushToDevice(args: {
     return result
   }
 
-  const result = await sendApnsPush(payload)
+  if (args.tokenType === 'apns') {
+    const result = await sendApnsPush(payload)
+    logPushDelivery(result, payload, args.context)
+    return result
+  }
+
+  const result = await sendWebPush(payload)
   logPushDelivery(result, payload, args.context)
   return result
 }

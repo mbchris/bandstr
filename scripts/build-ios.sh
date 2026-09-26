@@ -105,6 +105,12 @@ if [[ -n "$development_team" ]]; then
   echo "Using Apple development team: $development_team"
 fi
 
+if [[ "$sign_build" == "1" && "$env_profile" == "local" && -z "$development_team" && "$bundle_id" == "org.capacitor.bandstr" ]]; then
+  echo "Notice: No Apple Development Team configured and placeholder bundle ID '$bundle_id' is used."
+  echo "Defaulting to unsigned archive (--no-sign) for local build."
+  sign_build=0
+fi
+
 stamp_xcode_build_dir "$archive_dir"
 rm -rf "$archive_path" "$export_dir"
 

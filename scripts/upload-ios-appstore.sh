@@ -41,6 +41,14 @@ if [[ -z "$api_key_id" || -z "$issuer_id" ]]; then
   exit 1
 fi
 
+if [[ -n "${APPSTORE_CONNECT_API_KEY_BASE64:-}" && -z "$key_path" ]]; then
+  mkdir -p "$HOME/.appstoreconnect/private_keys"
+  mkdir -p "$HOME/.private_keys"
+  echo "$APPSTORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${api_key_id}.p8"
+  cp "$HOME/.appstoreconnect/private_keys/AuthKey_${api_key_id}.p8" "$HOME/.private_keys/AuthKey_${api_key_id}.p8"
+  key_path="$HOME/.appstoreconnect/private_keys/AuthKey_${api_key_id}.p8"
+fi
+
 if [[ -n "$key_path" ]]; then
   if [[ ! -f "$key_path" ]]; then
     echo "Error: APPSTORE_CONNECT_API_KEY_PATH does not exist: $key_path"
