@@ -177,20 +177,20 @@ Following APM guideline: *Services (`src/services/`): Implement business logic, 
 - Create: `packages/api/src/services/calendar.service.ts`
 - Create: `packages/api/src/services/notification.service.ts`
 
-- [ ] **Step 1: Implement `email.service.ts` and `billing.service.ts`**
+- [x] **Step 1: Implement `email.service.ts` and `billing.service.ts`**
   Pure async functions for Nodemailer dispatch and Stripe customer/checkout/webhook operations.
 
-- [ ] **Step 2: Implement `band.service.ts` and `song.service.ts`**
+- [x] **Step 2: Implement `band.service.ts` and `song.service.ts`**
   Domain operations: band membership, slug retry loop, plan normalization, song CRUD, setlist ordering.
 
-- [ ] **Step 3: Implement `calendar.service.ts` and `notification.service.ts`**
+- [x] **Step 3: Implement `calendar.service.ts` and `notification.service.ts`**
   Calendar events, RSVP attendance, proposals, notifications query, push devices.
 
-- [ ] **Step 4: Run tests & typecheck**
+- [x] **Step 4: Run tests & typecheck**
   Run: `pnpm typecheck && pnpm test`
   Expected: PASS
 
-- [ ] **Step 5: Commit services layer**
+- [x] **Step 5: Commit services layer**
   ```bash
   git add packages/api/src/services
   git commit -m "feat(api): extract business logic and external integrations into services layer"
@@ -213,7 +213,7 @@ Following APM guideline: *Always validate request parameters, query, and body us
 - Modify: `packages/api/src/routes/support.ts`
 - Modify: `packages/api/src/routes/users.ts`
 
-- [ ] **Step 1: Refactor `routes/bands.ts` and `routes/songs.ts`**
+- [x] **Step 1: Refactor `routes/bands.ts` and `routes/songs.ts`**
   - Add `zValidator('param', idParamSchema)`.
   - Delegate logic to `bandService` and `songService`.
   - Standardize status codes (`201` for creations, `200` for updates/reads, `404` for missing records).
@@ -224,7 +224,7 @@ Following APM guideline: *Always validate request parameters, query, and body us
     git commit -m "refactor(api): modernize bands and songs routes with zValidator and service delegation"
     ```
 
-- [ ] **Step 2: Refactor `routes/calendar.ts`, `routes/gigs.ts`, `routes/rehearsals.ts`**
+- [x] **Step 2: Refactor `routes/calendar.ts`, `routes/gigs.ts`, `routes/rehearsals.ts`**
   - Add `zValidator` for path params and query parameters.
   - Delegate to `calendarService`.
   - Verify tests: `pnpm test`
@@ -234,7 +234,7 @@ Following APM guideline: *Always validate request parameters, query, and body us
     git commit -m "refactor(api): modernize calendar, gigs, and rehearsals routes with zValidator and services"
     ```
 
-- [ ] **Step 3: Refactor `routes/notifications.ts`, `routes/billing.ts`, `routes/support.ts`, `routes/users.ts`**
+- [x] **Step 3: Refactor `routes/notifications.ts`, `routes/billing.ts`, `routes/support.ts`, `routes/users.ts`**
   - Add `zValidator` for path params and queries (`sinceId`, `limit`, etc.).
   - Delegate to `notificationService`, `billingService`, `emailService`.
   - Verify tests: `pnpm test`
@@ -248,15 +248,15 @@ Following APM guideline: *Always validate request parameters, query, and body us
 
 ### Task 5: Final Verification & Monorepo Audit
 
-- [ ] **Step 1: Run workspace typecheck**
+- [x] **Step 1: Run workspace typecheck**
   Run: `pnpm typecheck`
   Expected: PASS with 0 errors across all packages.
 
-- [ ] **Step 2: Run full Vitest test suite**
+- [x] **Step 2: Run full Vitest test suite**
   Run: `pnpm test`
   Expected: 100% tests passing.
 
-- [ ] **Step 3: Run backend build**
+- [x] **Step 3: Run backend build**
   Run: `pnpm build:api`
   Expected: Successful compilation to `dist/`.
 
