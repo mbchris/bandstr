@@ -56,8 +56,12 @@ if ! command -v pod >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v corepack >/dev/null 2>&1; then
-  echo "Error: corepack not found."
+if command -v corepack >/dev/null 2>&1; then
+  pnpm_cmd=(corepack pnpm)
+elif command -v pnpm >/dev/null 2>&1; then
+  pnpm_cmd=(pnpm)
+else
+  echo "Error: neither corepack nor pnpm was found."
   exit 1
 fi
 
@@ -65,6 +69,9 @@ resolve_bundle_id() {
   local bundle_id="${APPLE_BUNDLE_ID:-}"
   if [[ -z "$bundle_id" ]]; then
     bundle_id="${APNS_BUNDLE_ID:-}"
+  fi
+  if [[ -z "$bundle_id" && -f "$REPO_ROOT/packages/web/src-capacitor/ios/App/App.xcodeproj/project.pbxproj" ]]; then
+    bundle_id="$(sed -n -E 's/.*PRODUCT_BUNDLE_IDENTIFIER[[:space:]]*=[[:space:]]*"?([^";]+)"?;.*/\1/p' "$REPO_ROOT/packages/web/src-capacitor/ios/App/App.xcodeproj/project.pbxproj" | head -n 1 || true)"
   fi
   if [[ -z "$bundle_id" && -f "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" ]]; then
     bundle_id="$(sed -n -E 's/.*"appId"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" | head -n 1 || true)"
@@ -90,11 +97,16 @@ stamp_xcode_build_dir "$archive_dir"
 
 echo "Building web assets for iOS..."
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+# CocoaPods (invoked by `capacitor sync ios`) aborts unless the locale is UTF-8.
+if [[ "${LC_ALL:-${LANG:-}}" != *"UTF-8"* ]]; then
+  export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+fi
 # Quasar's default Capacitor iOS packaging step tries to invoke Xcode directly.
 # Our release flow archives/exports with xcodebuild below, so only sync the UI/native project here.
-corepack pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
+"${pnpm_cmd[@]}" --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
 
 archive_path="$archive_dir/App.xcarchive"
+derived_dir="$archive_dir/DerivedData"
 export_dir="$archive_dir/export"
 export_opts="${IOS_EXPORT_OPTIONS_PLIST:-$REPO_ROOT/scripts/ios/ExportOptions-AppStore.plist}"
 bundle_id="$(resolve_bundle_id)"
@@ -113,6 +125,7 @@ archive_cmd=(
   -workspace "$ios_dir/App.xcworkspace"
   -scheme App
   -configuration Release
+  -derivedDataPath "$derived_dir"
   -destination "generic/platform=iOS"
   -archivePath "$archive_path"
   PRODUCT_BUNDLE_IDENTIFIER="$bundle_id"
@@ -121,6 +134,16 @@ archive_cmd=(
 
 if [[ -n "$development_team" ]]; then
   archive_cmd+=(DEVELOPMENT_TEAM="$development_team")
+fi
+
+# Optional build/version overrides (TestFlight requires a unique build number per upload).
+if [[ -n "${IOS_BUILD_NUMBER:-}" ]]; then
+  echo "Using iOS build number: $IOS_BUILD_NUMBER"
+  archive_cmd+=(CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER")
+fi
+if [[ -n "${IOS_MARKETING_VERSION:-}" ]]; then
+  echo "Using iOS marketing version: $IOS_MARKETING_VERSION"
+  archive_cmd+=(MARKETING_VERSION="$IOS_MARKETING_VERSION")
 fi
 
 if [[ "$sign_build" == "0" ]]; then
@@ -149,7 +172,8 @@ echo "Exporting signed IPA for App Store..."
 xcodebuild -exportArchive \
   -archivePath "$archive_path" \
   -exportPath "$export_dir" \
-  -exportOptionsPlist "$export_opts"
+  -exportOptionsPlist "$export_opts" \
+  -allowProvisioningUpdates
 
 ipa_path="$(find "$export_dir" -maxdepth 1 -name '*.ipa' | head -n 1 || true)"
 if [[ -z "$ipa_path" ]]; then

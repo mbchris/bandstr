@@ -47,6 +47,12 @@ if [[ -n "$key_path" ]]; then
     exit 1
   fi
   export APPSTORE_CONNECT_API_KEY_PATH="$key_path"
+  # iTMSTransporter discovers the key by file name in one of the private_keys
+  # search dirs; it does not read APPSTORE_CONNECT_API_KEY_PATH. Stage it there.
+  private_keys_dir="$HOME/.appstoreconnect/private_keys"
+  mkdir -p "$private_keys_dir"
+  cp -f "$key_path" "$private_keys_dir/AuthKey_${api_key_id}.p8"
+  chmod 600 "$private_keys_dir/AuthKey_${api_key_id}.p8"
 fi
 
 echo "Uploading IPA to App Store Connect: $ipa_path"
