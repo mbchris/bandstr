@@ -53,3 +53,7 @@ backups/
 .env.web
 .secrets/
 .creds.config
+
+
+# APM dependencies
+apm_modules/

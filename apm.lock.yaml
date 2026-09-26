@@ -1,0 +1,496 @@
+lockfile_version: '1'
+apm_version: 0.31.0
+dependencies:
+- repo_url: prj120/ai-setup
+  name: hono-backend-api
+  host: github.com
+  resolved_commit: 6df78532a00da748a9cd6aeaa5c6f9610334982a
+  resolved_ref: main
+  version: 3.0.0
+  virtual_path: packages/api
+  is_virtual: true
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/drizzle-expert
+  - .agents/skills/drizzle-expert/SKILL.md
+  - .agents/skills/hono-route-expert
+  - .agents/skills/hono-route-expert/SKILL.md
+  - .agents/skills/pr-review-api
+  - .agents/skills/pr-review-api/SKILL.md
+  - .agents/skills/review-api
+  - .agents/skills/review-api/SKILL.md
+  - .github/instructions/api-architecture.instructions.md
+  - .github/instructions/api-testing.instructions.md
+  - .github/instructions/hono-drizzle-style.instructions.md
+  - .windsurf/rules/api-architecture.md
+  - .windsurf/rules/api-testing.md
+  - .windsurf/rules/hono-drizzle-style.md
+  deployed_file_hashes:
+    .agents/skills/drizzle-expert/SKILL.md: sha256:0ea5e63e1e2414e10580944dcb9b6e149978dbe3b055237f8bb377d1a7bb905b
+    .agents/skills/hono-route-expert/SKILL.md: sha256:e0c6a75a9e95189fdb7e30831c23446e2b954c859285bd0ddb2226468cdcd174
+    .agents/skills/pr-review-api/SKILL.md: sha256:5d009440d5747ffaf20b7873cfd1a7c02e1b431ac724bdb95c06c0ea93d6834f
+    .agents/skills/review-api/SKILL.md: sha256:063c3a0df3448c690da7a480220d8b9cdd40bd6c91c527419a955f584a9623e4
+    .github/instructions/api-architecture.instructions.md: sha256:21ea803a82724658bd1244c9d63e867f53004454b702b44d2467b14cde0625b6
+    .github/instructions/api-testing.instructions.md: sha256:a0ce9d74b1569485ac800d7c794597f2b2987a02dc8eb47614c6481089b97516
+    .github/instructions/hono-drizzle-style.instructions.md: sha256:b894ead70825b12ff358669656b47f7b78f4583c0afd2aff5771a38922d51dfe
+    .windsurf/rules/api-architecture.md: sha256:e0dc820dc69f9de693e9d549ffa081e914db6a42cf5330adffaa8282e954deac
+    .windsurf/rules/api-testing.md: sha256:419a87d6c625ab39e60ba2bdea30d4ee1912f926a5e45c2e220bf5ad44c6b4c5
+    .windsurf/rules/hono-drizzle-style.md: sha256:3db1d60cd4f4aa97f940e8cabdebd502879828f39df24d478077a3283fe2c3d5
+  content_hash: sha256:adb4f7de2f67507c2806aad5cf2a4250f8a57f3d04f7abcf40e18b8b190b1f0a
+  declared_license: MIT
+- repo_url: prj120/ai-setup
+  name: vue-quasar-web-mobile
+  host: github.com
+  resolved_commit: 6df78532a00da748a9cd6aeaa5c6f9610334982a
+  resolved_ref: main
+  version: 3.0.0
+  virtual_path: packages/web
+  is_virtual: true
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/capacitor-expert
+  - .agents/skills/capacitor-expert/SKILL.md
+  - .agents/skills/pr-review-web
+  - .agents/skills/pr-review-web/SKILL.md
+  - .agents/skills/review-web
+  - .agents/skills/review-web/SKILL.md
+  - .agents/skills/vue3-quasar-expert
+  - .agents/skills/vue3-quasar-expert/SKILL.md
+  - .github/instructions/capacitor-mobile.instructions.md
+  - .github/instructions/vue-quasar-architecture.instructions.md
+  - .github/instructions/vue-quasar-style.instructions.md
+  - .windsurf/rules/capacitor-mobile.md
+  - .windsurf/rules/vue-quasar-architecture.md
+  - .windsurf/rules/vue-quasar-style.md
+  deployed_file_hashes:
+    .agents/skills/capacitor-expert/SKILL.md: sha256:ef005e92b93382bf08f39325bc6ce9caee01e89a837da6c0e6847d09e428a3b9
+    .agents/skills/pr-review-web/SKILL.md: sha256:28c7ebae209c31f182d635d40e1f4c6a131ac05594f71d55ba2582c608122e4a
+    .agents/skills/review-web/SKILL.md: sha256:30df9c229077ae621ebb2e1d1dfb7395d1189749ed53f9187fd945b318e21fe3
+    .agents/skills/vue3-quasar-expert/SKILL.md: sha256:fe8b3aa585427acd97156e73f4fa5c00c6b1209405430d1f6fb85e3089072bee
+    .github/instructions/capacitor-mobile.instructions.md: sha256:783efae2f051de65b1ba7c49ac411c818fdb1515913dc1d6f08b214b577ef238
+    .github/instructions/vue-quasar-architecture.instructions.md: sha256:7ffb0c8a27b3018d43c537fd02d600455a2b9d2ca8ded4a2567d5dac621ace57
+    .github/instructions/vue-quasar-style.instructions.md: sha256:60b76692c22402beb40d2c2b707f55d22c8443f7b9499430fa801eefc01d0c92
+    .windsurf/rules/capacitor-mobile.md: sha256:06a238b6875acfa21b68a8bbe019b93ceb0b240b744c27d9b783c0f3189fae8e
+    .windsurf/rules/vue-quasar-architecture.md: sha256:9d2e18b7f13da2b5a04ef2891fcf42b9435ff29c7cfacef7ef8cb5db8b3ed3bb
+    .windsurf/rules/vue-quasar-style.md: sha256:d7699bd7bdb0eec735d6e4f1a1b31359bbde89b7c4d12f2038f3f085125ca68b
+  content_hash: sha256:fb3473fe9c98531c52ff187fc7f17a60b39faa0de8b8c75e857921b129e69bbb
+  declared_license: MIT
+- repo_url: prj120/ai-setup
+  name: shared-agent-rules
+  host: github.com
+  resolved_commit: 6df78532a00da748a9cd6aeaa5c6f9610334982a
+  resolved_ref: v3.0.0
+  version: 3.0.0
+  virtual_path: packages/shared
+  is_virtual: true
+  depth: 2
+  resolved_by: prj120/ai-setup
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/concise-writer
+  - .agents/skills/concise-writer/SKILL.md
+  - .agents/skills/create-seeya-concept
+  - .agents/skills/create-seeya-concept/SKILL.md
+  - .agents/skills/document-feature
+  - .agents/skills/document-feature/SKILL.md
+  - .github/instructions/code-style-general.instructions.md
+  - .github/instructions/general-behavior.instructions.md
+  - .github/instructions/refactoring-protocol.instructions.md
+  - .github/instructions/typescript-monorepo.instructions.md
+  - .windsurf/rules/code-style-general.md
+  - .windsurf/rules/general-behavior.md
+  - .windsurf/rules/refactoring-protocol.md
+  - .windsurf/rules/typescript-monorepo.md
+  deployed_file_hashes:
+    .agents/skills/concise-writer/SKILL.md: sha256:1a5da75f95f21d9d1a67009ac54aa81bc7d82a6bd4554e623a57ca6cedf5ca74
+    .agents/skills/create-seeya-concept/SKILL.md: sha256:814e859939432526e94b558be556f10dd48d38920621436b3e0dfcbd7ded8c17
+    .agents/skills/document-feature/SKILL.md: sha256:8a6791e0d64a4aa8bb41905a16723dd82fc3a0c86dc7dbfdd63ab47692ec6d60
+    .github/instructions/code-style-general.instructions.md: sha256:8a9a1ee5eebb158cc0779467f4fe469089977734341898eb63408367314e690f
+    .github/instructions/general-behavior.instructions.md: sha256:385b5a9500f98eb3c11c8edf59da83564de6fb69f888d0c713bad09d0f30da0e
+    .github/instructions/refactoring-protocol.instructions.md: sha256:c2baabdfc653ba56dd83138176a80f69751f69b300c2301cb68b189394b75e13
+    .github/instructions/typescript-monorepo.instructions.md: sha256:c0fb4f179474edf8c7a008f5e7e8255cad7341baf0f0bf32a1889722cca7f4e9
+    .windsurf/rules/code-style-general.md: sha256:5830a2bc24247a0cb5f22601c93f616cca74b73de9cd935d8aa6054c4fd79d7b
+    .windsurf/rules/general-behavior.md: sha256:a1f14c628ee64679f6b34d9a48a420f8d6c0cfdbc7314e497a5522c624f82b27
+    .windsurf/rules/refactoring-protocol.md: sha256:a6bfc39ae3850dde37a8e04166429077c2dd1ae0e2ce0fb1b5d1037f0a5243ce
+    .windsurf/rules/typescript-monorepo.md: sha256:6aec1229dc72fe10bf10092c8df0c5fde4d725ed18a22bd8bcec8fcde810c885
+  content_hash: sha256:b049ffb5a70d4bafc8c15b84b58782bb20515804fdc4123c6a77cb926b082d17
+  declared_license: MIT
+deployments:
+- kind: project-relative
+  target: codex
+  value: .agents/skills/capacitor-expert
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/capacitor-expert/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:ef005e92b93382bf08f39325bc6ce9caee01e89a837da6c0e6847d09e428a3b9
+- kind: project-relative
+  target: codex
+  value: .agents/skills/concise-writer
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/concise-writer/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:1a5da75f95f21d9d1a67009ac54aa81bc7d82a6bd4554e623a57ca6cedf5ca74
+- kind: project-relative
+  target: codex
+  value: .agents/skills/create-seeya-concept
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/create-seeya-concept/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:814e859939432526e94b558be556f10dd48d38920621436b3e0dfcbd7ded8c17
+- kind: project-relative
+  target: codex
+  value: .agents/skills/document-feature
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/document-feature/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:8a6791e0d64a4aa8bb41905a16723dd82fc3a0c86dc7dbfdd63ab47692ec6d60
+- kind: project-relative
+  target: codex
+  value: .agents/skills/drizzle-expert
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/drizzle-expert/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:0ea5e63e1e2414e10580944dcb9b6e149978dbe3b055237f8bb377d1a7bb905b
+- kind: project-relative
+  target: codex
+  value: .agents/skills/hono-route-expert
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/hono-route-expert/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:e0c6a75a9e95189fdb7e30831c23446e2b954c859285bd0ddb2226468cdcd174
+- kind: project-relative
+  target: codex
+  value: .agents/skills/pr-review-api
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/pr-review-api/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:5d009440d5747ffaf20b7873cfd1a7c02e1b431ac724bdb95c06c0ea93d6834f
+- kind: project-relative
+  target: codex
+  value: .agents/skills/pr-review-web
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/pr-review-web/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:28c7ebae209c31f182d635d40e1f4c6a131ac05594f71d55ba2582c608122e4a
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-api
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-api/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:063c3a0df3448c690da7a480220d8b9cdd40bd6c91c527419a955f584a9623e4
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-web
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-web/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:30df9c229077ae621ebb2e1d1dfb7395d1189749ed53f9187fd945b318e21fe3
+- kind: project-relative
+  target: codex
+  value: .agents/skills/vue3-quasar-expert
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/vue3-quasar-expert/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:fe8b3aa585427acd97156e73f4fa5c00c6b1209405430d1f6fb85e3089072bee
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/api-architecture.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:21ea803a82724658bd1244c9d63e867f53004454b702b44d2467b14cde0625b6
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/api-testing.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:a0ce9d74b1569485ac800d7c794597f2b2987a02dc8eb47614c6481089b97516
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/capacitor-mobile.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:783efae2f051de65b1ba7c49ac411c818fdb1515913dc1d6f08b214b577ef238
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/code-style-general.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:8a9a1ee5eebb158cc0779467f4fe469089977734341898eb63408367314e690f
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/general-behavior.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:385b5a9500f98eb3c11c8edf59da83564de6fb69f888d0c713bad09d0f30da0e
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/hono-drizzle-style.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:b894ead70825b12ff358669656b47f7b78f4583c0afd2aff5771a38922d51dfe
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/refactoring-protocol.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:c2baabdfc653ba56dd83138176a80f69751f69b300c2301cb68b189394b75e13
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/typescript-monorepo.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:c0fb4f179474edf8c7a008f5e7e8255cad7341baf0f0bf32a1889722cca7f4e9
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/vue-quasar-architecture.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:7ffb0c8a27b3018d43c537fd02d600455a2b9d2ca8ded4a2567d5dac621ace57
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/vue-quasar-style.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:60b76692c22402beb40d2c2b707f55d22c8443f7b9499430fa801eefc01d0c92
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/api-architecture.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:e0dc820dc69f9de693e9d549ffa081e914db6a42cf5330adffaa8282e954deac
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/api-testing.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:419a87d6c625ab39e60ba2bdea30d4ee1912f926a5e45c2e220bf5ad44c6b4c5
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/capacitor-mobile.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:06a238b6875acfa21b68a8bbe019b93ceb0b240b744c27d9b783c0f3189fae8e
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/code-style-general.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:5830a2bc24247a0cb5f22601c93f616cca74b73de9cd935d8aa6054c4fd79d7b
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/general-behavior.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:a1f14c628ee64679f6b34d9a48a420f8d6c0cfdbc7314e497a5522c624f82b27
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/hono-drizzle-style.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/api
+  active_owner: prj120/ai-setup/packages/api
+  content_hash: sha256:3db1d60cd4f4aa97f940e8cabdebd502879828f39df24d478077a3283fe2c3d5
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/refactoring-protocol.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:a6bfc39ae3850dde37a8e04166429077c2dd1ae0e2ce0fb1b5d1037f0a5243ce
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/typescript-monorepo.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/shared
+  active_owner: prj120/ai-setup/packages/shared
+  content_hash: sha256:6aec1229dc72fe10bf10092c8df0c5fde4d725ed18a22bd8bcec8fcde810c885
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/vue-quasar-architecture.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:9d2e18b7f13da2b5a04ef2891fcf42b9435ff29c7cfacef7ef8cb5db8b3ed3bb
+- kind: project-relative
+  target: windsurf
+  value: .windsurf/rules/vue-quasar-style.md
+  runtime: null
+  scope: project
+  owners:
+  - prj120/ai-setup/packages/web
+  active_owner: prj120/ai-setup/packages/web
+  content_hash: sha256:d7699bd7bdb0eec735d6e4f1a1b31359bbde89b7c4d12f2038f3f085125ca68b
