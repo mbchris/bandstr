@@ -1125,18 +1125,23 @@ build_android_apk() {
   fi
 
   if [[ -n "$sdk_path" ]]; then
-    local sdk_path_win
-    sdk_path_win="$(to_windows_path "$sdk_path" || true)"
-    if [[ -n "$sdk_path_win" ]]; then
-      sdk_path="$sdk_path_win"
+    if [[ "$is_windows_shell" == "1" ]]; then
+      local sdk_path_win
+      sdk_path_win="$(to_windows_path "$sdk_path" || true)"
+      if [[ -n "$sdk_path_win" ]]; then
+        sdk_path="$sdk_path_win"
+      fi
     fi
     export ANDROID_HOME="$sdk_path"
     export ANDROID_SDK_ROOT="$sdk_path"
     mkdir -p "$(dirname "$android_local_props")"
-    # local.properties is a Java properties file: backslashes must be escaped.
-    local sdk_props
-    sdk_props="$(printf '%s' "$sdk_path" | sed 's#\\#/#g; s#/#\\\\#g')"
-    printf 'sdk.dir=%s\n' "$sdk_props" > "$android_local_props"
+    if [[ "$is_windows_shell" == "1" ]]; then
+      local sdk_props
+      sdk_props="$(printf '%s' "$sdk_path" | sed 's#\\#/#g; s#/#\\\\#g')"
+      printf 'sdk.dir=%s\n' "$sdk_props" > "$android_local_props"
+    else
+      printf 'sdk.dir=%s\n' "$sdk_path" > "$android_local_props"
+    fi
   fi
 
   local current_java_major=""
@@ -1582,19 +1587,18 @@ build_android_bundle() {
   local release_aab="packages/web/src-capacitor/android/app/build/outputs/bundle/release/app-release.aab"
   local release_signed_aab="packages/web/src-capacitor/android/app/build/outputs/bundle/release/app-release-signed.aab"
 
-  if [[ ! -f "$release_aab" ]]; then
-    echo "Generating release App Bundle (.aab) via Gradle bundleRelease..."
-    if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
-      (
-        cd "$android_dir"
-        cmd.exe /c ".\\gradlew.bat bundleRelease"
-      )
-    else
-      (
-        cd "$android_dir"
-        ./gradlew bundleRelease
-      )
-    fi
+  rm -f "$release_aab" "$release_signed_aab"
+  echo "Generating release App Bundle (.aab) via Gradle bundleRelease..."
+  if [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]]; then
+    (
+      cd "$android_dir"
+      cmd.exe /c ".\\gradlew.bat bundleRelease"
+    )
+  else
+    (
+      cd "$android_dir"
+      ./gradlew bundleRelease
+    )
   fi
 
   if [[ ! -f "$release_aab" ]]; then

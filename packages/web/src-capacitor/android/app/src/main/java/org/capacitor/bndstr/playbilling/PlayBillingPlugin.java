@@ -16,6 +16,7 @@ import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesResponseListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryProductDetailsResult;
 import com.android.billingclient.api.QueryPurchasesParams;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -87,7 +88,7 @@ public class PlayBillingPlugin extends Plugin implements com.android.billingclie
 
         billingClient.queryProductDetailsAsync(
           params,
-          (billingResult, productDetailsList) -> {
+          (billingResult, productDetailsResult) -> {
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
               call.reject("queryProductDetailsAsync failed: " + billingResult.getDebugMessage());
               return;
@@ -95,12 +96,15 @@ public class PlayBillingPlugin extends Plugin implements com.android.billingclie
 
             cachedProducts.clear();
             JSArray items = new JSArray();
-            for (ProductDetails details : productDetailsList) {
-              cachedProducts.put(details.getProductId(), details);
-              JSObject base = new JSObject();
-              base.put("productId", details.getProductId());
-              base.put("title", details.getTitle());
-              base.put("description", details.getDescription());
+            List<ProductDetails> productDetailsList =
+              productDetailsResult != null ? productDetailsResult.getProductDetailsList() : null;
+            if (productDetailsList != null) {
+              for (ProductDetails details : productDetailsList) {
+                cachedProducts.put(details.getProductId(), details);
+                JSObject base = new JSObject();
+                base.put("productId", details.getProductId());
+                base.put("title", details.getTitle());
+                base.put("description", details.getDescription());
 
               JSArray offers = new JSArray();
               List<ProductDetails.SubscriptionOfferDetails> offerDetails = details.getSubscriptionOfferDetails();
@@ -128,11 +132,12 @@ public class PlayBillingPlugin extends Plugin implements com.android.billingclie
               base.put("offers", offers);
               items.put(base);
             }
-            JSObject ret = new JSObject();
-            ret.put("items", items);
-            call.resolve(ret);
           }
-        );
+          JSObject ret = new JSObject();
+          ret.put("items", items);
+          call.resolve(ret);
+        }
+      );
       }
     );
   }
