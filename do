@@ -25,7 +25,7 @@ to_uppercase() {
 
 is_profile_scoped_command() {
   case "$1" in
-    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|upload-ios|appstore-checklist|push-setup|run-android)
+    build-apk|create-apk-bundle|deploy-apk|deploy-play-console|sign-apk|build-ios|deploy-ios|upload-ios|testflight|appstore-checklist|push-setup|run-android)
       return 0
       ;;
     *)
@@ -158,6 +158,13 @@ Commands:
     Build and deploy iOS app to a connected device on macOS.
     DEVICE_ID can also be set via IOS_DEVICE_ID in env file.
     Requires `ios-deploy` and valid iOS signing setup.
+
+  testflight [local|production]
+    Build, sign and upload to TestFlight using only secrets from Vaultwarden
+    (no Xcode account login needed). Default profile: production.
+    Needs vault items created by scripts/ios-secrets-to-vaultwarden.sh and
+    scripts/ios-signing-to-vaultwarden.sh, and .creds.config for vault access.
+    Optional: IOS_BUILD_NUMBER (default: latest uploaded + 1)
 
   upload-ios [local|production] [IPA_PATH]
     Upload an IPA to App Store Connect using iTMSTransporter.
@@ -345,6 +352,8 @@ elif [[ "$command" == "sign-apk" ]]; then
       exit 1
     fi
   fi
+elif [[ "$command" == "testflight" ]]; then
+  env_profile="${2:-production}"
 elif [[ "$command" == "upload-ios" ]]; then
   upload_arg="${2:-}"
   if [[ -z "$upload_arg" ]]; then
@@ -405,7 +414,7 @@ if [[ "$command" == "push-bootstrap-firebase" ]]; then
   exit $?
 fi
 
-if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" || "$command" == "upload-ios" || "$command" == "appstore-checklist" || "$command" == "run-android" ]]; then
+if [[ "$command" == "build-apk" || "$command" == "create-apk-bundle" || "$command" == "deploy-apk" || "$command" == "deploy-play-console" || "$command" == "sign-apk" || "$command" == "build-ios" || "$command" == "deploy-ios" || "$command" == "upload-ios" || "$command" == "testflight" || "$command" == "appstore-checklist" || "$command" == "run-android" ]]; then
   if [[ "$env_profile" != "local" && "$env_profile" != "production" ]]; then
     echo "Error: $command supports only local or production."
     echo "Use: ./do $command {local|production}"
@@ -1748,6 +1757,10 @@ case "$command" in
   push-setup)
     export_env_file "$env_file"
     bash ./scripts/push-setup.sh "$env_profile" "${push_setup_args[@]}"
+    ;;
+  testflight)
+    export_env_file "$env_file"
+    bash ./scripts/testflight-from-vault.sh "$env_profile"
     ;;
   upload-ios)
     export_env_file "$env_file"

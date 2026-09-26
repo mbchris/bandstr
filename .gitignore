@@ -57,3 +57,8 @@ backups/
 
 # APM dependencies
 apm_modules/
+
+# Apple private keys (App Store Connect / APNs)
+*.p8
+*.p12
+*.mobileprovision
