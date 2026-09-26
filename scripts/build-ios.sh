@@ -56,8 +56,12 @@ if ! command -v pod >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v corepack >/dev/null 2>&1; then
-  echo "Error: corepack not found."
+if command -v corepack >/dev/null 2>&1; then
+  pnpm_cmd=(corepack pnpm)
+elif command -v pnpm >/dev/null 2>&1; then
+  pnpm_cmd=(pnpm)
+else
+  echo "Error: neither corepack nor pnpm was found."
   exit 1
 fi
 
@@ -65,6 +69,9 @@ resolve_bundle_id() {
   local bundle_id="${APPLE_BUNDLE_ID:-}"
   if [[ -z "$bundle_id" ]]; then
     bundle_id="${APNS_BUNDLE_ID:-}"
+  fi
+  if [[ -z "$bundle_id" && -f "$REPO_ROOT/packages/web/src-capacitor/ios/App/App.xcodeproj/project.pbxproj" ]]; then
+    bundle_id="$(sed -n -E 's/.*PRODUCT_BUNDLE_IDENTIFIER[[:space:]]*=[[:space:]]*"?([^";]+)"?;.*/\1/p' "$REPO_ROOT/packages/web/src-capacitor/ios/App/App.xcodeproj/project.pbxproj" | head -n 1 || true)"
   fi
   if [[ -z "$bundle_id" && -f "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" ]]; then
     bundle_id="$(sed -n -E 's/.*"appId"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$REPO_ROOT/packages/web/src-capacitor/capacitor.config.json" | head -n 1 || true)"
@@ -90,11 +97,16 @@ stamp_xcode_build_dir "$archive_dir"
 
 echo "Building web assets for iOS..."
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
+# CocoaPods (invoked by `capacitor sync ios`) aborts unless the locale is UTF-8.
+if [[ "${LC_ALL:-${LANG:-}}" != *"UTF-8"* ]]; then
+  export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+fi
 # Quasar's default Capacitor iOS packaging step tries to invoke Xcode directly.
 # Our release flow archives/exports with xcodebuild below, so only sync the UI/native project here.
-corepack pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
+"${pnpm_cmd[@]}" --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
 
 archive_path="$archive_dir/App.xcarchive"
+derived_dir="$archive_dir/DerivedData"
 export_dir="$archive_dir/export"
 export_opts="${IOS_EXPORT_OPTIONS_PLIST:-$REPO_ROOT/scripts/ios/ExportOptions-AppStore.plist}"
 bundle_id="$(resolve_bundle_id)"
@@ -114,23 +126,109 @@ fi
 stamp_xcode_build_dir "$archive_dir"
 rm -rf "$archive_path" "$export_dir"
 
+# Manual signing (used by scripts/testflight-from-vault.sh): set all three to sign
+# with a specific certificate/profile instead of Xcode's automatic signing.
+#   IOS_SIGN_IDENTITY              SHA-1 of the Apple Distribution certificate
+#   IOS_PROVISIONING_PROFILE_UUID  installed App Store provisioning profile
+#   IOS_SIGN_KEYCHAIN              keychain holding the certificate
+manual_signing=0
+if [[ -n "${IOS_SIGN_IDENTITY:-}" || -n "${IOS_PROVISIONING_PROFILE_UUID:-}" ]]; then
+  if [[ -z "${IOS_SIGN_IDENTITY:-}" || -z "${IOS_PROVISIONING_PROFILE_UUID:-}" || -z "${IOS_SIGN_KEYCHAIN:-}" || -z "$development_team" ]]; then
+    echo "Error: manual signing needs IOS_SIGN_IDENTITY, IOS_PROVISIONING_PROFILE_UUID, IOS_SIGN_KEYCHAIN and APPLE_TEAM_ID."
+    exit 1
+  fi
+  manual_signing=1
+  pbxproj="$ios_dir/App.xcodeproj/project.pbxproj"
+  pbxproj_backup="$(mktemp)"
+  cp -p "$pbxproj" "$pbxproj_backup"
+  trap 'cp -p "$pbxproj_backup" "$pbxproj"; rm -f "$pbxproj_backup"' EXIT
+
+  # Only the App target uses a provisioning profile; passing these as xcodebuild
+  # arguments would also apply them to the Pods targets and fail the build.
+  echo "Using manual signing (profile $IOS_PROVISIONING_PROFILE_UUID)"
+  python3 - "$pbxproj" "$IOS_SIGN_IDENTITY" "$IOS_PROVISIONING_PROFILE_UUID" "$bundle_id" <<'PY'
+import re, sys
+path, identity, profile, bundle_id = sys.argv[1:5]
+text = open(path, encoding="utf-8").read()
+
+def patch(block):
+    body = block.group(0)
+    if "PRODUCT_BUNDLE_IDENTIFIER" not in body:
+        return body
+    body = re.sub(r'CODE_SIGN_IDENTITY = [^;]*;', f'CODE_SIGN_IDENTITY = "{identity}";', body)
+    body = re.sub(r'CODE_SIGN_STYLE = [^;]*;', 'CODE_SIGN_STYLE = Manual;', body)
+    body = re.sub(r'PROVISIONING_PROFILE_SPECIFIER = [^;]*;', f'PROVISIONING_PROFILE_SPECIFIER = "{profile}";', body)
+    body = re.sub(r'PRODUCT_BUNDLE_IDENTIFIER = [^;]*;', f'PRODUCT_BUNDLE_IDENTIFIER = "{bundle_id}";', body)
+    return body
+
+patched, count = re.subn(r'isa = XCBuildConfiguration;.*?name = \w+;', patch, text, flags=re.S)
+if 'CODE_SIGN_STYLE = Manual;' not in patched:
+    sys.exit("Error: could not patch App target signing settings in project.pbxproj")
+open(path, "w", encoding="utf-8").write(patched)
+PY
+
+  export_opts="$archive_dir/ExportOptions-Manual.plist"
+  cat >"$export_opts" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>destination</key>
+  <string>export</string>
+  <key>signingStyle</key>
+  <string>manual</string>
+  <key>teamID</key>
+  <string>$development_team</string>
+  <key>signingCertificate</key>
+  <string>$IOS_SIGN_IDENTITY</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>$bundle_id</key>
+    <string>$IOS_PROVISIONING_PROFILE_UUID</string>
+  </dict>
+  <key>stripSwiftSymbols</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+fi
+
 archive_cmd=(
   xcodebuild
   -workspace "$ios_dir/App.xcworkspace"
   -scheme App
   -configuration Release
+  -derivedDataPath "$derived_dir"
   -destination "generic/platform=iOS"
   -archivePath "$archive_path"
-  PRODUCT_BUNDLE_IDENTIFIER="$bundle_id"
   archive
 )
+# Manual signing sets the bundle id on the App target only (see pbxproj patch);
+# passing it here would also rename every Pods framework to the app's id.
+if [[ "$manual_signing" == "0" ]]; then
+  archive_cmd+=(PRODUCT_BUNDLE_IDENTIFIER="$bundle_id")
+fi
 
 if [[ -n "$development_team" ]]; then
   archive_cmd+=(DEVELOPMENT_TEAM="$development_team")
 fi
 
+# Optional build/version overrides (TestFlight requires a unique build number per upload).
+if [[ -n "${IOS_BUILD_NUMBER:-}" ]]; then
+  echo "Using iOS build number: $IOS_BUILD_NUMBER"
+  archive_cmd+=(CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER")
+fi
+if [[ -n "${IOS_MARKETING_VERSION:-}" ]]; then
+  echo "Using iOS marketing version: $IOS_MARKETING_VERSION"
+  archive_cmd+=(MARKETING_VERSION="$IOS_MARKETING_VERSION")
+fi
+
 if [[ "$sign_build" == "0" ]]; then
   archive_cmd+=(CODE_SIGNING_ALLOWED=NO)
+elif [[ "$manual_signing" == "1" ]]; then
+  archive_cmd+=(OTHER_CODE_SIGN_FLAGS="--keychain $IOS_SIGN_KEYCHAIN")
 else
   archive_cmd+=(-allowProvisioningUpdates)
 fi
@@ -152,10 +250,16 @@ fi
 mkdir -p "$export_dir"
 
 echo "Exporting signed IPA for App Store..."
-xcodebuild -exportArchive \
-  -archivePath "$archive_path" \
-  -exportPath "$export_dir" \
+export_cmd=(
+  xcodebuild -exportArchive
+  -archivePath "$archive_path"
+  -exportPath "$export_dir"
   -exportOptionsPlist "$export_opts"
+)
+if [[ "$manual_signing" == "0" ]]; then
+  export_cmd+=(-allowProvisioningUpdates)
+fi
+"${export_cmd[@]}"
 
 ipa_path="$(find "$export_dir" -maxdepth 1 -name '*.ipa' | head -n 1 || true)"
 if [[ -z "$ipa_path" ]]; then

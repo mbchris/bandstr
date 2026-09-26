@@ -4,14 +4,26 @@ PODS:
   - CapacitorApp (7.1.2):
     - Capacitor
   - CapacitorCordova (7.6.2)
+  - CapacitorFilesystem (7.1.8):
+    - Capacitor
+    - IONFilesystemLib (~> 1.1.1)
   - CapacitorPushNotifications (7.0.6):
     - Capacitor
+  - CapacitorShare (7.0.4):
+    - Capacitor
+  - IONFilesystemLib (1.1.4)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@7.6.2_@capacitor+core@7.6.2/node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/.pnpm/@capacitor+app@7.1.2_@capacitor+core@7.6.2/node_modules/@capacitor/app`)"
   - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@7.6.2_@capacitor+core@7.6.2/node_modules/@capacitor/ios`)"
+  - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.6.2/node_modules/@capacitor/filesystem`)"
   - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@7.0.6_@capacitor+core@7.6.2/node_modules/@capacitor/push-notifications`)"
+  - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@7.0.4_@capacitor+core@7.6.2/node_modules/@capacitor/share`)"
+
+SPEC REPOS:
+  trunk:
+    - IONFilesystemLib
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -20,15 +32,22 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor+app@7.1.2_@capacitor+core@7.6.2/node_modules/@capacitor/app"
   CapacitorCordova:
     :path: "../../node_modules/.pnpm/@capacitor+ios@7.6.2_@capacitor+core@7.6.2/node_modules/@capacitor/ios"
+  CapacitorFilesystem:
+    :path: "../../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.6.2/node_modules/@capacitor/filesystem"
   CapacitorPushNotifications:
     :path: "../../node_modules/.pnpm/@capacitor+push-notifications@7.0.6_@capacitor+core@7.6.2/node_modules/@capacitor/push-notifications"
+  CapacitorShare:
+    :path: "../../node_modules/.pnpm/@capacitor+share@7.0.4_@capacitor+core@7.6.2/node_modules/@capacitor/share"
 
 SPEC CHECKSUMS:
   Capacitor: 5d4e6523047feb0e4755e5e922ded0372c2dde24
   CapacitorApp: f01a913211780e0718dae9750442c3e23f96e106
   CapacitorCordova: 8214697bed435f6e7c5e3ed86d1632a8c42f7d77
+  CapacitorFilesystem: c63fc54df41e5a6761785a7f3c49dc696c22e296
   CapacitorPushNotifications: b8e30637549ce91468b8c4dddbef2657be831f4c
+  CapacitorShare: 25f7fc5dd0e4edbde5d6801c6de5d14a8b450a41
+  IONFilesystemLib: e6610c2b260d15e4b9cb9d5e37a87095479b669e
 
-PODFILE CHECKSUM: 58fa7f526aa88553ea8c285c4e0b7aed70acc740
+PODFILE CHECKSUM: a0948724b17064cedd0dabc175c3ed4430269327
 
 COCOAPODS: 1.16.2
