@@ -19,6 +19,12 @@ dependencies:
   - git: https://github.com/prj120/ai-setup
     path: packages/web    # Choose packages/kotlin, packages/vue, packages/csharp, or packages
     ref: main           # Pin to tag or branch
+  - git: https://github.com/prj120/ai-setup
+    path: packages    # Choose packages/kotlin, packages/vue, packages/csharp, or packages
+    ref: main           # Pin to tag or branch
+  - git: https://github.com/prj120/ai-setup
+    path: packages/shared    # Choose packages/kotlin, packages/vue, packages/csharp, or packages
+    ref: main           # Pin to tag or branch
   mcp:
 includes: auto
 scripts: {}
