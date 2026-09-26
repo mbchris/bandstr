@@ -1,0 +1,205 @@
+name: CI (Backend, WebUI, Android, iOS)
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - 'refactor/**'
+      - 'feat/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Typecheck, Lint, Test, Build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm via Corepack
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+
+      - name: Typecheck Shared & Backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/shared run typecheck
+          pnpm --filter @bandstr/api run typecheck
+
+      - name: Run Backend Tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/api run test
+
+      - name: Build Backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/api run build
+
+  webui:
+    name: WebUI (Typecheck, Lint, Test, Build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm via Corepack
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+
+      - name: Sync Assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ./scripts/sync-assets.sh
+
+      - name: Typecheck WebUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/web run typecheck
+
+      - name: Lint WebUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/web run lint
+
+      - name: Run WebUI Tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/web run test
+
+      - name: Build WebUI (SPA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/web run build
+
+  android-test:
+    name: Android App (Gradle Unit Tests)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Components
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses
+          set -o pipefail
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Setup Gradle Permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packages/web/src-capacitor/android/gradlew
+
+      - name: Run Android Unit Tests
+        shell: bash
+        working-directory: packages/web/src-capacitor/android
+        run: |
+          set -euo pipefail
+          ./gradlew testDebugUnitTest
+
+  ios-verify:
+    name: iOS App (Xcode Build Verification)
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm via Corepack
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+
+      - name: Sync Assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ./scripts/sync-assets.sh
+
+      - name: Build Web Assets for iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bandstr/web exec quasar build -m capacitor -T ios --skip-pkg
+
+      - name: Verify iOS App Compilation (Unsigned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace packages/web/src-capacitor/ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
