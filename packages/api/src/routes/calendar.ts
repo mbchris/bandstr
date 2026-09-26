@@ -13,9 +13,12 @@ const idParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })
 
-const dateInputSchema = z.union([z.string().datetime(), z.number()]).transform((value) =>
-  typeof value === 'number' ? new Date(value).toISOString() : value,
-)
+const dateInputSchema = z
+  .union([
+    z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid datetime string' }),
+    z.number(),
+  ])
+  .transform((value) => new Date(value).toISOString())
 
 const eventBodySchema = z.object({
   title: z.string().min(1),
