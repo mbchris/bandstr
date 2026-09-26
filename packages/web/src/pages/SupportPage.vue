@@ -1,73 +1,3 @@
-<template>
-  <q-page class="q-pa-md support-page">
-    <div class="support-wrap">
-      <div class="text-h5 q-mb-sm">Support</div>
-      <div class="text-body2 text-grey-5 q-mb-md">
-        Report bugs, suggest features, or leave a comment for the development team.
-      </div>
-
-      <q-card flat bordered class="q-pa-md">
-        <q-form class="column q-gutter-md" @submit.prevent="submit">
-          <q-select
-            v-model="kind"
-            outlined
-            dense
-            label="Type"
-            emit-value
-            map-options
-            :options="typeOptions"
-          />
-
-          <q-chip dense square color="primary" text-color="white">
-            {{ tagPreview }}
-          </q-chip>
-
-          <q-input
-            v-model="email"
-            outlined
-            dense
-            label="Email (optional)"
-            type="email"
-            autocomplete="email"
-          />
-
-          <q-input
-            v-model="message"
-            outlined
-            autogrow
-            type="textarea"
-            label="Message"
-            input-style="min-height: 220px;"
-            :rules="[messageRule]"
-          />
-
-          <div class="text-caption text-grey-6">
-            Build: <strong>{{ buildId }}</strong> |
-            App Version: <strong>{{ appVersion }}</strong> |
-            Environment: <strong>{{ environment }}</strong>
-          </div>
-
-          <div class="row justify-end">
-            <q-btn color="primary" label="Send" type="submit" :loading="submitting" />
-          </div>
-        </q-form>
-      </q-card>
-
-      <q-card v-if="lastSubmission" flat bordered class="q-pa-md q-mt-md bg-positive text-white">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Your inquiry was sent</div>
-        <div class="text-body2 q-mb-sm">
-          Thanks for your message. The development team will review it and contact you.
-        </div>
-        <div class="text-body2">
-          <div><strong>Type:</strong> {{ prettyType(lastSubmission.type) }}</div>
-          <div><strong>Reply email:</strong> {{ lastSubmission.email || 'not provided' }}</div>
-          <div><strong>Summary:</strong> {{ summarize(lastSubmission.message) }}</div>
-        </div>
-      </q-card>
-    </div>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Notify } from 'quasar'
@@ -192,7 +122,77 @@ function summarize(value: string): string {
 }
 </script>
 
-<style scoped>
+<template>
+  <q-page class="q-pa-md support-page">
+    <div class="support-wrap">
+      <div class="text-h5 q-mb-sm">Support</div>
+      <div class="text-body2 text-grey-5 q-mb-md">
+        Report bugs, suggest features, or leave a comment for the development team.
+      </div>
+
+      <q-card flat bordered class="q-pa-md">
+        <q-form class="column q-gutter-md" @submit.prevent="submit">
+          <q-select
+            v-model="kind"
+            outlined
+            dense
+            label="Type"
+            emit-value
+            map-options
+            :options="typeOptions"
+          />
+
+          <q-chip dense square color="primary" text-color="white">
+            {{ tagPreview }}
+          </q-chip>
+
+          <q-input
+            v-model="email"
+            outlined
+            dense
+            label="Email (optional)"
+            type="email"
+            autocomplete="email"
+          />
+
+          <q-input
+            v-model="message"
+            outlined
+            autogrow
+            type="textarea"
+            label="Message"
+            input-style="min-height: 220px;"
+            :rules="[messageRule]"
+          />
+
+          <div class="text-caption text-grey-6">
+            Build: <strong>{{ buildId }}</strong> |
+            App Version: <strong>{{ appVersion }}</strong> |
+            Environment: <strong>{{ environment }}</strong>
+          </div>
+
+          <div class="row justify-end">
+            <q-btn color="primary" label="Send" type="submit" :loading="submitting" />
+          </div>
+        </q-form>
+      </q-card>
+
+      <q-card v-if="lastSubmission" flat bordered class="q-pa-md q-mt-md bg-positive text-white">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Your inquiry was sent</div>
+        <div class="text-body2 q-mb-sm">
+          Thanks for your message. The development team will review it and contact you.
+        </div>
+        <div class="text-body2">
+          <div><strong>Type:</strong> {{ prettyType(lastSubmission.type) }}</div>
+          <div><strong>Reply email:</strong> {{ lastSubmission.email || 'not provided' }}</div>
+          <div><strong>Summary:</strong> {{ summarize(lastSubmission.message) }}</div>
+        </div>
+      </q-card>
+    </div>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .support-page {
   display: flex;
   justify-content: center;

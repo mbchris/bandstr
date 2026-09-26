@@ -94,6 +94,7 @@ export default configure(function (/* ctx */) {
   const gitRev = readGitRev()
   const appVersion = readAndroidVersionName()
   const mobileCallbackUrl = getEnvValue('MOBILE_CALLBACK_URL').trim() || 'org.capacitor.bandstr://localhost/login'
+  const vapidPublicKey = getEnvValue('VAPID_PUBLIC_KEY').trim()
   const apiTarget =
     process.env.API_TARGET ||
     (rawApiUrl.startsWith('http://') || rawApiUrl.startsWith('https://')
@@ -126,6 +127,7 @@ export default configure(function (/* ctx */) {
         SOURCE_COMMIT: gitRev,
         APP_VERSION: appVersion,
         MOBILE_CALLBACK_URL: mobileCallbackUrl,
+        VAPID_PUBLIC_KEY: vapidPublicKey,
       },
     },
 

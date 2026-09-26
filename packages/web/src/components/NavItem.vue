@@ -1,3 +1,12 @@
+<script setup lang="ts">
+defineProps<{
+  icon: string
+  label: string
+  to: string
+  exact?: boolean
+}>()
+</script>
+
 <template>
   <q-item :to="to" :exact="exact" clickable v-ripple active-class="text-white bg-grey-9">
     <q-item-section avatar>
@@ -8,12 +17,3 @@
     </q-item-section>
   </q-item>
 </template>
-
-<script setup lang="ts">
-defineProps<{
-  icon: string
-  label: string
-  to: string
-  exact?: boolean
-}>()
-</script>

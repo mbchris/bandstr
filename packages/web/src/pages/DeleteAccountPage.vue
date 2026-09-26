@@ -1,62 +1,3 @@
-<template>
-  <q-page class="q-pa-md delete-account-page">
-    <div class="delete-account-wrap">
-      <div class="text-h5 q-mb-sm">{{ t('deleteAccount.title') }}</div>
-      <div class="text-body2 text-grey-6 q-mb-lg">
-        {{ t('deleteAccount.subtitle') }}
-      </div>
-
-      <q-banner class="bg-red-10 text-white rounded-borders q-mb-md">
-        {{ t('deleteAccount.warning') }}
-      </q-banner>
-
-      <q-input
-        v-model="confirmText"
-        outlined
-        :label="t('deleteAccount.confirmInput')"
-        :disable="loading"
-      />
-
-      <div class="row q-mt-md q-gutter-sm">
-        <q-btn
-          color="negative"
-          icon="delete_forever"
-          :label="t('deleteAccount.deleteMyAccount')"
-          :disable="!isPhraseValid || loading"
-          :loading="loading"
-          @click="showDialog = true"
-        />
-        <q-btn
-          flat
-          :label="t('common.cancel')"
-          :disable="loading"
-          @click="goBack"
-        />
-      </div>
-    </div>
-
-    <q-dialog v-model="showDialog">
-      <q-card style="min-width: 320px; max-width: 460px">
-        <q-card-section class="text-h6">
-          {{ t('deleteAccount.finalConfirmation') }}
-        </q-card-section>
-        <q-card-section>
-          {{ t('deleteAccount.finalPrompt') }}
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('deleteAccount.no')" :disable="loading" v-close-popup />
-          <q-btn
-            color="negative"
-            :label="t('deleteAccount.yesDelete')"
-            :loading="loading"
-            @click="deleteAccount"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Notify } from 'quasar'
@@ -122,7 +63,66 @@ async function deleteAccount() {
 }
 </script>
 
-<style scoped>
+<template>
+  <q-page class="q-pa-md delete-account-page">
+    <div class="delete-account-wrap">
+      <div class="text-h5 q-mb-sm">{{ t('deleteAccount.title') }}</div>
+      <div class="text-body2 text-grey-6 q-mb-lg">
+        {{ t('deleteAccount.subtitle') }}
+      </div>
+
+      <q-banner class="bg-red-10 text-white rounded-borders q-mb-md">
+        {{ t('deleteAccount.warning') }}
+      </q-banner>
+
+      <q-input
+        v-model="confirmText"
+        outlined
+        :label="t('deleteAccount.confirmInput')"
+        :disable="loading"
+      />
+
+      <div class="row q-mt-md q-gutter-sm">
+        <q-btn
+          color="negative"
+          icon="delete_forever"
+          :label="t('deleteAccount.deleteMyAccount')"
+          :disable="!isPhraseValid || loading"
+          :loading="loading"
+          @click="showDialog = true"
+        />
+        <q-btn
+          flat
+          :label="t('common.cancel')"
+          :disable="loading"
+          @click="goBack"
+        />
+      </div>
+    </div>
+
+    <q-dialog v-model="showDialog">
+      <q-card style="min-width: 320px; max-width: 460px">
+        <q-card-section class="text-h6">
+          {{ t('deleteAccount.finalConfirmation') }}
+        </q-card-section>
+        <q-card-section>
+          {{ t('deleteAccount.finalPrompt') }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('deleteAccount.no')" :disable="loading" v-close-popup />
+          <q-btn
+            color="negative"
+            :label="t('deleteAccount.yesDelete')"
+            :loading="loading"
+            @click="deleteAccount"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .delete-account-page {
   display: flex;
   justify-content: center;

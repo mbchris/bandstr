@@ -18,6 +18,7 @@ sign_apk_input_path=""
 upload_ios_input_path=""
 apk_api_url=""
 push_setup_args=()
+build_ios_args=()
 
 to_uppercase() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
@@ -213,6 +214,12 @@ Commands:
   security-scan local
     Run security scans for web and backend dependencies.
 
+  validate-env [env_file]
+    Validate environment variables against .env.template and inspect tail bytes.
+
+  upload-secrets [options] [env_file] [owner/repo]
+    Sync environment variables/secrets from .env to GitHub Actions.
+
   cleanup-resources local
     Cleanup generated or unneeded resources.
 EOF
@@ -390,6 +397,30 @@ elif [[ "$command" == "push-setup" ]]; then
       push_setup_args=("${@:2}")
     fi
   fi
+elif [[ "$command" == "build-ios" ]]; then
+  second_arg="${2:-}"
+  if [[ -z "$second_arg" ]]; then
+    env_profile="local"
+    start_idx=2
+  elif [[ "$second_arg" == "local" || "$second_arg" == "production" ]]; then
+    env_profile="$second_arg"
+    start_idx=3
+  else
+    env_profile="local"
+    start_idx=2
+  fi
+  for arg in "${@:start_idx}"; do
+    case "$arg" in
+      --no-sign)
+        build_ios_args+=("--no-sign")
+        ;;
+      *)
+        echo "Error: Unknown option for build-ios: $arg"
+        echo "Usage: ./do build-ios [local|production] [--no-sign]"
+        exit 1
+        ;;
+    esac
+  done
 else
   env_profile="${2:-local}"
 fi
@@ -411,6 +442,16 @@ fi
 
 if [[ "$command" == "push-bootstrap-firebase" ]]; then
   bash ./scripts/push-bootstrap-firebase.sh "${@:2}"
+  exit $?
+fi
+
+if [[ "$command" == "validate-env" ]]; then
+  bash ./scripts/validate-env.sh "${@:2}"
+  exit $?
+fi
+
+if [[ "$command" == "upload-secrets" ]]; then
+  bash ./scripts/upload-env-to-gh-secrets.sh "${@:2}"
   exit $?
 fi
 
@@ -1745,7 +1786,7 @@ case "$command" in
     ;;
   build-ios)
     export_env_file "$env_file"
-    bash ./scripts/build-ios.sh "$env_profile" "${@:3}"
+    bash ./scripts/build-ios.sh "$env_profile" ${build_ios_args[@]+"${build_ios_args[@]}"}
     ;;
   deploy-ios)
     export_env_file "$env_file"
@@ -1756,7 +1797,7 @@ case "$command" in
     ;;
   push-setup)
     export_env_file "$env_file"
-    bash ./scripts/push-setup.sh "$env_profile" "${push_setup_args[@]}"
+    bash ./scripts/push-setup.sh "$env_profile" ${push_setup_args[@]+"${push_setup_args[@]}"}
     ;;
   testflight)
     export_env_file "$env_file"
@@ -1785,6 +1826,12 @@ case "$command" in
   cleanup-resources)
     echo "Cleaning unneeded resources..."
     bash ./scripts/cleanup-resources.sh
+    ;;
+  validate-env)
+    bash ./scripts/validate-env.sh "${@:2}"
+    ;;
+  upload-secrets)
+    bash ./scripts/upload-env-to-gh-secrets.sh "${@:2}"
     ;;
   *)
     print_usage

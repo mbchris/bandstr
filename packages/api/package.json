@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cp -r src/db/migrations dist/db/",
     "start": "node dist/index.js",
     "cli:admin": "node dist/cli/admin.js",
     "cli:admin:dev": "tsx src/cli/admin.ts",
     "cli:mail-test": "node dist/cli/mail-test.js",
     "cli:mail-test:dev": "tsx src/cli/mail-test.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:runtime": "node dist/db/migrate.js",
@@ -19,6 +21,7 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@bandstr/shared": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.7.6",
     "better-auth": "^1.5.6",
@@ -28,14 +31,17 @@
     "nodemailer": "6.10.1",
     "pg": "^8.13.3",
     "stripe": "^18.5.0",
+    "web-push": "^3.6.7",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/nodemailer": "6.4.16",
     "@types/pg": "^8.11.11",
+    "@types/web-push": "^3.6.4",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^5.0.2"
   },
   "engines": {
     "node": ">=20.0.0"

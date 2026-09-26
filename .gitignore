@@ -41,7 +41,6 @@ coverage/
 .env
 .env.production
 .env.staging
-.env.template
 .npmrc
 
 # ── Coolify / Deployment ─────────────────────────
@@ -57,6 +56,12 @@ backups/
 
 # APM dependencies
 apm_modules/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Superpowers scratch & ledger
+.superpowers/
 
 # Apple private keys (App Store Connect / APNs)
 *.p8

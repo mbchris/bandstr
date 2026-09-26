@@ -1,3 +1,7 @@
+<script setup lang="ts">
+// 404 page
+</script>
+
 <template>
   <q-page class="error-page">
     <div class="error-body text-center">
@@ -11,7 +15,7 @@
   </q-page>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
 .error-page {
   min-height: 100vh;
   display: flex;

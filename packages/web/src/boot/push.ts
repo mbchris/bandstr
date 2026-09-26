@@ -114,8 +114,89 @@ function readAlreadyRegisteredToken() {
   return localStorage.getItem(REGISTERED_TOKEN_KEY)
 }
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const buffer = new ArrayBuffer(rawData.length)
+  const outputArray = new Uint8Array(buffer)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
+
+async function registerWebPushSubscription(subscriptionJson: string): Promise<boolean> {
+  const authStore = useAuthStore()
+  const base = getApiBase()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  }
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`
+  }
+
+  const response = await fetch(`${base}/api/notifications/devices/register`, {
+    method: 'POST',
+    headers,
+    credentials: authStore.token ? 'omit' : 'include',
+    body: JSON.stringify({
+      platform: 'web',
+      tokenType: 'web_push',
+      token: subscriptionJson,
+    }),
+  }).catch(() => null)
+
+  if (!response || !response.ok) {
+    return false
+  }
+  localStorage.setItem(REGISTERED_TOKEN_KEY, subscriptionJson)
+  return true
+}
+
+async function setupWebPush(): Promise<void> {
+  if (typeof window === 'undefined') return
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+
+  const vapidKey = (process.env.VAPID_PUBLIC_KEY ?? '').trim()
+  if (!vapidKey) return
+
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    await navigator.serviceWorker.ready
+
+    let sub = await reg.pushManager.getSubscription()
+    if (!sub) {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        const perm = await Notification.requestPermission()
+        if (perm !== 'granted') return
+      } else if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        return
+      }
+
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey) as unknown as BufferSource,
+      })
+    }
+
+    if (sub) {
+      const subJson = JSON.stringify(sub)
+      if (readAlreadyRegisteredToken() !== subJson) {
+        await registerWebPushSubscription(subJson)
+      }
+    }
+  } catch (error) {
+    console.warn('[push] Web push setup failed:', error)
+  }
+}
+
 export default boot(async ({ router }) => {
-  if (!Capacitor.isNativePlatform()) return
+  if (!Capacitor.isNativePlatform()) {
+    void setupWebPush()
+    return
+  }
 
   const authStore = useAuthStore()
 

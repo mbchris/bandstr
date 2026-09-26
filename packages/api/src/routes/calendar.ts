@@ -1,44 +1,24 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, and, gte, lte } from 'drizzle-orm'
-import { db } from '../db/index.js'
-import { calendarEvents, rehearsalAttendance, users } from '../db/schema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireTenant, type TenantEnv } from '../middleware/tenant.js'
-import { queueBandNotification } from '../lib/notifications.js'
+import { calendarService } from '../services/calendar.service.js'
 
 export const calendar = new Hono<TenantEnv>()
 
 calendar.use('*', requireAuth, requireTenant)
 
-// GET /calendar
-calendar.get('/', async (c) => {
-  const bandId = c.get('bandId')
-
-  const events = await db
-    .select({
-      id: calendarEvents.id,
-      title: calendarEvents.title,
-      description: calendarEvents.description,
-      startTime: calendarEvents.startTime,
-      endTime: calendarEvents.endTime,
-      type: calendarEvents.type,
-      userId: calendarEvents.userId,
-      bierwartOverrideId: calendarEvents.bierwartOverrideId,
-      isTentative: calendarEvents.isTentative,
-      ownerName: users.name,
-    })
-    .from(calendarEvents)
-    .leftJoin(users, eq(calendarEvents.userId, users.id))
-    .where(eq(calendarEvents.bandId, bandId))
-
-  return c.json(events)
+const idParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
 })
 
-const dateInputSchema = z.union([z.string().datetime(), z.number()]).transform((value) =>
-  typeof value === 'number' ? new Date(value).toISOString() : value,
-)
+const dateInputSchema = z
+  .union([
+    z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid datetime string' }),
+    z.number(),
+  ])
+  .transform((value) => new Date(value).toISOString())
 
 const eventBodySchema = z.object({
   title: z.string().min(1),
@@ -51,106 +31,28 @@ const eventBodySchema = z.object({
   isTentative: z.boolean().default(false),
 })
 
-async function syncAbsenceAttendance(params: {
-  bandId: number
-  userId: string | null
-  startTime: Date
-  endTime: Date
-}) {
-  if (!params.userId) return
+const updateEventBodySchema = eventBodySchema.partial().extend({
+  id: z.number().optional(),
+})
 
-  const overlappingRehearsals = await db
-    .select({ id: calendarEvents.id })
-    .from(calendarEvents)
-    .where(
-      and(
-        eq(calendarEvents.bandId, params.bandId),
-        eq(calendarEvents.type, 'rehearsal'),
-        lte(calendarEvents.startTime, params.endTime),
-        gte(calendarEvents.endTime, params.startTime),
-      ),
-    )
-
-  for (const rehearsal of overlappingRehearsals) {
-    const [existingAttendance] = await db
-      .select({ id: rehearsalAttendance.id })
-      .from(rehearsalAttendance)
-      .where(
-        and(
-          eq(rehearsalAttendance.bandId, params.bandId),
-          eq(rehearsalAttendance.rehearsalId, rehearsal.id),
-          eq(rehearsalAttendance.userId, params.userId),
-        ),
-      )
-      .limit(1)
-
-    if (existingAttendance) {
-      await db
-        .update(rehearsalAttendance)
-        .set({ status: 'absent', updatedAt: new Date() })
-        .where(eq(rehearsalAttendance.id, existingAttendance.id))
-    } else {
-      await db.insert(rehearsalAttendance).values({
-        bandId: params.bandId,
-        rehearsalId: rehearsal.id,
-        userId: params.userId,
-        status: 'absent',
-      })
-    }
-  }
-}
+// GET /calendar
+calendar.get('/', async (c) => {
+  const bandId = c.get('bandId')
+  const events = await calendarService.listEvents(bandId)
+  return c.json(events)
+})
 
 // POST /calendar
 calendar.post('/', zValidator('json', eventBodySchema), async (c) => {
   const bandId = c.get('bandId')
   const actor = c.get('user')
   const body = c.req.valid('json')
-  const userId = body.type === 'unavailability' ? (body.userId ?? actor.id) : (body.userId ?? null)
-  const startTime = new Date(body.startTime)
-  const endTime = new Date(body.endTime)
 
-  const [created] = await db
-    .insert(calendarEvents)
-    .values({
-      bandId,
-      title: body.title,
-      description: body.description ?? null,
-      startTime,
-      endTime,
-      type: body.type,
-      userId,
-      bierwartOverrideId: body.bierwartOverrideId ?? null,
-      isTentative: body.isTentative,
-    })
-    .returning()
-
-  if (body.type === 'unavailability') {
-    await syncAbsenceAttendance({ bandId, userId, startTime, endTime })
-  }
-
-  if (body.type === 'gig') {
-    await queueBandNotification({
-      bandId,
-      actorUserId: actor.id,
-      eventType: 'gig',
-      entityKey: `calendar:${created.id}`,
-      title: 'Gig updated',
-      message: `${actor.name} added/updated "${created.title}".`,
-      linkPath: '/calendar',
-      linkQuery: `eventId=${created.id}`,
-    })
-  } else if (body.type === 'rehearsal') {
-    await queueBandNotification({
-      bandId,
-      actorUserId: actor.id,
-      eventType: 'rehearsal',
-      entityKey: `calendar:${created.id}`,
-      title: 'Rehearsal updated',
-      message: `${actor.name} added/updated "${created.title}".`,
-      linkPath: '/',
-      linkQuery: '',
-    })
-  }
+  await calendarService.createEvent({
+    bandId,
+    actor,
+    data: body,
+  })
 
   return c.json({ success: true }, 201)
 })
@@ -158,140 +60,31 @@ calendar.post('/', zValidator('json', eventBodySchema), async (c) => {
 // PUT /calendar/:id
 calendar.put(
   '/:id',
-  zValidator('json', eventBodySchema.partial().extend({ id: z.number().optional() })),
+  zValidator('param', idParamSchema),
+  zValidator('json', updateEventBodySchema),
   async (c) => {
     const bandId = c.get('bandId')
     const actor = c.get('user')
-    const id = Number(c.req.param('id'))
+    const { id } = c.req.valid('param')
     const body = c.req.valid('json')
 
-    if (!Number.isFinite(id) || id <= 0) {
-      return c.json({ error: 'Invalid calendar id' }, 400)
-    }
+    const updated = await calendarService.updateEvent({
+      bandId,
+      id,
+      actor,
+      data: body,
+    })
 
-    const updates: Record<string, unknown> = {}
-    if (body.title) updates.title = body.title
-    if (body.description !== undefined) updates.description = body.description
-    if (body.startTime) updates.startTime = new Date(body.startTime)
-    if (body.endTime) updates.endTime = new Date(body.endTime)
-    if (body.type) updates.type = body.type
-    if (body.userId !== undefined) updates.userId = body.userId
-    if (body.bierwartOverrideId !== undefined) updates.bierwartOverrideId = body.bierwartOverrideId
-    if (body.isTentative !== undefined) updates.isTentative = body.isTentative
-
-    const [existing] = await db
-      .select({
-        id: calendarEvents.id,
-        title: calendarEvents.title,
-        type: calendarEvents.type,
-        startTime: calendarEvents.startTime,
-        endTime: calendarEvents.endTime,
-        userId: calendarEvents.userId,
-        bierwartOverrideId: calendarEvents.bierwartOverrideId,
-      })
-      .from(calendarEvents)
-      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
-      .limit(1)
-
-    if (!existing) return c.json({ error: 'Calendar event not found' }, 404)
-
-    const nextType = body.type ?? existing.type
-    const nextUserId =
-      nextType === 'unavailability'
-        ? (body.userId === undefined ? (existing.userId ?? actor.id) : body.userId)
-        : (body.userId ?? existing.userId)
-    const nextStartTime = body.startTime ? new Date(body.startTime) : existing.startTime
-    const nextEndTime = body.endTime ? new Date(body.endTime) : existing.endTime
-
-    const [updated] = await db
-      .update(calendarEvents)
-      .set({
-        ...updates,
-        userId: nextUserId,
-      })
-      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
-      .returning({
-        id: calendarEvents.id,
-        title: calendarEvents.title,
-        type: calendarEvents.type,
-      })
-
-    if (nextType === 'unavailability') {
-      await syncAbsenceAttendance({
-        bandId,
-        userId: nextUserId ?? null,
-        startTime: nextStartTime,
-        endTime: nextEndTime,
-      })
-    }
-
-    const eventType = updated?.type ?? existing.type
-    const eventTitle = updated?.title ?? existing.title
-    if (eventType === 'gig') {
-      await queueBandNotification({
-        bandId,
-        actorUserId: actor.id,
-        eventType: 'gig',
-        entityKey: `calendar:${id}`,
-        title: 'Gig updated',
-        message: `${actor.name} added/updated "${eventTitle}".`,
-        linkPath: '/calendar',
-        linkQuery: `eventId=${id}`,
-      })
-    } else if (eventType === 'rehearsal') {
-      await queueBandNotification({
-        bandId,
-        actorUserId: actor.id,
-        eventType: 'rehearsal',
-        entityKey: `calendar:${id}`,
-        title: 'Rehearsal updated',
-        message: `${actor.name} added/updated "${eventTitle}".`,
-        linkPath: '/',
-        linkQuery: '',
-      })
-    }
-
-    const bierwartChanged =
-      body.bierwartOverrideId !== undefined &&
-      body.bierwartOverrideId !== existing.bierwartOverrideId
-
-    if (bierwartChanged) {
-      let newBierwartName = 'None'
-      if (body.bierwartOverrideId) {
-        const [u] = await db
-          .select({ name: users.name })
-          .from(users)
-          .where(eq(users.id, body.bierwartOverrideId))
-          .limit(1)
-        if (u) {
-          newBierwartName = u.name
-        }
-      }
-
-      await queueBandNotification({
-        bandId,
-        actorUserId: actor.id,
-        eventType: 'rehearsal',
-        entityKey: `bierwart:${id}`,
-        title: 'Bierwart changed',
-        message: `New Bierwart: ${newBierwartName}`,
-        linkPath: '/',
-        linkQuery: '',
-      })
-    }
-
+    if (!updated) return c.json({ error: 'Calendar event not found' }, 404)
     return c.json({ success: true })
   },
 )
 
 // DELETE /calendar/:id
-calendar.delete('/:id', async (c) => {
+calendar.delete('/:id', zValidator('param', idParamSchema), async (c) => {
   const bandId = c.get('bandId')
-  const id = Number(c.req.param('id'))
+  const { id } = c.req.valid('param')
 
-  await db
-    .delete(calendarEvents)
-    .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
-
+  await calendarService.deleteEvent(bandId, id)
   return c.json({ success: true })
 })

@@ -1,143 +1,3 @@
-<template>
-  <q-page class="q-pa-md">
-    <div class="row items-center q-col-gutter-sm q-mb-md">
-      <div class="col">
-        <div class="text-h5">{{ t('billingPage.title') }}</div>
-        <div class="text-caption text-grey-6">
-          {{ t('billingPage.yourPlan') }}
-          <span class="text-weight-bold">{{ currentPlanLabel }}</span>
-        </div>
-        <div v-if="effectivePlan === 'plus'" class="text-caption text-positive">
-          {{ t('billingPage.plusInherited') }}
-        </div>
-        <div class="text-caption text-grey-6">
-          {{ t('billingPage.status') }} <span class="text-weight-bold">{{ statusLabel }}</span>
-        </div>
-        <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">
-          {{ t('billingPage.interval') }} {{ subscriptionIntervalLabel }}
-        </div>
-        <div v-if="renewalLabel" class="text-caption text-grey-6">{{ renewalLabel }}</div>
-        <div v-if="providerHint" class="text-caption text-grey-5 q-mt-xs">{{ providerHint }}</div>
-      </div>
-      <div class="col-auto">
-        <div class="column q-gutter-sm items-end">
-          <q-btn
-            outline
-            color="primary"
-            icon="manage_accounts"
-            :label="t('billingPage.manageSubscription')"
-            :disable="loadingPortal || !canManageSubscription"
-            :loading="loadingPortal"
-            @click="openPortal"
-          />
-          <q-btn
-            v-if="showRestoreButton"
-            flat
-            dense
-            color="grey-6"
-            icon="replay"
-            :label="t('billingPage.restorePurchases')"
-            :loading="loadingRestore"
-            @click="restorePurchases"
-          />
-        </div>
-      </div>
-    </div>
-
-    <div class="row q-col-gutter-md">
-      <!-- Free plan -->
-      <div class="col-12 col-md-4">
-        <q-card bordered flat>
-          <q-card-section>
-            <div class="text-h6">bandstr free</div>
-            <div class="text-subtitle1 q-mt-sm">0 EUR</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section>
-            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
-            <div class="text-body2">{{ t('billingPage.setlistSongsLimit', { count: 15 }) }}</div>
-            <div class="text-body2">{{ t('billingPage.membersLimit', { count: 5 }) }}</div>
-            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
-            <div class="text-body2">- Song voting</div>
-            <div class="text-body2">- Setlist management (up to 15 songs)</div>
-            <div class="text-body2">- Gig setlist management</div>
-            <div class="text-body2">- Bierwart</div>
-            <div class="text-body2">- Calendar</div>
-            <div class="text-body2">- Band member availabilities</div>
-          </q-card-section>
-          <q-card-actions align="right">
-            <q-chip v-if="effectivePlan === 'free'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
-            <q-btn v-else flat size="sm" :label="t('billingPage.included')" disable />
-          </q-card-actions>
-        </q-card>
-      </div>
-
-      <!-- Bandstr Plus (inherited) -->
-      <div class="col-12 col-md-4">
-        <q-card bordered flat class="plus-card">
-          <q-card-section>
-            <div class="row items-center q-gutter-xs">
-              <div class="text-h6">bandstr plus</div>
-              <q-badge v-if="effectivePlan === 'plus'" color="positive" :label="t('billingPage.active')" />
-            </div>
-            <div v-if="effectivePlan === 'plus'" class="text-subtitle1 q-mt-sm text-positive">{{ t('billingPage.freeForYou') }}</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section>
-            <div class="text-body2 q-mb-md">
-              You're lucky! Someone in your band has a bandstr pro subscription. This unlocks all pro features for you as well and elevates your free account to a plus account. Isn't this a nice subscription model?
-            </div>
-            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
-            <div class="text-body2">{{ t('billingPage.setlistSongsUnlimited') }}</div>
-            <div class="text-body2">{{ t('billingPage.membersUnlimited') }}</div>
-            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
-            <div class="text-body2">- All features from bandstr pro</div>
-            <div class="text-body2">- Inherited while a band member has pro</div>
-          </q-card-section>
-          <q-card-actions align="right">
-            <q-chip v-if="effectivePlan === 'plus'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
-          </q-card-actions>
-        </q-card>
-      </div>
-
-      <!-- Pro plan -->
-      <div class="col-12 col-md-4">
-        <q-card v-for="plan in plans.filter(p => p.id === 'pro')" :key="plan.id" bordered flat>
-          <q-card-section>
-            <div class="text-h6">{{ plan.name }}</div>
-            <div class="text-subtitle1 q-mt-sm">{{ formatPlanPrice(plan) }}</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section>
-            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
-            <div class="text-body2">{{ t('billingPage.setlistSongsDynamic', { value: formatLimit(plan.limits.setlistSongs) }) }}</div>
-            <div class="text-body2">{{ t('billingPage.membersDynamic', { value: formatLimit(plan.limits.members) }) }}</div>
-            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
-            <div v-for="feature in plan.features" :key="feature" class="text-body2">- {{ feature }}</div>
-          </q-card-section>
-          <q-card-actions align="right" class="q-gutter-sm">
-            <q-chip v-if="effectivePlan === 'pro'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
-            <template v-else>
-              <template v-if="isWebOnly">
-                <div class="column items-end q-gutter-xs">
-                  <q-chip dense color="grey-7" text-color="white" icon="smartphone" :label="t('billingPage.appOnly')" />
-                  <div class="text-caption text-grey-6 text-right" style="font-size: 11px">
-                    {{ t('billingPage.appOnlyHint') }}
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                <q-btn color="primary" size="sm" :label="t('billingPage.chooseMonthly')" :loading="loadingCheckout && selectedInterval === 'monthly'" @click="startCheckout('monthly')" />
-                <q-btn color="primary" size="sm" outline :label="t('billingPage.chooseYearly')" :loading="loadingCheckout && selectedInterval === 'yearly'" @click="startCheckout('yearly')" />
-              </template>
-            </template>
-          </q-card-actions>
-        </q-card>
-      </div>
-    </div>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Notify } from 'quasar'
@@ -593,3 +453,143 @@ onMounted(() => {
   loadBilling()
 })
 </script>
+
+<template>
+  <q-page class="q-pa-md">
+    <div class="row items-center q-col-gutter-sm q-mb-md">
+      <div class="col">
+        <div class="text-h5">{{ t('billingPage.title') }}</div>
+        <div class="text-caption text-grey-6">
+          {{ t('billingPage.yourPlan') }}
+          <span class="text-weight-bold">{{ currentPlanLabel }}</span>
+        </div>
+        <div v-if="effectivePlan === 'plus'" class="text-caption text-positive">
+          {{ t('billingPage.plusInherited') }}
+        </div>
+        <div class="text-caption text-grey-6">
+          {{ t('billingPage.status') }} <span class="text-weight-bold">{{ statusLabel }}</span>
+        </div>
+        <div v-if="subscriptionIntervalLabel" class="text-caption text-grey-6">
+          {{ t('billingPage.interval') }} {{ subscriptionIntervalLabel }}
+        </div>
+        <div v-if="renewalLabel" class="text-caption text-grey-6">{{ renewalLabel }}</div>
+        <div v-if="providerHint" class="text-caption text-grey-5 q-mt-xs">{{ providerHint }}</div>
+      </div>
+      <div class="col-auto">
+        <div class="column q-gutter-sm items-end">
+          <q-btn
+            outline
+            color="primary"
+            icon="manage_accounts"
+            :label="t('billingPage.manageSubscription')"
+            :disable="loadingPortal || !canManageSubscription"
+            :loading="loadingPortal"
+            @click="openPortal"
+          />
+          <q-btn
+            v-if="showRestoreButton"
+            flat
+            dense
+            color="grey-6"
+            icon="replay"
+            :label="t('billingPage.restorePurchases')"
+            :loading="loadingRestore"
+            @click="restorePurchases"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="row q-col-gutter-md">
+      <!-- Free plan -->
+      <div class="col-12 col-md-4">
+        <q-card bordered flat>
+          <q-card-section>
+            <div class="text-h6">bandstr free</div>
+            <div class="text-subtitle1 q-mt-sm">0 EUR</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
+            <div class="text-body2">{{ t('billingPage.setlistSongsLimit', { count: 15 }) }}</div>
+            <div class="text-body2">{{ t('billingPage.membersLimit', { count: 5 }) }}</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
+            <div class="text-body2">- Song voting</div>
+            <div class="text-body2">- Setlist management (up to 15 songs)</div>
+            <div class="text-body2">- Gig setlist management</div>
+            <div class="text-body2">- Bierwart</div>
+            <div class="text-body2">- Calendar</div>
+            <div class="text-body2">- Band member availabilities</div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-chip v-if="effectivePlan === 'free'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
+            <q-btn v-else flat size="sm" :label="t('billingPage.included')" disable />
+          </q-card-actions>
+        </q-card>
+      </div>
+
+      <!-- Bandstr Plus (inherited) -->
+      <div class="col-12 col-md-4">
+        <q-card bordered flat class="plus-card">
+          <q-card-section>
+            <div class="row items-center q-gutter-xs">
+              <div class="text-h6">bandstr plus</div>
+              <q-badge v-if="effectivePlan === 'plus'" color="positive" :label="t('billingPage.active')" />
+            </div>
+            <div v-if="effectivePlan === 'plus'" class="text-subtitle1 q-mt-sm text-positive">{{ t('billingPage.freeForYou') }}</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <div class="text-body2 q-mb-md">
+              You're lucky! Someone in your band has a bandstr pro subscription. This unlocks all pro features for you as well and elevates your free account to a plus account. Isn't this a nice subscription model?
+            </div>
+            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
+            <div class="text-body2">{{ t('billingPage.setlistSongsUnlimited') }}</div>
+            <div class="text-body2">{{ t('billingPage.membersUnlimited') }}</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
+            <div class="text-body2">- All features from bandstr pro</div>
+            <div class="text-body2">- Inherited while a band member has pro</div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-chip v-if="effectivePlan === 'plus'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
+          </q-card-actions>
+        </q-card>
+      </div>
+
+      <!-- Pro plan -->
+      <div class="col-12 col-md-4">
+        <q-card v-for="plan in plans.filter(p => p.id === 'pro')" :key="plan.id" bordered flat>
+          <q-card-section>
+            <div class="text-h6">{{ plan.name }}</div>
+            <div class="text-subtitle1 q-mt-sm">{{ formatPlanPrice(plan) }}</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <div class="text-caption text-grey-7 q-mb-xs">{{ t('billingPage.limits') }}</div>
+            <div class="text-body2">{{ t('billingPage.setlistSongsDynamic', { value: formatLimit(plan.limits.setlistSongs) }) }}</div>
+            <div class="text-body2">{{ t('billingPage.membersDynamic', { value: formatLimit(plan.limits.members) }) }}</div>
+            <div class="text-caption text-grey-7 q-mt-md q-mb-xs">{{ t('billingPage.includes') }}</div>
+            <div v-for="feature in plan.features" :key="feature" class="text-body2">- {{ feature }}</div>
+          </q-card-section>
+          <q-card-actions align="right" class="q-gutter-sm">
+            <q-chip v-if="effectivePlan === 'pro'" color="primary" text-color="white" size="sm" icon="check" :label="t('billingPage.currentPlan')" />
+            <template v-else>
+              <template v-if="isWebOnly">
+                <div class="column items-end q-gutter-xs">
+                  <q-chip dense color="grey-7" text-color="white" icon="smartphone" :label="t('billingPage.appOnly')" />
+                  <div class="text-caption text-grey-6 text-right" style="font-size: 11px">
+                    {{ t('billingPage.appOnlyHint') }}
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <q-btn color="primary" size="sm" :label="t('billingPage.chooseMonthly')" :loading="loadingCheckout && selectedInterval === 'monthly'" @click="startCheckout('monthly')" />
+                <q-btn color="primary" size="sm" outline :label="t('billingPage.chooseYearly')" :loading="loadingCheckout && selectedInterval === 'yearly'" @click="startCheckout('yearly')" />
+              </template>
+            </template>
+          </q-card-actions>
+        </q-card>
+      </div>
+    </div>
+  </q-page>
+</template>

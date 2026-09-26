@@ -1,100 +1,3 @@
-<template>
-  <q-page class="q-pa-md account-security-page">
-    <div class="account-security-wrap">
-      <div class="text-h5 q-mb-sm">{{ t('accountSecurity.title') }}</div>
-      <div class="text-body2 text-grey-5 q-mb-md">
-        {{ t('accountSecurity.subtitle') }}
-      </div>
-
-      <q-card flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.changeName') }}</div>
-        <q-form class="column q-gutter-md" @submit.prevent="changeName">
-          <q-input
-            v-model="newName"
-            :label="t('accountSecurity.displayName')"
-            type="text"
-            outlined
-            dense
-            autocomplete="name"
-            :rules="[requiredRule]"
-          />
-          <div class="row justify-end">
-            <q-btn color="primary" :label="t('accountSecurity.changeName')" type="submit" :loading="loadingChangeName" />
-          </div>
-        </q-form>
-      </q-card>
-
-      <q-card flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.emailVerification') }}</div>
-        <div class="text-body2 q-mb-sm">
-          {{ t('accountSecurity.currentEmail') }} <strong>{{ currentEmail || '-' }}</strong>
-        </div>
-        <div class="text-body2 q-mb-md">
-          {{ t('accountSecurity.status') }}
-          <strong :class="isEmailVerified ? 'text-positive' : 'text-warning'">
-            {{ isEmailVerified ? t('accountSecurity.verified') : t('accountSecurity.notVerified') }}
-          </strong>
-        </div>
-        <q-btn
-          color="primary"
-          outline
-          :label="t('accountSecurity.resendVerification')"
-          :loading="loadingResendVerification"
-          :disable="!currentEmail"
-          @click="resendVerificationEmail"
-        />
-      </q-card>
-
-      <q-card flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.changeEmail') }}</div>
-        <q-form class="column q-gutter-md" @submit.prevent="changeEmail">
-          <q-input
-            v-model="newEmail"
-            :label="t('accountSecurity.newEmail')"
-            type="email"
-            outlined
-            dense
-            autocomplete="email"
-            :rules="[requiredRule, emailRule]"
-          />
-          <div class="row justify-end">
-            <q-btn color="primary" :label="t('accountSecurity.changeEmail')" type="submit" :loading="loadingChangeEmail" />
-          </div>
-        </q-form>
-      </q-card>
-
-      <q-card flat bordered class="q-pa-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.password') }}</div>
-        <div class="text-body2 text-grey-6 q-mb-md">
-          {{ t('accountSecurity.passwordHint') }}
-        </div>
-        <q-form class="column q-gutter-md" @submit.prevent="savePassword">
-          <q-input
-            v-model="currentPassword"
-            :label="t('accountSecurity.currentPasswordOptional')"
-            type="password"
-            outlined
-            dense
-            autocomplete="current-password"
-          />
-          <q-input
-            v-model="newPassword"
-            :label="t('accountSecurity.newPassword')"
-            type="password"
-            outlined
-            dense
-            autocomplete="new-password"
-            :rules="[requiredRule, minPasswordRule]"
-          />
-          <div class="row justify-end">
-            <q-btn color="primary" :label="t('accountSecurity.savePassword')" type="submit" :loading="loadingPassword" />
-          </div>
-        </q-form>
-      </q-card>
-    </div>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Notify } from 'quasar'
@@ -238,7 +141,104 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<template>
+  <q-page class="q-pa-md account-security-page">
+    <div class="account-security-wrap">
+      <div class="text-h5 q-mb-sm">{{ t('accountSecurity.title') }}</div>
+      <div class="text-body2 text-grey-5 q-mb-md">
+        {{ t('accountSecurity.subtitle') }}
+      </div>
+
+      <q-card flat bordered class="q-pa-md q-mb-md">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.changeName') }}</div>
+        <q-form class="column q-gutter-md" @submit.prevent="changeName">
+          <q-input
+            v-model="newName"
+            :label="t('accountSecurity.displayName')"
+            type="text"
+            outlined
+            dense
+            autocomplete="name"
+            :rules="[requiredRule]"
+          />
+          <div class="row justify-end">
+            <q-btn color="primary" :label="t('accountSecurity.changeName')" type="submit" :loading="loadingChangeName" />
+          </div>
+        </q-form>
+      </q-card>
+
+      <q-card flat bordered class="q-pa-md q-mb-md">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.emailVerification') }}</div>
+        <div class="text-body2 q-mb-sm">
+          {{ t('accountSecurity.currentEmail') }} <strong>{{ currentEmail || '-' }}</strong>
+        </div>
+        <div class="text-body2 q-mb-md">
+          {{ t('accountSecurity.status') }}
+          <strong :class="isEmailVerified ? 'text-positive' : 'text-warning'">
+            {{ isEmailVerified ? t('accountSecurity.verified') : t('accountSecurity.notVerified') }}
+          </strong>
+        </div>
+        <q-btn
+          color="primary"
+          outline
+          :label="t('accountSecurity.resendVerification')"
+          :loading="loadingResendVerification"
+          :disable="!currentEmail"
+          @click="resendVerificationEmail"
+        />
+      </q-card>
+
+      <q-card flat bordered class="q-pa-md q-mb-md">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.changeEmail') }}</div>
+        <q-form class="column q-gutter-md" @submit.prevent="changeEmail">
+          <q-input
+            v-model="newEmail"
+            :label="t('accountSecurity.newEmail')"
+            type="email"
+            outlined
+            dense
+            autocomplete="email"
+            :rules="[requiredRule, emailRule]"
+          />
+          <div class="row justify-end">
+            <q-btn color="primary" :label="t('accountSecurity.changeEmail')" type="submit" :loading="loadingChangeEmail" />
+          </div>
+        </q-form>
+      </q-card>
+
+      <q-card flat bordered class="q-pa-md">
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ t('accountSecurity.password') }}</div>
+        <div class="text-body2 text-grey-6 q-mb-md">
+          {{ t('accountSecurity.passwordHint') }}
+        </div>
+        <q-form class="column q-gutter-md" @submit.prevent="savePassword">
+          <q-input
+            v-model="currentPassword"
+            :label="t('accountSecurity.currentPasswordOptional')"
+            type="password"
+            outlined
+            dense
+            autocomplete="current-password"
+          />
+          <q-input
+            v-model="newPassword"
+            :label="t('accountSecurity.newPassword')"
+            type="password"
+            outlined
+            dense
+            autocomplete="new-password"
+            :rules="[requiredRule, minPasswordRule]"
+          />
+          <div class="row justify-end">
+            <q-btn color="primary" :label="t('accountSecurity.savePassword')" type="submit" :loading="loadingPassword" />
+          </div>
+        </q-form>
+      </q-card>
+    </div>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .account-security-page {
   display: flex;
   justify-content: center;

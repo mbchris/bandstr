@@ -1,32 +1,3 @@
-<template>
-  <q-page class="q-pa-md flex flex-center">
-    <q-card class="q-pa-lg" style="min-width: 360px">
-      <q-card-section>
-        <div class="text-h6 q-mb-md">Create a new band</div>
-
-        <q-input
-          v-model="form.name"
-          label="Band name"
-          outlined
-          dense
-          class="q-mb-md"
-        />
-        <div class="text-caption text-grey-7 q-mb-md">URL slug is generated automatically after creation.</div>
-
-        <q-btn
-          label="Create band"
-          color="primary"
-          unelevated
-          class="full-width"
-          :loading="loading"
-          :disable="!form.name"
-          @click="submit"
-        />
-      </q-card-section>
-    </q-card>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -56,3 +27,32 @@ async function submit() {
   }
 }
 </script>
+
+<template>
+  <q-page class="q-pa-md flex flex-center">
+    <q-card class="q-pa-lg" style="min-width: 360px">
+      <q-card-section>
+        <div class="text-h6 q-mb-md">Create a new band</div>
+
+        <q-input
+          v-model="form.name"
+          label="Band name"
+          outlined
+          dense
+          class="q-mb-md"
+        />
+        <div class="text-caption text-grey-7 q-mb-md">URL slug is generated automatically after creation.</div>
+
+        <q-btn
+          label="Create band"
+          color="primary"
+          unelevated
+          class="full-width"
+          :loading="loading"
+          :disable="!form.name"
+          @click="submit"
+        />
+      </q-card-section>
+    </q-card>
+  </q-page>
+</template>

@@ -122,11 +122,12 @@ async function run() {
   const versionCode = bundle.data.versionCode;
   console.log(`Bundle uploaded successfully with versionCode ${versionCode}`);
 
-  console.log('Assigning to internal track...');
+  const track = process.env.PLAY_CONSOLE_TRACK || 'internal';
+  console.log(`Assigning to ${track} track...`);
   await play.edits.tracks.update({
     packageName,
     editId,
-    track: 'internal',
+    track,
     requestBody: {
       releases: [{
         versionCodes: [versionCode],

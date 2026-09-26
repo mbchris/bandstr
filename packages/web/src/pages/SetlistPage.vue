@@ -1,621 +1,3 @@
-<template>
-  <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <q-card flat bordered>
-        <q-card-section>
-          <div class="row items-center justify-between">
-            <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
-            <div class="row q-gutter-sm items-center">
-              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="note_add" @click="openSpecialModal">
-                <q-tooltip>{{ t('setlist.addSetlistNote') }}</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="selectedSetlistMode === 'user' && !selectedGigId"
-                flat
-                round
-                icon="add"
-                @click="openAddToUserSetlistModal"
-              >
-                <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
-              </q-btn>
-              <q-btn flat round icon="download" @click="handleExport" />
-              <q-btn
-                v-if="selectedSetlistMode === 'master' || selectedGigId"
-                round
-                :color="!selectedGigId && atSetlistLimit ? 'grey' : 'primary'"
-                icon="add"
-                class="round-add-btn"
-                :disable="!selectedGigId && atSetlistLimit"
-                @click="openAddSongModal"
-              >
-                <q-tooltip v-if="!selectedGigId && atSetlistLimit">
-                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
-                </q-tooltip>
-              </q-btn>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-section>
-          <div class="row q-gutter-sm q-mb-md">
-            <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
-              <template #prepend><q-icon name="search" /></template>
-            </q-input>
-            <q-select
-              v-model="selectedListOption"
-              :options="listOptions"
-              emit-value
-              map-options
-              dense
-              outlined
-              style="min-width: 280px"
-            />
-            <q-btn
-              flat
-              dense
-              icon="add_circle"
-              color="primary"
-              :label="t('setlist.newGigSetlist')"
-              @click="createGigSetlist"
-            />
-            <q-select
-              v-if="!selectedGigId && selectedSetlistMode === 'master'"
-              v-model="selectedTagFilters"
-              :options="availableTagOptions"
-              multiple
-              use-input
-              use-chips
-              hide-dropdown-icon
-              new-value-mode="add-unique"
-              outlined
-              dense
-              style="min-width: 260px"
-              :label="t('setlist.filterTags')"
-            />
-          </div>
-          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-sm rounded-borders bg-widget-surface">
-            <div class="row q-col-gutter-sm items-end">
-              <div class="col-12 col-md-5">
-                <q-input v-model="selectedGigMeta.title" :label="t('common.title')" outlined dense />
-              </div>
-              <div class="col-12 col-md-5">
-                <q-select
-                  v-model="selectedGigMeta.calendarEventId"
-                  :options="calendarGigLinkOptions"
-                  emit-value
-                  map-options
-                  outlined
-                  dense
-                  :label="t('setlist.linkCalendarGig')"
-                />
-              </div>
-              <div class="col-12 col-md-2 row justify-end q-gutter-xs">
-                <q-btn flat dense color="primary" :label="t('common.save')" @click="saveGigMeta" />
-                <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
-              </div>
-            </div>
-          </div>
-          <div class="text-caption text-grey-7 q-mb-md">
-            Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
-          </div>
-
-          <q-list v-if="filteredSongs.length" separator>
-            <q-item
-              v-for="(item, index) in filteredSongs"
-              :key="getItemKey(item)"
-              class="q-pa-sm"
-              :class="{
-                'border-dashed': item.type !== 'song',
-                'dragging-item': draggingIndex === index,
-              }"
-              :draggable="!searchQuery"
-              @dragstart="onDragStart(index, $event)"
-              @dragover.prevent
-              @drop="onDrop(index)"
-              @dragend="onDragEnd"
-            >
-              <!-- Reorder + Pin -->
-              <q-item-section side>
-                <div class="column items-center q-gutter-xs">
-                  <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
-                  <q-btn flat round dense icon="keyboard_arrow_up" size="sm" @click="moveItem(index, -1)" />
-                  <q-btn flat round dense icon="keyboard_arrow_down" size="sm" @click="moveItem(index, 1)" />
-                  <span class="text-caption text-grey">{{ index + 1 }}</span>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    :icon="isPinnedItem(item) ? 'lock' : 'lock_open'"
-                    :color="isPinnedItem(item) ? 'primary' : 'grey'"
-                    :class="{ 'pinned-lock-btn': isPinnedItem(item) }"
-                    size="sm"
-                    @click="togglePin(item)"
-                  />
-                </div>
-              </q-item-section>
-
-              <!-- Thumbnail (songs only) -->
-              <q-item-section v-if="item.type === 'song'" side>
-                <a v-if="item.spotifyUrl && item.thumbnailUrl" :href="item.spotifyUrl" target="_blank">
-                  <q-avatar rounded size="48px"><img :src="item.thumbnailUrl" /></q-avatar>
-                </a>
-                <a v-else-if="item.youtubeUrl && getYouTubeId(item.youtubeUrl)" :href="item.youtubeUrl" target="_blank">
-                  <q-avatar rounded size="48px"><img :src="`https://img.youtube.com/vi/${getYouTubeId(item.youtubeUrl)}/mqdefault.jpg`" /></q-avatar>
-                </a>
-                <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
-                <div v-if="item.pitch !== 0" class="pitch-box q-mt-xs text-center text-caption text-weight-bold">
-                  Pitch {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
-                </div>
-              </q-item-section>
-
-              <!-- Content -->
-              <q-item-section>
-                <!-- Song content -->
-                <template v-if="item.type === 'song'">
-                  <q-item-label class="text-weight-bold">
-                    {{ item.title }}
-                    <q-icon
-                      v-if="item.notes"
-                      name="info"
-                      color="grey"
-                      size="xs"
-                      class="cursor-pointer q-ml-xs"
-                      @click="showNote(t('setlist.notes') + ': ' + item.title, item.notes)"
-                    />
-                    <q-icon v-if="getPersonalNote(item.id)" name="person" color="primary" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(t('setlist.personalNotes') + ': ' + item.title, getPersonalNote(item.id))">
-                      <q-tooltip>{{ t('setlist.personalNotes') }}</q-tooltip>
-                    </q-icon>
-                  </q-item-label>
-                  <q-item-label caption>{{ item.artist }}</q-item-label>
-                  <q-item-label v-if="typeof item.bpm === 'number'" caption>
-                    {{ t('setlist.bpm') }}: {{ item.bpm }}
-                  </q-item-label>
-                  <div v-if="item.tags?.length" class="row q-gutter-xs q-mt-xs">
-                    <q-chip
-                      v-for="tag in item.tags"
-                      :key="`${item.id}-tag-${tag}`"
-                      dense
-                      square
-                      size="sm"
-                      color="grey-3"
-                      text-color="grey-9"
-                    >
-                      {{ tag }}
-                    </q-chip>
-                  </div>
-                  <div class="row q-gutter-xs q-mt-xs">
-                    <a v-if="item.spotifyUrl" :href="item.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
-                    <a v-if="item.youtubeUrl" :href="item.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
-                  </div>
-                  <q-item-label caption v-if="item.lengthMs">
-                    Length: {{ formatDuration(item.lengthMs) }}
-                  </q-item-label>
-                </template>
-
-                <!-- Pause content -->
-                <template v-else-if="item.type === 'pause'">
-                  <q-item-label class="text-grey text-italic">
-                    <q-icon name="pause_circle" class="q-mr-xs" />
-                    {{ item.title }}
-                    <q-icon v-if="item.notes" name="info" color="grey" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
-                  </q-item-label>
-                </template>
-
-                <!-- Tuning content -->
-                <template v-else-if="item.type === 'tuning'">
-                  <q-item-label class="text-orange text-italic">
-                    <q-icon name="tune" class="q-mr-xs" />
-                    {{ item.title }}
-                    <q-icon v-if="item.notes" name="info" color="orange" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
-                  </q-item-label>
-                </template>
-
-                <!-- Generic note content -->
-                <template v-else>
-                  <q-item-label class="text-blue text-italic">
-                    <q-icon name="sticky_note_2" class="q-mr-xs" />
-                    {{ item.title }}
-                    <q-icon v-if="item.notes" name="info" color="blue" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
-                  </q-item-label>
-                </template>
-              </q-item-section>
-
-              <!-- Actions -->
-              <q-item-section side>
-                <div class="row q-gutter-xs">
-                  <q-btn v-if="canModifySong(item)" flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
-                  <q-btn
-                    v-if="!selectedGigId && selectedSetlistMode === 'master'"
-                    flat
-                    round
-                    dense
-                    icon="delete"
-                    color="red"
-                    size="sm"
-                    @click="deleteSong(item)"
-                  >
-                    <q-tooltip>{{ t('common.delete') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
-                    flat
-                    round
-                    dense
-                    icon="arrow_back"
-                    color="grey"
-                    size="sm"
-                    @click="removeFromSetlist(item)"
-                  >
-                    <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-else-if="selectedGigId"
-                    flat
-                    round
-                    dense
-                    icon="playlist_remove"
-                    color="red"
-                    size="sm"
-                    @click="removeFromSetlist(item)"
-                  >
-                    <q-tooltip>Remove from Gig Setlist</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-else-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'user'"
-                    flat
-                    round
-                    dense
-                    icon="playlist_remove"
-                    color="red"
-                    size="sm"
-                    @click="removeFromSetlist(item)"
-                  >
-                    <q-tooltip>{{ t('setlist.removeFromUserSetlist') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
-                    flat
-                    round
-                    dense
-                    :icon="isInUserSetlist(item.id) ? 'playlist_add_check' : 'playlist_add'"
-                    color="primary"
-                    size="sm"
-                    @click="toggleUserSetlist(item)"
-                  >
-                    <q-tooltip>{{ isInUserSetlist(item.id) ? t('setlist.removeFromUserSetlist') : t('setlist.addToUserSetlist') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-if="item.type !== 'song' && !selectedGigId"
-                    flat
-                    round
-                    dense
-                    icon="close"
-                    color="red"
-                    size="sm"
-                    @click="removeFromSetlist(item)"
-                  />
-                </div>
-              </q-item-section>
-            </q-item>
-          </q-list>
-
-          <q-banner v-else rounded class="bg-widget-surface">{{ t('setlist.noItems') }}</q-banner>
-        </q-card-section>
-      </q-card>
-    </div>
-
-    <!-- Add Song to Master Setlist Dialog -->
-    <q-dialog v-model="showAddSongModal">
-      <q-card style="min-width: 450px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('setlist.addSongTitle') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <div class="row q-gutter-sm">
-            <q-input v-model="addSongForm.spotifyUrl" :label="t('voting.spotifyUrl')" outlined dense class="col" @paste="onAddSpotifyPaste" />
-            <q-btn color="green" icon="search" :loading="addSongLookingUp" :disable="!addSongForm.spotifyUrl" @click="lookupSpotifyForAdd(true)">{{ t('voting.spotifyLookup') }}</q-btn>
-          </div>
-          <div v-if="addSongLookupError" class="text-red text-caption">{{ addSongLookupError }}</div>
-          <q-input v-model="addSongForm.title" :label="t('voting.songTitle')" outlined dense autofocus />
-          <q-input v-model="addSongForm.artist" :label="t('voting.artist')" outlined dense />
-          <q-input
-            v-model="addSongLengthInput"
-            label="Length (mm:ss)"
-            hint="Example: 3:45"
-            outlined
-            dense
-            @blur="normalizeAddSongLengthInput"
-          />
-          <q-input
-            v-model.number="addSongForm.bpm"
-            :label="t('setlist.bpm')"
-            type="number"
-            min="1"
-            step="1"
-            outlined
-            dense
-          />
-          <q-input v-model="addSongForm.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
-          <div class="row items-center q-gutter-md">
-            <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
-            <q-slider v-model="addSongForm.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
-            <q-badge color="grey-8" class="text-body2">
-              {{ addSongForm.pitch > 0 ? '+' : '' }}{{ addSongForm.pitch }}
-            </q-badge>
-            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
-          </div>
-          <div class="row items-center q-gutter-sm">
-            <q-input
-              v-model="addSongForm.notes"
-              :label="t('setlist.notes')"
-              :hint="t('setlist.markdownHint')"
-              type="textarea"
-              outlined
-              dense
-              autogrow
-              :input-style="{ minHeight: '140px' }"
-              :disable="authStore.isFreePlan"
-              class="col"
-            />
-            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
-          </div>
-          <q-select
-            v-model="addSongForm.tags"
-            :options="availableTagOptions"
-            multiple
-            use-input
-            use-chips
-            hide-dropdown-icon
-            new-value-mode="add-unique"
-            outlined
-            dense
-            :label="t('setlist.tags')"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" @click="submitAddSong" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Gig Setlist Builder Dialog -->
-    <q-dialog v-model="showGigBuilderModal" full-width>
-      <q-card class="gig-builder-card">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('setlist.editGigSetlist') }}</div>
-          <q-space /><q-btn flat round dense icon="close" @click="cancelGigBuilder" />
-        </q-card-section>
-        <q-card-section class="gig-builder-body">
-          <div class="gig-builder-target q-pa-sm rounded-borders bg-widget-surface">
-            <div class="text-subtitle2 text-weight-bold q-mb-sm">{{ t('setlist.gigSetlistCurrent') }}</div>
-            <q-list v-if="gigBuilderDraftItems.length" separator>
-              <q-item v-for="(item, index) in gigBuilderDraftItems" :key="`${item.id}-${index}`" dense>
-                <q-item-section side class="text-caption text-grey">{{ index + 1 }}</q-item-section>
-                <q-item-section>
-                  <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
-                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round dense icon="remove_circle" color="negative" @click="removeFromGigBuilder(item.id)" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <div v-else class="text-grey text-italic">{{ t('setlist.noItems') }}</div>
-          </div>
-
-          <div class="gig-builder-source q-mt-md">
-            <div class="row q-gutter-sm items-center q-mb-sm">
-              <div class="text-subtitle2 text-weight-bold">{{ t('setlist.masterSetlist') }}</div>
-              <q-space />
-              <q-input
-                v-model="gigBuilderSearch"
-                dense
-                outlined
-                clearable
-                :placeholder="t('setlist.filterTitle')"
-                style="min-width: 240px"
-              >
-                <template #prepend><q-icon name="search" /></template>
-              </q-input>
-            </div>
-            <q-list v-if="filteredGigBuilderSourceItems.length" separator bordered class="rounded-borders">
-              <q-item v-for="item in filteredGigBuilderSourceItems" :key="`master-${item.id}`" dense>
-                <q-item-section>
-                  <q-item-label>{{ item.title }}</q-item-label>
-                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round dense icon="playlist_add" color="primary" @click="addToGigBuilder(item)" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <div v-else class="text-grey text-italic text-center q-pa-md">{{ t('setlist.noItems') }}</div>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" @click="cancelGigBuilder" />
-          <q-btn color="primary" :label="t('common.ok')" :loading="isSaving" @click="confirmGigBuilder" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Add Songs to User Setlist Dialog -->
-    <q-dialog v-model="showAddUserSetlistModal">
-      <q-card class="song-picker-card">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('setlist.addToUserSetlist') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="song-picker-body">
-          <div class="song-picker-search">
-            <q-select
-              v-model="selectedUserSetlistSongIds"
-              :options="availableUserSetlistSongOptions"
-              emit-value
-              map-options
-              multiple
-              use-input
-              input-debounce="0"
-              use-chips
-              outlined
-              dense
-              :label="t('setlist.selectSongs')"
-              option-label="label"
-              option-value="value"
-              popup-content-class="song-picker-options-popup"
-            />
-          </div>
-          <div class="row q-gutter-sm q-mt-sm">
-            <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedUserSetlistSongIds = availableUserSetlistSongOptions.map(o => o.value)" />
-            <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedUserSetlistSongIds = []" />
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" :disable="!selectedUserSetlistSongIds.length" @click="submitAddUserSetlistSongs" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Note Viewer Dialog -->
-    <q-dialog v-model="showNoteModal">
-      <q-card style="min-width: 400px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ noteModalTitle }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <Markdown v-if="noteModalContent" :content="noteModalContent" />
-          <div v-else class="text-grey text-italic text-center q-pa-lg">{{ t('setlist.emptyNote') }}</div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.close')" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Edit Song Dialog -->
-    <q-dialog v-model="showEditModal">
-      <q-card v-if="editingItem" style="min-width: 450px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('setlist.editSong') }}: {{ editingItem.title }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <template v-if="editingItem.type === 'song'">
-            <div class="row q-gutter-sm">
-              <q-input v-model="editingItem.spotifyUrl" :label="t('voting.spotifyUrl')" outlined dense class="col" @paste="onSpotifyPaste" />
-              <q-btn color="green" icon="search" :loading="isLookingUp" :disable="!editingItem.spotifyUrl" @click="lookupSpotify(true)">{{ t('voting.spotifyLookup') }}</q-btn>
-            </div>
-            <div v-if="lookupError" class="text-red text-caption">{{ lookupError }}</div>
-            <q-input v-model="editingItem.title" :label="t('voting.songTitle')" outlined dense />
-            <q-input v-model="editingItem.artist" :label="t('voting.artist')" outlined dense />
-            <q-input
-              v-model="editingSongLengthInput"
-              label="Length (mm:ss)"
-              hint="Example: 3:45"
-              outlined
-              dense
-              @blur="normalizeEditingSongLengthInput"
-            />
-            <q-input
-              v-model.number="editingItem.bpm"
-              :label="t('setlist.bpm')"
-              type="number"
-              min="1"
-              step="1"
-              outlined
-              dense
-            />
-            <q-input v-model="editingItem.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
-            <div class="row items-center q-gutter-md">
-              <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
-              <q-slider v-model="editingItem.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
-              <q-badge color="grey-8" class="text-body2">{{ editingItem.pitch > 0 ? '+' : '' }}{{ editingItem.pitch }}</q-badge>
-              <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
-            </div>
-          </template>
-          <div class="row items-center q-gutter-sm">
-            <q-input
-              v-model="editingItem.notes"
-              :label="t('setlist.notes')"
-              :hint="t('setlist.markdownHint')"
-              type="textarea"
-              outlined
-              dense
-              autogrow
-              :input-style="{ minHeight: '160px' }"
-              :disable="authStore.isFreePlan"
-              class="col"
-            />
-            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
-          </div>
-          <div class="row items-center q-gutter-sm">
-            <q-input
-              v-model="editingItemPersonalNote"
-              :label="t('setlist.personalNotes')"
-              :hint="`${t('setlist.personalNotesHint')} ${t('setlist.markdownHint')}`"
-              type="textarea"
-              outlined
-              dense
-              autogrow
-              :input-style="{ minHeight: '200px' }"
-              :disable="authStore.isFreePlan"
-              class="col"
-            />
-            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
-          </div>
-          <q-select
-            v-model="editingItem.tags"
-            :options="availableTagOptions"
-            multiple
-            use-input
-            use-chips
-            hide-dropdown-icon
-            new-value-mode="add-unique"
-            outlined
-            dense
-            :label="t('setlist.tags')"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.save')" :loading="isSaving" @click="saveItemEdit" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Setlist Note Dialog -->
-    <q-dialog v-model="showSpecialModal">
-      <q-card v-if="specialElementForm" style="min-width: 400px">
-        <q-card-section>
-          <div class="text-h6">{{ t('setlist.addSetlistNote') }}</div>
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-select
-            v-model="specialElementForm.noteType"
-            :options="specialNoteTypeOptions"
-            emit-value
-            map-options
-            outlined
-            dense
-            :label="t('setlist.noteType')"
-            @update:model-value="applySpecialTypePreset"
-          />
-          <q-input v-model="specialElementForm.title" :label="t('common.title')" outlined dense autofocus />
-          <q-input v-model="specialElementForm.notes" :label="t('voting.notes')" type="textarea" outlined dense autogrow />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" @click="submitSpecialElement" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
@@ -1528,7 +910,625 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<template>
+  <q-page padding>
+    <div style="max-width: 1200px; margin: 0 auto">
+      <q-card flat bordered>
+        <q-card-section>
+          <div class="row items-center justify-between">
+            <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
+            <div class="row q-gutter-sm items-center">
+              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="note_add" @click="openSpecialModal">
+                <q-tooltip>{{ t('setlist.addSetlistNote') }}</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="selectedSetlistMode === 'user' && !selectedGigId"
+                flat
+                round
+                icon="add"
+                @click="openAddToUserSetlistModal"
+              >
+                <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
+              </q-btn>
+              <q-btn flat round icon="download" @click="handleExport" />
+              <q-btn
+                v-if="selectedSetlistMode === 'master' || selectedGigId"
+                round
+                :color="!selectedGigId && atSetlistLimit ? 'grey' : 'primary'"
+                icon="add"
+                class="round-add-btn"
+                :disable="!selectedGigId && atSetlistLimit"
+                @click="openAddSongModal"
+              >
+                <q-tooltip v-if="!selectedGigId && atSetlistLimit">
+                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
+                </q-tooltip>
+              </q-btn>
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-section>
+          <div class="row q-gutter-sm q-mb-md">
+            <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
+              <template #prepend><q-icon name="search" /></template>
+            </q-input>
+            <q-select
+              v-model="selectedListOption"
+              :options="listOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+              style="min-width: 280px"
+            />
+            <q-btn
+              flat
+              dense
+              icon="add_circle"
+              color="primary"
+              :label="t('setlist.newGigSetlist')"
+              @click="createGigSetlist"
+            />
+            <q-select
+              v-if="!selectedGigId && selectedSetlistMode === 'master'"
+              v-model="selectedTagFilters"
+              :options="availableTagOptions"
+              multiple
+              use-input
+              use-chips
+              hide-dropdown-icon
+              new-value-mode="add-unique"
+              outlined
+              dense
+              style="min-width: 260px"
+              :label="t('setlist.filterTags')"
+            />
+          </div>
+          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-sm rounded-borders bg-widget-surface">
+            <div class="row q-col-gutter-sm items-end">
+              <div class="col-12 col-md-5">
+                <q-input v-model="selectedGigMeta.title" :label="t('common.title')" outlined dense />
+              </div>
+              <div class="col-12 col-md-5">
+                <q-select
+                  v-model="selectedGigMeta.calendarEventId"
+                  :options="calendarGigLinkOptions"
+                  emit-value
+                  map-options
+                  outlined
+                  dense
+                  :label="t('setlist.linkCalendarGig')"
+                />
+              </div>
+              <div class="col-12 col-md-2 row justify-end q-gutter-xs">
+                <q-btn flat dense color="primary" :label="t('common.save')" @click="saveGigMeta" />
+                <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
+              </div>
+            </div>
+          </div>
+          <div class="text-caption text-grey-7 q-mb-md">
+            Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
+          </div>
+
+          <q-list v-if="filteredSongs.length" separator>
+            <q-item
+              v-for="(item, index) in filteredSongs"
+              :key="getItemKey(item)"
+              class="q-pa-sm"
+              :class="{
+                'border-dashed': item.type !== 'song',
+                'dragging-item': draggingIndex === index,
+              }"
+              :draggable="!searchQuery"
+              @dragstart="onDragStart(index, $event)"
+              @dragover.prevent
+              @drop="onDrop(index)"
+              @dragend="onDragEnd"
+            >
+              <!-- Reorder + Pin -->
+              <q-item-section side>
+                <div class="column items-center q-gutter-xs">
+                  <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                  <q-btn flat round dense icon="keyboard_arrow_up" size="sm" @click="moveItem(index, -1)" />
+                  <q-btn flat round dense icon="keyboard_arrow_down" size="sm" @click="moveItem(index, 1)" />
+                  <span class="text-caption text-grey">{{ index + 1 }}</span>
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    :icon="isPinnedItem(item) ? 'lock' : 'lock_open'"
+                    :color="isPinnedItem(item) ? 'primary' : 'grey'"
+                    :class="{ 'pinned-lock-btn': isPinnedItem(item) }"
+                    size="sm"
+                    @click="togglePin(item)"
+                  />
+                </div>
+              </q-item-section>
+
+              <!-- Thumbnail (songs only) -->
+              <q-item-section v-if="item.type === 'song'" side>
+                <a v-if="item.spotifyUrl && item.thumbnailUrl" :href="item.spotifyUrl" target="_blank">
+                  <q-avatar rounded size="48px"><img :src="item.thumbnailUrl" /></q-avatar>
+                </a>
+                <a v-else-if="item.youtubeUrl && getYouTubeId(item.youtubeUrl)" :href="item.youtubeUrl" target="_blank">
+                  <q-avatar rounded size="48px"><img :src="`https://img.youtube.com/vi/${getYouTubeId(item.youtubeUrl)}/mqdefault.jpg`" /></q-avatar>
+                </a>
+                <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
+                <div v-if="item.pitch !== 0" class="pitch-box q-mt-xs text-center text-caption text-weight-bold">
+                  Pitch {{ item.pitch > 0 ? '+' : '' }}{{ item.pitch }}
+                </div>
+              </q-item-section>
+
+              <!-- Content -->
+              <q-item-section>
+                <!-- Song content -->
+                <template v-if="item.type === 'song'">
+                  <q-item-label class="text-weight-bold">
+                    {{ item.title }}
+                    <q-icon
+                      v-if="item.notes"
+                      name="info"
+                      color="grey"
+                      size="xs"
+                      class="cursor-pointer q-ml-xs"
+                      @click="showNote(t('setlist.notes') + ': ' + item.title, item.notes)"
+                    />
+                    <q-icon v-if="getPersonalNote(item.id)" name="person" color="primary" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(t('setlist.personalNotes') + ': ' + item.title, getPersonalNote(item.id))">
+                      <q-tooltip>{{ t('setlist.personalNotes') }}</q-tooltip>
+                    </q-icon>
+                  </q-item-label>
+                  <q-item-label caption>{{ item.artist }}</q-item-label>
+                  <q-item-label v-if="typeof item.bpm === 'number'" caption>
+                    {{ t('setlist.bpm') }}: {{ item.bpm }}
+                  </q-item-label>
+                  <div v-if="item.tags?.length" class="row q-gutter-xs q-mt-xs">
+                    <q-chip
+                      v-for="tag in item.tags"
+                      :key="`${item.id}-tag-${tag}`"
+                      dense
+                      square
+                      size="sm"
+                      color="grey-3"
+                      text-color="grey-9"
+                    >
+                      {{ tag }}
+                    </q-chip>
+                  </div>
+                  <div class="row q-gutter-xs q-mt-xs">
+                    <a v-if="item.spotifyUrl" :href="item.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">Spotify</a>
+                    <a v-if="item.youtubeUrl" :href="item.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">YouTube</a>
+                  </div>
+                  <q-item-label caption v-if="item.lengthMs">
+                    Length: {{ formatDuration(item.lengthMs) }}
+                  </q-item-label>
+                </template>
+
+                <!-- Pause content -->
+                <template v-else-if="item.type === 'pause'">
+                  <q-item-label class="text-grey text-italic">
+                    <q-icon name="pause_circle" class="q-mr-xs" />
+                    {{ item.title }}
+                    <q-icon v-if="item.notes" name="info" color="grey" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
+                  </q-item-label>
+                </template>
+
+                <!-- Tuning content -->
+                <template v-else-if="item.type === 'tuning'">
+                  <q-item-label class="text-orange text-italic">
+                    <q-icon name="tune" class="q-mr-xs" />
+                    {{ item.title }}
+                    <q-icon v-if="item.notes" name="info" color="orange" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
+                  </q-item-label>
+                </template>
+
+                <!-- Generic note content -->
+                <template v-else>
+                  <q-item-label class="text-blue text-italic">
+                    <q-icon name="sticky_note_2" class="q-mr-xs" />
+                    {{ item.title }}
+                    <q-icon v-if="item.notes" name="info" color="blue" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
+                  </q-item-label>
+                </template>
+              </q-item-section>
+
+              <!-- Actions -->
+              <q-item-section side>
+                <div class="row q-gutter-xs">
+                  <q-btn v-if="canModifySong(item)" flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
+                  <q-btn
+                    v-if="!selectedGigId && selectedSetlistMode === 'master'"
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="red"
+                    size="sm"
+                    @click="deleteSong(item)"
+                  >
+                    <q-tooltip>{{ t('common.delete') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
+                    flat
+                    round
+                    dense
+                    icon="arrow_back"
+                    color="grey"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  >
+                    <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-else-if="selectedGigId"
+                    flat
+                    round
+                    dense
+                    icon="playlist_remove"
+                    color="red"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  >
+                    <q-tooltip>Remove from Gig Setlist</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-else-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'user'"
+                    flat
+                    round
+                    dense
+                    icon="playlist_remove"
+                    color="red"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  >
+                    <q-tooltip>{{ t('setlist.removeFromUserSetlist') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
+                    flat
+                    round
+                    dense
+                    :icon="isInUserSetlist(item.id) ? 'playlist_add_check' : 'playlist_add'"
+                    color="primary"
+                    size="sm"
+                    @click="toggleUserSetlist(item)"
+                  >
+                    <q-tooltip>{{ isInUserSetlist(item.id) ? t('setlist.removeFromUserSetlist') : t('setlist.addToUserSetlist') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="item.type !== 'song' && !selectedGigId"
+                    flat
+                    round
+                    dense
+                    icon="close"
+                    color="red"
+                    size="sm"
+                    @click="removeFromSetlist(item)"
+                  />
+                </div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <q-banner v-else rounded class="bg-widget-surface">{{ t('setlist.noItems') }}</q-banner>
+        </q-card-section>
+      </q-card>
+    </div>
+
+    <!-- Add Song to Master Setlist Dialog -->
+    <q-dialog v-model="showAddSongModal">
+      <q-card style="min-width: 450px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('setlist.addSongTitle') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <div class="row q-gutter-sm">
+            <q-input v-model="addSongForm.spotifyUrl" :label="t('voting.spotifyUrl')" outlined dense class="col" @paste="onAddSpotifyPaste" />
+            <q-btn color="green" icon="search" :loading="addSongLookingUp" :disable="!addSongForm.spotifyUrl" @click="lookupSpotifyForAdd(true)">{{ t('voting.spotifyLookup') }}</q-btn>
+          </div>
+          <div v-if="addSongLookupError" class="text-red text-caption">{{ addSongLookupError }}</div>
+          <q-input v-model="addSongForm.title" :label="t('voting.songTitle')" outlined dense autofocus />
+          <q-input v-model="addSongForm.artist" :label="t('voting.artist')" outlined dense />
+          <q-input
+            v-model="addSongLengthInput"
+            label="Length (mm:ss)"
+            hint="Example: 3:45"
+            outlined
+            dense
+            @blur="normalizeAddSongLengthInput"
+          />
+          <q-input
+            v-model.number="addSongForm.bpm"
+            :label="t('setlist.bpm')"
+            type="number"
+            min="1"
+            step="1"
+            outlined
+            dense
+          />
+          <q-input v-model="addSongForm.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
+          <div class="row items-center q-gutter-md">
+            <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
+            <q-slider v-model="addSongForm.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
+            <q-badge color="grey-8" class="text-body2">
+              {{ addSongForm.pitch > 0 ? '+' : '' }}{{ addSongForm.pitch }}
+            </q-badge>
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
+          <div class="row items-center q-gutter-sm">
+            <q-input
+              v-model="addSongForm.notes"
+              :label="t('setlist.notes')"
+              :hint="t('setlist.markdownHint')"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :input-style="{ minHeight: '140px' }"
+              :disable="authStore.isFreePlan"
+              class="col"
+            />
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
+          <q-select
+            v-model="addSongForm.tags"
+            :options="availableTagOptions"
+            multiple
+            use-input
+            use-chips
+            hide-dropdown-icon
+            new-value-mode="add-unique"
+            outlined
+            dense
+            :label="t('setlist.tags')"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" @click="submitAddSong" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Gig Setlist Builder Dialog -->
+    <q-dialog v-model="showGigBuilderModal" full-width>
+      <q-card class="gig-builder-card">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('setlist.editGigSetlist') }}</div>
+          <q-space /><q-btn flat round dense icon="close" @click="cancelGigBuilder" />
+        </q-card-section>
+        <q-card-section class="gig-builder-body">
+          <div class="gig-builder-target q-pa-sm rounded-borders bg-widget-surface">
+            <div class="text-subtitle2 text-weight-bold q-mb-sm">{{ t('setlist.gigSetlistCurrent') }}</div>
+            <q-list v-if="gigBuilderDraftItems.length" separator>
+              <q-item v-for="(item, index) in gigBuilderDraftItems" :key="`${item.id}-${index}`" dense>
+                <q-item-section side class="text-caption text-grey">{{ index + 1 }}</q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
+                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense icon="remove_circle" color="negative" @click="removeFromGigBuilder(item.id)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey text-italic">{{ t('setlist.noItems') }}</div>
+          </div>
+
+          <div class="gig-builder-source q-mt-md">
+            <div class="row q-gutter-sm items-center q-mb-sm">
+              <div class="text-subtitle2 text-weight-bold">{{ t('setlist.masterSetlist') }}</div>
+              <q-space />
+              <q-input
+                v-model="gigBuilderSearch"
+                dense
+                outlined
+                clearable
+                :placeholder="t('setlist.filterTitle')"
+                style="min-width: 240px"
+              >
+                <template #prepend><q-icon name="search" /></template>
+              </q-input>
+            </div>
+            <q-list v-if="filteredGigBuilderSourceItems.length" separator bordered class="rounded-borders">
+              <q-item v-for="item in filteredGigBuilderSourceItems" :key="`master-${item.id}`" dense>
+                <q-item-section>
+                  <q-item-label>{{ item.title }}</q-item-label>
+                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense icon="playlist_add" color="primary" @click="addToGigBuilder(item)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey text-italic text-center q-pa-md">{{ t('setlist.noItems') }}</div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" @click="cancelGigBuilder" />
+          <q-btn color="primary" :label="t('common.ok')" :loading="isSaving" @click="confirmGigBuilder" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Add Songs to User Setlist Dialog -->
+    <q-dialog v-model="showAddUserSetlistModal">
+      <q-card class="song-picker-card">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('setlist.addToUserSetlist') }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="song-picker-body">
+          <div class="song-picker-search">
+            <q-select
+              v-model="selectedUserSetlistSongIds"
+              :options="availableUserSetlistSongOptions"
+              emit-value
+              map-options
+              multiple
+              use-input
+              input-debounce="0"
+              use-chips
+              outlined
+              dense
+              :label="t('setlist.selectSongs')"
+              option-label="label"
+              option-value="value"
+              popup-content-class="song-picker-options-popup"
+            />
+          </div>
+          <div class="row q-gutter-sm q-mt-sm">
+            <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedUserSetlistSongIds = availableUserSetlistSongOptions.map(o => o.value)" />
+            <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedUserSetlistSongIds = []" />
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" :disable="!selectedUserSetlistSongIds.length" @click="submitAddUserSetlistSongs" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Note Viewer Dialog -->
+    <q-dialog v-model="showNoteModal">
+      <q-card style="min-width: 400px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ noteModalTitle }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section>
+          <Markdown v-if="noteModalContent" :content="noteModalContent" />
+          <div v-else class="text-grey text-italic text-center q-pa-lg">{{ t('setlist.emptyNote') }}</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.close')" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Edit Song Dialog -->
+    <q-dialog v-model="showEditModal">
+      <q-card v-if="editingItem" style="min-width: 450px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">{{ t('setlist.editSong') }}: {{ editingItem.title }}</div>
+          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <template v-if="editingItem.type === 'song'">
+            <div class="row q-gutter-sm">
+              <q-input v-model="editingItem.spotifyUrl" :label="t('voting.spotifyUrl')" outlined dense class="col" @paste="onSpotifyPaste" />
+              <q-btn color="green" icon="search" :loading="isLookingUp" :disable="!editingItem.spotifyUrl" @click="lookupSpotify(true)">{{ t('voting.spotifyLookup') }}</q-btn>
+            </div>
+            <div v-if="lookupError" class="text-red text-caption">{{ lookupError }}</div>
+            <q-input v-model="editingItem.title" :label="t('voting.songTitle')" outlined dense />
+            <q-input v-model="editingItem.artist" :label="t('voting.artist')" outlined dense />
+            <q-input
+              v-model="editingSongLengthInput"
+              label="Length (mm:ss)"
+              hint="Example: 3:45"
+              outlined
+              dense
+              @blur="normalizeEditingSongLengthInput"
+            />
+            <q-input
+              v-model.number="editingItem.bpm"
+              :label="t('setlist.bpm')"
+              type="number"
+              min="1"
+              step="1"
+              outlined
+              dense
+            />
+            <q-input v-model="editingItem.youtubeUrl" :label="t('voting.youtubeUrl')" outlined dense />
+            <div class="row items-center q-gutter-md">
+              <span class="text-caption">{{ t('setlist.pitchShift') }}</span>
+              <q-slider v-model="editingItem.pitch" :min="-5" :max="5" :step="1" snap label class="col" :disable="authStore.isFreePlan" />
+              <q-badge color="grey-8" class="text-body2">{{ editingItem.pitch > 0 ? '+' : '' }}{{ editingItem.pitch }}</q-badge>
+              <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+            </div>
+          </template>
+          <div class="row items-center q-gutter-sm">
+            <q-input
+              v-model="editingItem.notes"
+              :label="t('setlist.notes')"
+              :hint="t('setlist.markdownHint')"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :input-style="{ minHeight: '160px' }"
+              :disable="authStore.isFreePlan"
+              class="col"
+            />
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
+          <div class="row items-center q-gutter-sm">
+            <q-input
+              v-model="editingItemPersonalNote"
+              :label="t('setlist.personalNotes')"
+              :hint="`${t('setlist.personalNotesHint')} ${t('setlist.markdownHint')}`"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :input-style="{ minHeight: '200px' }"
+              :disable="authStore.isFreePlan"
+              class="col"
+            />
+            <q-badge v-if="authStore.isFreePlan" color="orange" label="PRO feature" />
+          </div>
+          <q-select
+            v-model="editingItem.tags"
+            :options="availableTagOptions"
+            multiple
+            use-input
+            use-chips
+            hide-dropdown-icon
+            new-value-mode="add-unique"
+            outlined
+            dense
+            :label="t('setlist.tags')"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.save')" :loading="isSaving" @click="saveItemEdit" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Setlist Note Dialog -->
+    <q-dialog v-model="showSpecialModal">
+      <q-card v-if="specialElementForm" style="min-width: 400px">
+        <q-card-section>
+          <div class="text-h6">{{ t('setlist.addSetlistNote') }}</div>
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-select
+            v-model="specialElementForm.noteType"
+            :options="specialNoteTypeOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            :label="t('setlist.noteType')"
+            @update:model-value="applySpecialTypePreset"
+          />
+          <q-input v-model="specialElementForm.title" :label="t('common.title')" outlined dense autofocus />
+          <q-input v-model="specialElementForm.notes" :label="t('voting.notes')" type="textarea" outlined dense autogrow />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" @click="submitSpecialElement" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .round-add-btn {
   width: 42px;
   height: 42px;

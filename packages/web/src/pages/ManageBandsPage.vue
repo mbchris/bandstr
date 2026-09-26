@@ -1,205 +1,3 @@
-<template>
-  <q-page padding>
-    <div style="max-width: 1100px; margin: 0 auto">
-      <q-banner v-if="showSelectBandHint" rounded class="bg-warning text-dark q-mb-md">
-        Please create or join a band first. Home, Voting, Setlist, and Calendar are available once a band is active.
-      </q-banner>
-
-      <div class="row items-center q-gutter-sm q-mb-lg manage-bands-title">
-        <q-icon name="groups" size="30px" color="primary" />
-        <div class="text-h5 text-weight-bold">Manage Bands</div>
-      </div>
-
-      <q-card flat bordered class="q-mb-lg">
-        <q-card-section class="row items-center justify-between band-card-header">
-          <div class="text-subtitle1 text-weight-bold">All Bands</div>
-          <div class="row items-center band-card-actions">
-            <q-badge v-if="!canCreateBand" color="orange" label="PRO feature" />
-            <q-btn
-              color="primary"
-              icon="add"
-              label="Create Band"
-              :disable="!canCreateBand"
-              @click="showCreateModal = true"
-            >
-              <q-tooltip v-if="!canCreateBand">PRO feature — free accounts can only be a member of one band</q-tooltip>
-            </q-btn>
-          </div>
-        </q-card-section>
-
-        <q-list separator>
-          <q-item v-for="band in authStore.bands" :key="band.id" class="band-list-item">
-            <q-item-section>
-              <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
-              <q-item-label caption class="band-meta">
-                <span>Slug: {{ band.slug }}</span>
-                <span>Role: {{ band.role }}</span>
-                <span>Pro access: {{ band.hasProPlan ? 'yes' : 'no' }}</span>
-                <span>Default: {{ band.isDefault ? 'yes' : 'no' }}</span>
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side class="band-actions-section">
-              <div class="row band-actions">
-                <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
-                <q-badge v-if="band.isDefault" color="primary" label="Default" />
-                <q-btn flat dense icon="check_circle" label="Select" @click="switchBand(band.id)" />
-                <q-btn
-                  flat
-                  dense
-                  icon="star"
-                  label="Set Default"
-                  :disable="band.isDefault"
-                  @click="setDefaultBand(band.id)"
-                />
-                <q-btn
-                  v-if="canManageBand(band.role)"
-                  flat
-                  dense
-                  icon="qr_code_2"
-                  label="Invites"
-                  @click="openInviteManager(band)"
-                />
-                <q-btn
-                  v-if="canManageBand(band.role)"
-                  flat
-                  dense
-                  icon="settings"
-                  label="Settings"
-                  @click="openSettings(band.id)"
-                />
-                <q-btn
-                  v-if="canManageBand(band.role)"
-                  flat
-                  dense
-                  icon="edit"
-                  label="Edit"
-                  @click="openEdit(band)"
-                />
-                <q-btn
-                  v-if="canDeleteBand(band.role)"
-                  flat
-                  dense
-                  color="negative"
-                  icon="delete"
-                  label="Delete"
-                  @click="deleteBand(band.id)"
-                />
-              </div>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
-    </div>
-
-    <q-dialog v-model="showCreateModal">
-      <q-card style="min-width: 420px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Create Band</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input v-model="createForm.name" label="Band name" outlined dense />
-          <div class="text-caption text-grey-7">URL slug is generated automatically.</div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" v-close-popup />
-          <q-btn color="primary" label="Create" :loading="saving" @click="createBand" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showEditModal">
-      <q-card style="min-width: 420px" v-if="editForm">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Edit Band</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-input v-model="editForm.name" label="Band name" outlined dense />
-          <q-banner class="bg-widget-surface rounded-borders">
-            URL slug is system-generated and cannot be changed.
-          </q-banner>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" v-close-popup />
-          <q-btn color="primary" label="Save" :loading="saving" @click="saveBand" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showInvitesModal">
-      <q-card style="min-width: 760px; max-width: 95vw">
-        <q-card-section class="row items-center justify-between">
-          <div>
-            <div class="text-h6">Invitation Codes</div>
-            <div class="text-caption text-grey-7">Band: {{ inviteBand?.name ?? '-' }} | Unused codes expire after 30 days.</div>
-          </div>
-          <div class="row q-gutter-xs">
-            <q-btn flat icon="refresh" label="Refresh" :disable="!inviteBand" @click="refreshInviteCodes" />
-            <q-btn color="primary" icon="add" label="Create Code" :loading="creatingInvite" :disable="!inviteBand" @click="createInviteCode" />
-            <q-btn flat round dense icon="close" v-close-popup />
-          </div>
-        </q-card-section>
-        <q-separator />
-        <q-list separator>
-          <q-item v-for="code in inviteCodes" :key="code.id">
-            <q-item-section>
-              <q-item-label class="text-weight-medium">{{ code.code }}</q-item-label>
-              <q-item-label caption>
-                Created: {{ formatDateTime(code.createdAt) }}
-                | Expires: {{ formatDateTime(code.expiresAt) }}
-                <span v-if="code.usedAt"> | Used: {{ formatDateTime(code.usedAt) }}</span>
-                <span v-if="code.invalidatedAt"> | Invalidated: {{ formatDateTime(code.invalidatedAt) }}</span>
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <div class="row q-gutter-xs">
-                <q-badge v-if="code.usedAt" color="positive" label="Used" />
-                <q-badge v-else-if="code.invalidatedAt" color="negative" label="Invalidated" />
-                <q-badge v-else-if="code.expired" color="warning" text-color="dark" label="Expired" />
-                <q-badge v-else color="info" label="Active" />
-                <q-btn flat dense icon="qr_code_2" label="QR" @click="openQr(code.code)" />
-                <q-btn flat dense icon="content_copy" label="Copy Invite" @click="copyInviteCode(code.code)" />
-                <q-btn flat dense icon="share" label="Share" @click="shareInviteCode(code.code)" />
-                <q-btn
-                  flat
-                  dense
-                  color="negative"
-                  icon="block"
-                  label="Invalidate"
-                  :disable="!inviteBand || !!code.usedAt || !!code.invalidatedAt || !!code.expired"
-                  @click="invalidateInviteCode(code.id)"
-                />
-              </div>
-            </q-item-section>
-          </q-item>
-          <q-item v-if="inviteCodes.length === 0">
-            <q-item-section>
-              <q-item-label caption>No invitation codes yet.</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showQrDialog">
-      <q-card style="min-width: 340px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Invitation QR Code</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="text-center">
-          <img v-if="qrImageUrl" :src="qrImageUrl" alt="Invitation QR" class="qr-img" />
-          <div class="text-body2 q-mt-sm">{{ selectedInviteCode }}</div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-  </q-page>
-</template>
-
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -477,7 +275,209 @@ function invalidateInviteCode(inviteId: number) {
 void refreshBands()
 </script>
 
-<style scoped>
+<template>
+  <q-page padding>
+    <div style="max-width: 1100px; margin: 0 auto">
+      <q-banner v-if="showSelectBandHint" rounded class="bg-warning text-dark q-mb-md">
+        Please create or join a band first. Home, Voting, Setlist, and Calendar are available once a band is active.
+      </q-banner>
+
+      <div class="row items-center q-gutter-sm q-mb-lg manage-bands-title">
+        <q-icon name="groups" size="30px" color="primary" />
+        <div class="text-h5 text-weight-bold">Manage Bands</div>
+      </div>
+
+      <q-card flat bordered class="q-mb-lg">
+        <q-card-section class="row items-center justify-between band-card-header">
+          <div class="text-subtitle1 text-weight-bold">All Bands</div>
+          <div class="row items-center band-card-actions">
+            <q-badge v-if="!canCreateBand" color="orange" label="PRO feature" />
+            <q-btn
+              color="primary"
+              icon="add"
+              label="Create Band"
+              :disable="!canCreateBand"
+              @click="showCreateModal = true"
+            >
+              <q-tooltip v-if="!canCreateBand">PRO feature — free accounts can only be a member of one band</q-tooltip>
+            </q-btn>
+          </div>
+        </q-card-section>
+
+        <q-list separator>
+          <q-item v-for="band in authStore.bands" :key="band.id" class="band-list-item">
+            <q-item-section>
+              <q-item-label class="text-weight-medium">{{ band.name }}</q-item-label>
+              <q-item-label caption class="band-meta">
+                <span>Slug: {{ band.slug }}</span>
+                <span>Role: {{ band.role }}</span>
+                <span>Pro access: {{ band.hasProPlan ? 'yes' : 'no' }}</span>
+                <span>Default: {{ band.isDefault ? 'yes' : 'no' }}</span>
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side class="band-actions-section">
+              <div class="row band-actions">
+                <q-badge outline color="secondary" :label="formatPlanLabel(band.plan, band.hasProPlan)" />
+                <q-badge v-if="band.isDefault" color="primary" label="Default" />
+                <q-btn flat dense icon="check_circle" label="Select" @click="switchBand(band.id)" />
+                <q-btn
+                  flat
+                  dense
+                  icon="star"
+                  label="Set Default"
+                  :disable="band.isDefault"
+                  @click="setDefaultBand(band.id)"
+                />
+                <q-btn
+                  v-if="canManageBand(band.role)"
+                  flat
+                  dense
+                  icon="qr_code_2"
+                  label="Invites"
+                  @click="openInviteManager(band)"
+                />
+                <q-btn
+                  v-if="canManageBand(band.role)"
+                  flat
+                  dense
+                  icon="settings"
+                  label="Settings"
+                  @click="openSettings(band.id)"
+                />
+                <q-btn
+                  v-if="canManageBand(band.role)"
+                  flat
+                  dense
+                  icon="edit"
+                  label="Edit"
+                  @click="openEdit(band)"
+                />
+                <q-btn
+                  v-if="canDeleteBand(band.role)"
+                  flat
+                  dense
+                  color="negative"
+                  icon="delete"
+                  label="Delete"
+                  @click="deleteBand(band.id)"
+                />
+              </div>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+    </div>
+
+    <q-dialog v-model="showCreateModal">
+      <q-card style="min-width: 420px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">Create Band</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="createForm.name" label="Band name" outlined dense />
+          <div class="text-caption text-grey-7">URL slug is generated automatically.</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn color="primary" label="Create" :loading="saving" @click="createBand" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showEditModal">
+      <q-card style="min-width: 420px" v-if="editForm">
+        <q-card-section class="row items-center">
+          <div class="text-h6">Edit Band</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="editForm.name" label="Band name" outlined dense />
+          <q-banner class="bg-widget-surface rounded-borders">
+            URL slug is system-generated and cannot be changed.
+          </q-banner>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn color="primary" label="Save" :loading="saving" @click="saveBand" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showInvitesModal">
+      <q-card style="min-width: 760px; max-width: 95vw">
+        <q-card-section class="row items-center justify-between">
+          <div>
+            <div class="text-h6">Invitation Codes</div>
+            <div class="text-caption text-grey-7">Band: {{ inviteBand?.name ?? '-' }} | Unused codes expire after 30 days.</div>
+          </div>
+          <div class="row q-gutter-xs">
+            <q-btn flat icon="refresh" label="Refresh" :disable="!inviteBand" @click="refreshInviteCodes" />
+            <q-btn color="primary" icon="add" label="Create Code" :loading="creatingInvite" :disable="!inviteBand" @click="createInviteCode" />
+            <q-btn flat round dense icon="close" v-close-popup />
+          </div>
+        </q-card-section>
+        <q-separator />
+        <q-list separator>
+          <q-item v-for="code in inviteCodes" :key="code.id">
+            <q-item-section>
+              <q-item-label class="text-weight-medium">{{ code.code }}</q-item-label>
+              <q-item-label caption>
+                Created: {{ formatDateTime(code.createdAt) }}
+                | Expires: {{ formatDateTime(code.expiresAt) }}
+                <span v-if="code.usedAt"> | Used: {{ formatDateTime(code.usedAt) }}</span>
+                <span v-if="code.invalidatedAt"> | Invalidated: {{ formatDateTime(code.invalidatedAt) }}</span>
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row q-gutter-xs">
+                <q-badge v-if="code.usedAt" color="positive" label="Used" />
+                <q-badge v-else-if="code.invalidatedAt" color="negative" label="Invalidated" />
+                <q-badge v-else-if="code.expired" color="warning" text-color="dark" label="Expired" />
+                <q-badge v-else color="info" label="Active" />
+                <q-btn flat dense icon="qr_code_2" label="QR" @click="openQr(code.code)" />
+                <q-btn flat dense icon="content_copy" label="Copy Invite" @click="copyInviteCode(code.code)" />
+                <q-btn flat dense icon="share" label="Share" @click="shareInviteCode(code.code)" />
+                <q-btn
+                  flat
+                  dense
+                  color="negative"
+                  icon="block"
+                  label="Invalidate"
+                  :disable="!inviteBand || !!code.usedAt || !!code.invalidatedAt || !!code.expired"
+                  @click="invalidateInviteCode(code.id)"
+                />
+              </div>
+            </q-item-section>
+          </q-item>
+          <q-item v-if="inviteCodes.length === 0">
+            <q-item-section>
+              <q-item-label caption>No invitation codes yet.</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showQrDialog">
+      <q-card style="min-width: 340px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">Invitation QR Code</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="text-center">
+          <img v-if="qrImageUrl" :src="qrImageUrl" alt="Invitation QR" class="qr-img" />
+          <div class="text-body2 q-mt-sm">{{ selectedInviteCode }}</div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<style lang="scss" scoped>
 .manage-bands-title {
   flex-wrap: nowrap;
 }
@@ -573,7 +573,7 @@ void refreshBands()
 }
 </style>
 
-<style scoped>
+<style lang="scss" scoped>
 .qr-img {
   width: 300px;
   max-width: 100%;

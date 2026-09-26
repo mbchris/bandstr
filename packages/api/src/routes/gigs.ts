@@ -11,9 +11,27 @@ export const gigs = new Hono<TenantEnv>()
 
 gigs.use('*', requireAuth, requireTenant)
 
+const idParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+})
+
+const gigSongParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  songId: z.coerce.number().int().positive(),
+})
+
 const gigSetlistBodySchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   calendarEventId: z.number().int().positive().nullable().optional(),
+})
+
+const addSongBodySchema = z.object({
+  songId: z.number().int().positive(),
+  position: z.number().int().default(0),
+})
+
+const reorderSongsBodySchema = z.object({
+  order: z.array(z.object({ id: z.number(), position: z.number() })),
 })
 
 async function getGigSetlistForBandOrNull(bandId: number, gigId: number) {
@@ -41,7 +59,6 @@ async function getCalendarGigForBandOrNull(bandId: number, calendarEventId: numb
 }
 
 // GET /gigs
-// Gig setlists are now independent from calendar entries and can optionally link to one.
 gigs.get('/', async (c) => {
   const bandId = c.get('bandId')
   const rows = await db
@@ -71,7 +88,6 @@ gigs.get('/', async (c) => {
 })
 
 // POST /gigs
-// Create an independent gig setlist with optional calendar entry link.
 gigs.post('/', zValidator('json', gigSetlistBodySchema), async (c) => {
   const bandId = c.get('bandId')
   const { title, calendarEventId } = c.req.valid('json')
@@ -98,11 +114,9 @@ gigs.post('/', zValidator('json', gigSetlistBodySchema), async (c) => {
 })
 
 // PUT /gigs/:id
-// Update title and/or calendar link for a gig setlist.
-gigs.put('/:id', zValidator('json', gigSetlistBodySchema), async (c) => {
+gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetlistBodySchema), async (c) => {
   const bandId = c.get('bandId')
-  const gigId = Number(c.req.param('id'))
-  if (!Number.isFinite(gigId) || gigId <= 0) return c.json({ error: 'Invalid gig id' }, 400)
+  const { id: gigId } = c.req.valid('param')
 
   const gig = await getGigSetlistForBandOrNull(bandId, gigId)
   if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
@@ -113,7 +127,6 @@ gigs.put('/:id', zValidator('json', gigSetlistBodySchema), async (c) => {
     const event = await getCalendarGigForBandOrNull(bandId, calendarEventId)
     if (!event) return c.json({ error: 'Linked calendar gig not found' }, 404)
 
-    // Clear conflict from any other gig setlists of the same band
     await db
       .update(gigSetlists)
       .set({ calendarEventId: null })
@@ -138,21 +151,18 @@ gigs.put('/:id', zValidator('json', gigSetlistBodySchema), async (c) => {
 })
 
 // DELETE /gigs/:id
-// Remove a gig setlist. Linked songs are removed via FK cascade.
-gigs.delete('/:id', async (c) => {
+gigs.delete('/:id', zValidator('param', idParamSchema), async (c) => {
   const bandId = c.get('bandId')
-  const gigId = Number(c.req.param('id'))
-  if (!Number.isFinite(gigId) || gigId <= 0) return c.json({ error: 'Invalid gig id' }, 400)
+  const { id: gigId } = c.req.valid('param')
 
   await db.delete(gigSetlists).where(and(eq(gigSetlists.id, gigId), eq(gigSetlists.bandId, bandId)))
   return c.json({ success: true })
 })
 
 // GET /gigs/:id/songs
-gigs.get('/:id/songs', async (c) => {
+gigs.get('/:id/songs', zValidator('param', idParamSchema), async (c) => {
   const bandId = c.get('bandId')
-  const gigId = Number(c.req.param('id'))
-  if (!Number.isFinite(gigId) || gigId <= 0) return c.json({ error: 'Invalid gig id' }, 400)
+  const { id: gigId } = c.req.valid('param')
 
   const gig = await getGigSetlistForBandOrNull(bandId, gigId)
   if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
@@ -182,14 +192,14 @@ gigs.get('/:id/songs', async (c) => {
   return c.json(rows)
 })
 
-// POST /gigs/:id/songs — add song to gig setlist
+// POST /gigs/:id/songs
 gigs.post(
   '/:id/songs',
-  zValidator('json', z.object({ songId: z.number().int().positive(), position: z.number().int().default(0) })),
+  zValidator('param', idParamSchema),
+  zValidator('json', addSongBodySchema),
   async (c) => {
     const bandId = c.get('bandId')
-    const gigId = Number(c.req.param('id'))
-    if (!Number.isFinite(gigId) || gigId <= 0) return c.json({ error: 'Invalid gig id' }, 400)
+    const { id: gigId } = c.req.valid('param')
 
     const gig = await getGigSetlistForBandOrNull(bandId, gigId)
     if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
@@ -211,11 +221,11 @@ gigs.post(
 // POST /gigs/:id/songs/reorder
 gigs.post(
   '/:id/songs/reorder',
-  zValidator('json', z.object({ order: z.array(z.object({ id: z.number(), position: z.number() })) })),
+  zValidator('param', idParamSchema),
+  zValidator('json', reorderSongsBodySchema),
   async (c) => {
     const bandId = c.get('bandId')
-    const gigId = Number(c.req.param('id'))
-    if (!Number.isFinite(gigId) || gigId <= 0) return c.json({ error: 'Invalid gig id' }, 400)
+    const { id: gigId } = c.req.valid('param')
 
     const gig = await getGigSetlistForBandOrNull(bandId, gigId)
     if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
@@ -236,13 +246,9 @@ gigs.post(
 )
 
 // DELETE /gigs/:id/songs/:songId
-gigs.delete('/:id/songs/:songId', async (c) => {
+gigs.delete('/:id/songs/:songId', zValidator('param', gigSongParamSchema), async (c) => {
   const bandId = c.get('bandId')
-  const gigId = Number(c.req.param('id'))
-  const songId = Number(c.req.param('songId'))
-
-  if (!Number.isFinite(gigId) || gigId <= 0) return c.json({ error: 'Invalid gig id' }, 400)
-  if (!Number.isFinite(songId) || songId <= 0) return c.json({ error: 'Invalid song id' }, 400)
+  const { id: gigId, songId } = c.req.valid('param')
 
   const gig = await getGigSetlistForBandOrNull(bandId, gigId)
   if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
