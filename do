@@ -11,6 +11,7 @@ build_apk_sign=1
 build_apk_install=1
 build_bundle_sign=1
 android_version_bump="patch"
+ios_version_bump="patch"
 deploy_apk_device_id=""
 deploy_ios_device_id=""
 deploy_play_console_aab_path=""
@@ -149,11 +150,14 @@ Commands:
     Start the Pixel_10 emulator, build, install, and run the Android APK.
     Default profile: local (if omitted)
 
-  build-ios [local|production] [--no-sign]
+  build-ios [local|production] [--no-sign] [maj+|min+]
     Build iOS archive and export IPA on macOS.
     - local uses .env.local (fallback .env)
     - production uses .env.production (fallback .env)
     - --no-sign skips IPA export and creates only an unsigned archive
+    - maj+ increments MAJOR and resets MINOR/PATCH to 0
+    - min+ increments MINOR and resets PATCH to 0
+    Note: MARKETING_VERSION is auto-incremented on every build (default: 1.1.0 to 1.1.1).
 
   deploy-ios [local|production] [DEVICE_ID]
     Build and deploy iOS app to a connected device on macOS.
@@ -414,9 +418,37 @@ elif [[ "$command" == "build-ios" ]]; then
       --no-sign)
         build_ios_args+=("--no-sign")
         ;;
+      maj+)
+        ios_version_bump="major"
+        ;;
+      min+)
+        ios_version_bump="minor"
+        ;;
+      patch+)
+        ios_version_bump="patch"
+        ;;
       *)
         echo "Error: Unknown option for build-ios: $arg"
-        echo "Usage: ./do build-ios [local|production] [--no-sign]"
+        echo "Usage: ./do build-ios [local|production] [--no-sign] [maj+|min+]"
+        exit 1
+        ;;
+    esac
+  done
+elif [[ "$command" == "bump-ios-version" ]]; then
+  for arg in "${@:2}"; do
+    case "$arg" in
+      maj+)
+        ios_version_bump="major"
+        ;;
+      min+)
+        ios_version_bump="minor"
+        ;;
+      patch+)
+        ios_version_bump="patch"
+        ;;
+      *)
+        echo "Error: Unknown option for bump-ios-version: $arg"
+        echo "Usage: ./do bump-ios-version [maj+|min+]"
         exit 1
         ;;
     esac
@@ -1450,6 +1482,96 @@ bump_android_version() {
   echo "Android versionName bumped: $current_version_name -> $next_version_name"
 }
 
+bump_ios_version() {
+  local app_pbxproj="packages/web/src-capacitor/ios/App/App.xcodeproj/project.pbxproj"
+  local pods_pbxproj="packages/web/src-capacitor/ios/App/Pods/Pods.xcodeproj/project.pbxproj"
+
+  if [[ ! -f "$app_pbxproj" ]]; then
+    echo "Error: iOS project file not found: $app_pbxproj"
+    exit 1
+  fi
+
+  local current_version=""
+  current_version="$(grep -E '^[[:space:]]*MARKETING_VERSION[[:space:]]*=' "$app_pbxproj" | head -n 1 | sed -E 's/^[[:space:]]*MARKETING_VERSION[[:space:]]*=[[:space:]]*([^;]+);.*/\1/' | tr -d '[:space:]"'\')"
+  if [[ -z "$current_version" ]]; then
+    echo "Error: Could not determine current MARKETING_VERSION in $app_pbxproj"
+    exit 1
+  fi
+
+  local major=0
+  local minor=0
+  local patch=0
+
+  if [[ "$current_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    major=$((10#${BASH_REMATCH[1]}))
+    minor=$((10#${BASH_REMATCH[2]}))
+    patch=$((10#${BASH_REMATCH[3]}))
+  elif [[ "$current_version" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+    major=$((10#${BASH_REMATCH[1]}))
+    minor=$((10#${BASH_REMATCH[2]}))
+    patch=0
+  elif [[ "$current_version" =~ ^([0-9]+)$ ]]; then
+    major=$((10#${BASH_REMATCH[1]}))
+    minor=0
+    patch=0
+  else
+    echo "Error: Current MARKETING_VERSION format not recognized: $current_version"
+    exit 1
+  fi
+
+  case "$ios_version_bump" in
+    major)
+      major=$((major + 1))
+      minor=0
+      patch=0
+      ;;
+    minor)
+      minor=$((minor + 1))
+      patch=0
+      ;;
+    patch)
+      patch=$((patch + 1))
+      ;;
+    *)
+      echo "Error: Unsupported iOS version bump mode: $ios_version_bump"
+      exit 1
+      ;;
+  esac
+
+  local next_version="${major}.${minor}.${patch}"
+
+  local temp_root="${TMPDIR:-${TEMP:-${TMP:-/tmp}}}"
+  mkdir -p "$temp_root"
+
+  local target_files=("$app_pbxproj")
+  if [[ -f "$pods_pbxproj" ]]; then
+    target_files+=("$pods_pbxproj")
+  fi
+
+  for file in "${target_files[@]}"; do
+    if grep -qE '^[[:space:]]*MARKETING_VERSION[[:space:]]*=' "$file"; then
+      local tmp_file
+      tmp_file="$(mktemp "$temp_root/bandstr-iosversion-XXXXXX")"
+      if ! awk -v nextver="$next_version" '
+        {
+          if ($0 ~ /^[[:space:]]*MARKETING_VERSION[[:space:]]*=/) {
+            sub(/MARKETING_VERSION[[:space:]]*=[[:space:]]*[^;]+;/, "MARKETING_VERSION = " nextver ";")
+          }
+          print
+        }
+      ' "$file" > "$tmp_file"; then
+        rm -f "$tmp_file"
+        echo "Error: Failed to update MARKETING_VERSION in $file"
+        exit 1
+      fi
+      mv "$tmp_file" "$file"
+      echo "iOS MARKETING_VERSION bumped in $file: $current_version -> $next_version"
+    fi
+  done
+
+  export IOS_MARKETING_VERSION="$next_version"
+}
+
 build_android_bundle() {
   local sign_bundle="$1"
 
@@ -1785,8 +1907,12 @@ case "$command" in
     run_android_emulator "$env_profile"
     ;;
   build-ios)
+    bump_ios_version
     export_env_file "$env_file"
     bash ./scripts/build-ios.sh "$env_profile" ${build_ios_args[@]+"${build_ios_args[@]}"}
+    ;;
+  bump-ios-version)
+    bump_ios_version
     ;;
   deploy-ios)
     export_env_file "$env_file"

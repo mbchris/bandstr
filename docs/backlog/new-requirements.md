@@ -173,6 +173,51 @@
   - [x] Display the amount of brought beverages (`beerCount`) for each person in the Bierwart selection modal.
   - [x] Add a push notification when the Bierwart of a rehearsal event changes, including the name of the new Bierwart.
 
+## TASK-0219: Future Rehearsal Attendance Tracking (#21)
+- **Status:** done
+- **Labels:** feature, frontend, backend, calendar
+- **Acceptance Criteria:**
+  - [x] Extend attendance tracking (Dabei, Abwesend, Offen) to all future calendar rehearsal events.
+  - [x] Allow toggling attendance directly inside the rehearsal calendar event dialog.
+  - [x] Provide a Rehearsal Attendance Overview ("Probenübersicht") modal displaying upcoming rehearsals vs. all active band members.
+  - [x] Display status indicators (🟢 all confirmed, 🔴 absent member, 🟠 pending responses) on calendar rehearsal chips.
+
+## TASK-0220: Voting Ranking & Song Archive (#22)
+- **Status:** done
+- **Labels:** feature, frontend, backend, voting
+- **Acceptance Criteria:**
+  - [x] Calculate average score and assign ranking only after all active band members have voted.
+  - [x] Display progress badge (`⏳ X/Y Stimmen`) while votes are incomplete instead of premature averages.
+  - [x] Prioritize fully voted songs in highest/lowest score sorting, placing incomplete songs below.
+  - [x] Add song archive functionality with "Aktiv" and "Archiv" tabs and "Song archivieren" / "Reaktivieren" actions.
+  - [x] Add `isArchived` flag to database schema with automatic runtime migration and schema synchronization.
+
+## TASK-0221: iOS Native Header Spacing
+- **Status:** done
+- **Labels:** bug, frontend, mobile, ios
+- **Acceptance Criteria:**
+  - [x] Remove duplicate safe area top padding in iOS native build to eliminate excessive empty space in header toolbar.
+  - [x] Preserve Android custom status bar spacing.
+
+## TASK-0222: Home Page Gig Setlist Direct Link
+- **Status:** done
+- **Labels:** feature, frontend, setlist
+- **Acceptance Criteria:**
+  - [x] Add direct "Setliste öffnen" button on upcoming gig cards on Home page when a setlist is linked.
+  - [x] Ensure navigation to `/setlist?list=gig:...` dynamically loads the linked setlist.
+
+## TASK-0223: Setlist-Editor & druckbarer Setlist-Export (#19)
+- **Status:** done
+- **Labels:** feature, frontend, backend, setlist, export
+- **Acceptance Criteria:**
+  - [x] Extend Gig Setlist schema and endpoints with location, gigDate, gigTime, and notes.
+  - [x] Add gig setlist duplication endpoint (POST `/api/gigs/:id/duplicate`) to clone setlists with all ordered songs.
+  - [x] Support section dividers in setlists for Sets (`SET 1`, `SET 2`), Pauses (`PAUSE`), and Encores (`ZUGABE`).
+  - [x] Provide a comprehensive Print & Export dialog with live A4 preview.
+  - [x] Support column customization and role presets: Standard (Titel, Interpret, BPM), Drummer (Titel, BPM, Notizen), Gitarre (Titel, Tuning, Pitch), and Alle Spalten.
+  - [x] Export formats: PDF (`exportPdf` via jsPDF and autoTable), Word (`exportDocx` via docx), and direct print (`window.print()`).
+  - [x] Native mobile support via `@capacitor/filesystem` and `@capacitor/share` with fallback to browser download.
+
 # Sample Acceptance Criteria (use this for reference)
 
 ## TASK-0000: Example Task

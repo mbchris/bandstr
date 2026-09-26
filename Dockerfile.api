@@ -44,7 +44,7 @@ FROM build AS migrate
 
 WORKDIR /app/packages/api
 
-CMD ["npx", "drizzle-kit", "migrate"]
+CMD ["node", "dist/db/migrate.js"]
 
 # ── Stage 3: Production ──────────────────────────
 FROM node:20-alpine AS production

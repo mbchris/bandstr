@@ -111,4 +111,44 @@ describe('Songs API (/api/songs)', () => {
     const songs = await listRes.json()
     expect(songs.length).toBe(0)
   })
+
+  it('archives and reactivates a song', async () => {
+    const ctx = await createTestContext()
+    const createRes = await app.request('/api/songs', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Wish You Were Here',
+        artist: 'Pink Floyd',
+        pitch: 0,
+        type: 'song',
+      }),
+    })
+    const song = await createRes.json()
+    expect(song.isArchived).toBe(false)
+
+    // Archive the song
+    const archiveRes = await app.request(`/api/songs/${song.id}`, {
+      method: 'PUT',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        isArchived: true,
+      }),
+    })
+    expect(archiveRes.status).toBe(200)
+    const archived = await archiveRes.json()
+    expect(archived.isArchived).toBe(true)
+
+    // Reactivate the song
+    const reactivateRes = await app.request(`/api/songs/${song.id}`, {
+      method: 'PUT',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        isArchived: false,
+      }),
+    })
+    expect(reactivateRes.status).toBe(200)
+    const reactivated = await reactivateRes.json()
+    expect(reactivated.isArchived).toBe(false)
+  })
 })

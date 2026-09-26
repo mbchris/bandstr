@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, and, asc, desc, gte, lt, lte, or, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, gte, lt, lte, or, sql, inArray } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import {
   calendarEvents,
@@ -238,6 +238,236 @@ rehearsals.get('/next', async (c) => {
       memberAttendance,
     },
     upcomingGigs,
+  })
+})
+
+// GET /rehearsals/attendance — attendance overview for all upcoming rehearsals
+rehearsals.get('/attendance', async (c) => {
+  const bandId = c.get('bandId')
+  const currentUserId = c.get('user').id
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  const upcomingRehearsals = await db
+    .select({
+      id: calendarEvents.id,
+      title: calendarEvents.title,
+      description: calendarEvents.description,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
+      isTentative: calendarEvents.isTentative,
+    })
+    .from(calendarEvents)
+    .where(
+      and(
+        sql`lower(${calendarEvents.type}) = 'rehearsal'`,
+        eq(calendarEvents.bandId, bandId),
+        gte(calendarEvents.startTime, cutoff),
+      ),
+    )
+    .orderBy(asc(calendarEvents.startTime))
+    .limit(50)
+
+  const members = await db
+    .select({
+      userId: users.id,
+      userName: users.name,
+      image: users.image,
+    })
+    .from(bandMembers)
+    .innerJoin(users, eq(bandMembers.userId, users.id))
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.isHidden, false)))
+
+  if (upcomingRehearsals.length === 0) {
+    return c.json({ rehearsals: [], members })
+  }
+
+  const rehearsalIds = upcomingRehearsals.map((r) => r.id)
+
+  const attendanceRows = await db
+    .select({
+      rehearsalId: rehearsalAttendance.rehearsalId,
+      userId: rehearsalAttendance.userId,
+      status: rehearsalAttendance.status,
+    })
+    .from(rehearsalAttendance)
+    .where(
+      and(
+        eq(rehearsalAttendance.bandId, bandId),
+        inArray(rehearsalAttendance.rehearsalId, rehearsalIds),
+      ),
+    )
+
+  const unavailabilities = await db
+    .select({
+      userId: calendarEvents.userId,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
+    })
+    .from(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.bandId, bandId),
+        sql`lower(${calendarEvents.type}) = 'unavailability'`,
+        gte(calendarEvents.endTime, cutoff),
+      ),
+    )
+
+  const rehearsalsWithAttendance = upcomingRehearsals.map((rehearsal) => {
+    const rStart = new Date(rehearsal.startTime)
+    const rEnd = new Date(rehearsal.endTime)
+
+    const thisAttendance = attendanceRows.filter((a) => a.rehearsalId === rehearsal.id)
+    const statusByUser = new Map<string, 'present' | 'absent'>()
+    for (const a of thisAttendance) {
+      if (a.status === 'present' || a.status === 'absent') {
+        statusByUser.set(a.userId, a.status)
+      }
+    }
+
+    for (const u of unavailabilities) {
+      if (u.userId) {
+        const uStart = new Date(u.startTime)
+        const uEnd = new Date(u.endTime)
+        if (uStart <= rEnd && uEnd >= rStart) {
+          statusByUser.set(u.userId, 'absent')
+        }
+      }
+    }
+
+    const memberAttendance = members.map((m) => ({
+      userId: m.userId,
+      userName: m.userName,
+      image: m.image,
+      status: statusByUser.get(m.userId) ?? 'open',
+    }))
+
+    const myAttendance = statusByUser.get(currentUserId) ?? null
+
+    let summary: 'all_present' | 'has_absent' | 'pending' = 'pending'
+    if (memberAttendance.some((m) => m.status === 'absent')) {
+      summary = 'has_absent'
+    } else if (memberAttendance.length > 0 && memberAttendance.every((m) => m.status === 'present')) {
+      summary = 'all_present'
+    }
+
+    return {
+      ...rehearsal,
+      memberAttendance,
+      myAttendance,
+      summary,
+    }
+  })
+
+  return c.json({
+    rehearsals: rehearsalsWithAttendance,
+    members,
+  })
+})
+
+// GET /rehearsals/:id/attendance — single rehearsal attendance
+rehearsals.get('/:id/attendance', zValidator('param', idParamSchema), async (c) => {
+  const bandId = c.get('bandId')
+  const currentUserId = c.get('user').id
+  const { id: rehearsalId } = c.req.valid('param')
+
+  const [rehearsal] = await db
+    .select({
+      id: calendarEvents.id,
+      title: calendarEvents.title,
+      description: calendarEvents.description,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
+      isTentative: calendarEvents.isTentative,
+    })
+    .from(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.id, rehearsalId),
+        eq(calendarEvents.bandId, bandId),
+        sql`lower(${calendarEvents.type}) = 'rehearsal'`,
+      ),
+    )
+    .limit(1)
+
+  if (!rehearsal) return c.json({ error: 'Rehearsal not found' }, 404)
+
+  const members = await db
+    .select({
+      userId: users.id,
+      userName: users.name,
+      image: users.image,
+    })
+    .from(bandMembers)
+    .innerJoin(users, eq(bandMembers.userId, users.id))
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.isHidden, false)))
+
+  const attendanceRows = await db
+    .select({
+      userId: rehearsalAttendance.userId,
+      status: rehearsalAttendance.status,
+    })
+    .from(rehearsalAttendance)
+    .where(
+      and(
+        eq(rehearsalAttendance.bandId, bandId),
+        eq(rehearsalAttendance.rehearsalId, rehearsalId),
+      ),
+    )
+
+  const rStart = new Date(rehearsal.startTime)
+  const rEnd = new Date(rehearsal.endTime)
+
+  const unavailabilities = await db
+    .select({
+      userId: calendarEvents.userId,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
+    })
+    .from(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.bandId, bandId),
+        sql`lower(${calendarEvents.type}) = 'unavailability'`,
+        lte(calendarEvents.startTime, rEnd),
+        gte(calendarEvents.endTime, rStart),
+      ),
+    )
+
+  const statusByUser = new Map<string, 'present' | 'absent'>()
+  for (const a of attendanceRows) {
+    if (a.status === 'present' || a.status === 'absent') {
+      statusByUser.set(a.userId, a.status)
+    }
+  }
+  for (const u of unavailabilities) {
+    if (u.userId) {
+      statusByUser.set(u.userId, 'absent')
+    }
+  }
+
+  const memberAttendance = members.map((m) => ({
+    userId: m.userId,
+    userName: m.userName,
+    image: m.image,
+    status: statusByUser.get(m.userId) ?? 'open',
+  }))
+
+  const myAttendance = statusByUser.get(currentUserId) ?? null
+
+  let summary: 'all_present' | 'has_absent' | 'pending' = 'pending'
+  if (memberAttendance.some((m) => m.status === 'absent')) {
+    summary = 'has_absent'
+  } else if (memberAttendance.length > 0 && memberAttendance.every((m) => m.status === 'present')) {
+    summary = 'all_present'
+  }
+
+  return c.json({
+    rehearsalId,
+    memberAttendance,
+    myAttendance,
+    summary,
+    members,
   })
 })
 

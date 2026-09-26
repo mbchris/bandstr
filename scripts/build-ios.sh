@@ -117,17 +117,100 @@ if [[ -n "$development_team" ]]; then
   echo "Using Apple development team: $development_team"
 fi
 
-if [[ "$sign_build" == "1" && "$env_profile" == "local" && -z "$development_team" && "$bundle_id" == "org.capacitor.bandstr" ]]; then
+stamp_xcode_build_dir "$archive_dir"
+rm -rf "$archive_path" "$export_dir"
+
+vault_work_dir=""
+vault_keychain=""
+vault_original_keychains=()
+pbxproj_backup=""
+
+cleanup_signing() {
+  local exit_code=$?
+  if ((${#vault_original_keychains[@]})); then
+    security list-keychains -d user -s "${vault_original_keychains[@]}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$vault_keychain" ]]; then
+    security delete-keychain "$vault_keychain" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$vault_work_dir" && -d "$vault_work_dir" ]]; then
+    rm -rf "$vault_work_dir"
+  fi
+  if [[ -n "$pbxproj_backup" && -f "$pbxproj_backup" ]]; then
+    cp -p "$pbxproj_backup" "$pbxproj" 2>/dev/null || true
+    rm -f "$pbxproj_backup" 2>/dev/null || true
+  fi
+  return "$exit_code"
+}
+trap cleanup_signing EXIT
+
+# If manual signing env vars were not passed, but Vaultwarden credentials exist in .creds.config,
+# load the distribution certificate and provisioning profile automatically.
+if [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISIONING_PROFILE_UUID:-}" && -f "$REPO_ROOT/.creds.config" ]]; then
+  if command -v bw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    # shellcheck source=lib/vaultwarden.sh
+    source "$SCRIPT_DIR/lib/vaultwarden.sh"
+    echo "Loading iOS release signing secrets from Vaultwarden..."
+    if vw_login >/dev/null 2>&1; then
+      signing_item="$(vw_item_id "$VW_SIGNING_ITEM")"
+      asc_item="$(vw_item_id "$VW_ASC_ITEM")"
+      if [[ -n "$signing_item" ]]; then
+        vault_work_dir="$(mktemp -d)"
+        vault_keychain="$vault_work_dir/bandstr-signing.keychain-db"
+        keychain_password="$(openssl rand -base64 24)"
+
+        while IFS= read -r kc; do
+          kc="${kc#"${kc%%[![:space:]]*}"}"
+          kc="${kc//\"/}"
+          [[ -n "$kc" ]] && vault_original_keychains+=("$kc")
+        done < <(security list-keychains -d user)
+
+        p12_password="$(vw_field "$signing_item" P12_PASSWORD)"
+        cert_sha1="$(vw_field "$signing_item" CERT_SHA1)"
+        profile_uuid="$(vw_field "$signing_item" PROFILE_UUID)"
+        vw_attachment_by_suffix "$signing_item" ".p12" "$vault_work_dir/distribution.p12"
+        vw_attachment_by_suffix "$signing_item" ".mobileprovision" "$vault_work_dir/appstore.mobileprovision"
+
+        if [[ -n "$asc_item" ]]; then
+          val_team="$(vw_field "$asc_item" APPLE_TEAM_ID)"
+          val_bundle="$(vw_field "$asc_item" APPLE_BUNDLE_ID)"
+          [[ -n "$val_team" ]] && development_team="$val_team"
+          [[ -n "$val_bundle" ]] && bundle_id="$val_bundle"
+        fi
+        vw_lock
+
+        security create-keychain -p "$keychain_password" "$vault_keychain"
+        security set-keychain-settings -lut 21600 "$vault_keychain"
+        security unlock-keychain -p "$keychain_password" "$vault_keychain"
+        security import "$vault_work_dir/distribution.p12" -k "$vault_keychain" -f pkcs12 -P "$p12_password" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+        curl -fsSL https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer -o "$vault_work_dir/AppleWWDRCAG3.cer" 2>/dev/null || true
+        if [[ -f "$vault_work_dir/AppleWWDRCAG3.cer" ]]; then
+          security import "$vault_work_dir/AppleWWDRCAG3.cer" -k "$vault_keychain" >/dev/null 2>&1 || true
+        fi
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$vault_keychain" >/dev/null 2>&1 || true
+        security list-keychains -d user -s "$vault_keychain" "${vault_original_keychains[@]}"
+
+        for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+          mkdir -p "$dir"
+          cp -f "$vault_work_dir/appstore.mobileprovision" "$dir/$profile_uuid.mobileprovision"
+        done
+
+        export IOS_SIGN_IDENTITY="$cert_sha1"
+        export IOS_PROVISIONING_PROFILE_UUID="$profile_uuid"
+        export IOS_SIGN_KEYCHAIN="$vault_keychain"
+      fi
+    fi
+  fi
+fi
+
+if [[ "$sign_build" == "1" && "$env_profile" == "local" && -z "$development_team" && "$bundle_id" == "org.capacitor.bandstr" && -z "${IOS_SIGN_IDENTITY:-}" ]]; then
   echo "Notice: No Apple Development Team configured and placeholder bundle ID '$bundle_id' is used."
   echo "Defaulting to unsigned archive (--no-sign) for local build."
   sign_build=0
 fi
 
-stamp_xcode_build_dir "$archive_dir"
-rm -rf "$archive_path" "$export_dir"
-
-# Manual signing (used by scripts/testflight-from-vault.sh): set all three to sign
-# with a specific certificate/profile instead of Xcode's automatic signing.
+# Manual signing (used by scripts/testflight-from-vault.sh or auto-loaded above):
+# set all three to sign with a specific certificate/profile instead of Xcode's automatic signing.
 #   IOS_SIGN_IDENTITY              SHA-1 of the Apple Distribution certificate
 #   IOS_PROVISIONING_PROFILE_UUID  installed App Store provisioning profile
 #   IOS_SIGN_KEYCHAIN              keychain holding the certificate
@@ -141,7 +224,6 @@ if [[ -n "${IOS_SIGN_IDENTITY:-}" || -n "${IOS_PROVISIONING_PROFILE_UUID:-}" ]];
   pbxproj="$ios_dir/App.xcodeproj/project.pbxproj"
   pbxproj_backup="$(mktemp)"
   cp -p "$pbxproj" "$pbxproj_backup"
-  trap 'cp -p "$pbxproj_backup" "$pbxproj"; rm -f "$pbxproj_backup"' EXIT
 
   # Only the App target uses a provisioning profile; passing these as xcodebuild
   # arguments would also apply them to the Pods targets and fail the build.

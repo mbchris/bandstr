@@ -34,6 +34,7 @@ export const songs = pgTable(
     isSetlist: boolean('is_setlist').notNull().default(false),
     position: integer('position').notNull().default(0),
     isPinned: boolean('is_pinned').notNull().default(false),
+    isArchived: boolean('is_archived').notNull().default(false),
     addedBy: text('added_by').references(() => users.id),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

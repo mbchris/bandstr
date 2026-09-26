@@ -50,15 +50,53 @@ const masterSetlistSongCount = computed(() =>
 )
 const atSetlistLimit = computed(() => authStore.isFreePlan && masterSetlistSongCount.value >= FREE_SETLIST_LIMIT)
 const poolSongCount = computed(() =>
-  songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist).length,
+  songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && !s.isArchived).length,
 )
 const atPoolLimit = computed(() => authStore.isFreePlan && poolSongCount.value >= FREE_POOL_LIMIT)
 
 const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
 const currentUserId = computed(() => authStore.user?.id || '')
 
+const currentTab = ref<'active' | 'archived'>('active')
+
+const activeSongsCount = computed(() =>
+  songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && !s.isArchived).length,
+)
+
+const archivedSongsCount = computed(() =>
+  songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && s.isArchived).length,
+)
+
+const totalMembersCount = computed(() => visibleMembers.value.length)
+
+function isFullyVoted(song: Song): boolean {
+  return totalMembersCount.value > 0 && (song.voteCount ?? 0) >= totalMembersCount.value
+}
+
+const rankMap = computed(() => {
+  const map = new Map<number, number>()
+  const fullyVoted = songsStore.songs
+    .filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && !s.isArchived && isFullyVoted(s))
+    .sort((a, b) => {
+      const avgA = a.voteAverage ?? 0
+      const avgB = b.voteAverage ?? 0
+      if (avgA !== avgB) return avgB - avgA
+      const countA = a.voteCount ?? 0
+      const countB = b.voteCount ?? 0
+      if (countA !== countB) return countB - countA
+      return a.position - b.position
+    })
+  fullyVoted.forEach((song, idx) => {
+    map.set(song.id, idx + 1)
+  })
+  return map
+})
+
 const filteredSongs = computed(() => {
-  let list = songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist)
+  let list = songsStore.songs.filter((s) => {
+    if (s.type === 'pause' || s.type === 'tuning' || s.isSetlist) return false
+    return currentTab.value === 'archived' ? !!s.isArchived : !s.isArchived
+  })
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     list = list.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q))
@@ -79,6 +117,10 @@ const filteredSongs = computed(() => {
       if (timeA !== timeB) return timeB - timeA
       return a.position - b.position
     } else if (votingSort.value === 'highest_vote') {
+      const fullA = isFullyVoted(a)
+      const fullB = isFullyVoted(b)
+      if (fullA && !fullB) return -1
+      if (!fullA && fullB) return 1
       const avgA = a.voteAverage ?? 0
       const avgB = b.voteAverage ?? 0
       if (avgA !== avgB) return avgB - avgA
@@ -87,6 +129,10 @@ const filteredSongs = computed(() => {
       if (countA !== countB) return countB - countA
       return a.position - b.position
     } else if (votingSort.value === 'lowest_vote') {
+      const fullA = isFullyVoted(a)
+      const fullB = isFullyVoted(b)
+      if (fullA && !fullB) return -1
+      if (!fullA && fullB) return 1
       const avgA = a.voteAverage ?? 0
       const avgB = b.voteAverage ?? 0
       if (avgA !== avgB) return avgA - avgB
@@ -205,12 +251,12 @@ async function reorderSongs(items: Song[]) {
 }
 
 function onDragStart(index: number) {
-  if (searchQuery.value || votingSort.value !== 'default') return
+  if (currentTab.value !== 'active' || searchQuery.value || votingSort.value !== 'default') return
   draggingIndex.value = index
 }
 
 async function onDrop(index: number) {
-  if (searchQuery.value || votingSort.value !== 'default') return
+  if (currentTab.value !== 'active' || searchQuery.value || votingSort.value !== 'default') return
   if (draggingIndex.value === null || draggingIndex.value === index) return
   const items = [...filteredSongs.value]
   const [moved] = items.splice(draggingIndex.value, 1)
@@ -221,6 +267,32 @@ async function onDrop(index: number) {
 
 function onDragEnd() {
   draggingIndex.value = null
+}
+
+async function archiveSong(song: Song) {
+  $q.dialog({
+    title: t('voting.archiveSong'),
+    message: t('voting.confirmArchive', { title: song.title, artist: song.artist }),
+    cancel: true,
+  }).onOk(async () => {
+    try {
+      await songsStore.updateSong(song.id, { isArchived: true } as any)
+      await songsStore.fetchSongs()
+      $q.notify({ message: t('voting.songArchived'), color: 'positive' })
+    } catch {
+      $q.notify({ message: t('common.error'), color: 'negative' })
+    }
+  })
+}
+
+async function reactivateSong(song: Song) {
+  try {
+    await songsStore.updateSong(song.id, { isArchived: false } as any)
+    await songsStore.fetchSongs()
+    $q.notify({ message: t('voting.songReactivated'), color: 'positive' })
+  } catch {
+    $q.notify({ message: t('common.error'), color: 'negative' })
+  }
 }
 
 async function deleteSong(song: Song) {
@@ -364,7 +436,14 @@ function handleExport() {
   // Dynamically import xlsx for Excel export
   import('xlsx').then(async ({ utils }) => {
     const data = filteredSongs.value.map((s) => {
-      const row: any = { Title: s.title, Artist: s.artist, Average: Number(s.voteAverage || 0).toFixed(1), Votes: s.voteCount }
+      const row: any = {
+        Title: s.title,
+        Artist: s.artist,
+        Status: s.isArchived ? 'Archived' : 'Active',
+        Rank: rankMap.value.get(s.id) ?? '-',
+        Average: isFullyVoted(s) ? Number(s.voteAverage || 0).toFixed(1) : '-',
+        Votes: `${s.voteCount ?? 0}/${totalMembersCount.value}`,
+      }
       visibleMembers.value.forEach((m) => { row[m.name] = voteScore(s, m.id) ?? '-' })
       return row
     })
@@ -421,6 +500,25 @@ watch(
           </div>
         </q-card-section>
 
+        <q-card-section class="q-pt-none q-pb-none">
+          <q-tabs
+            v-model="currentTab"
+            dense
+            align="left"
+            class="text-grey-7"
+            active-color="primary"
+            indicator-color="primary"
+          >
+            <q-tab name="active" :label="t('voting.activeTab')">
+              <q-badge color="primary" floating rounded>{{ activeSongsCount }}</q-badge>
+            </q-tab>
+            <q-tab name="archived" :label="t('voting.archiveTab')">
+              <q-badge color="grey-7" floating rounded>{{ archivedSongsCount }}</q-badge>
+            </q-tab>
+          </q-tabs>
+          <q-separator />
+        </q-card-section>
+
         <q-card-section>
           <div class="row q-col-gutter-sm q-mb-md">
             <div class="col-12 col-sm-6">
@@ -457,7 +555,7 @@ watch(
               v-for="(song, index) in filteredSongs"
               :key="song.id"
               class="q-pa-sm song-item"
-              :draggable="!searchQuery && votingSort === 'default'"
+              :draggable="currentTab === 'active' && !searchQuery && votingSort === 'default'"
               @dragstart="onDragStart(index)"
               @dragover.prevent
               @drop="onDrop(index)"
@@ -465,7 +563,7 @@ watch(
             >
               <q-item-section side class="song-order-controls">
                 <div class="column items-center q-gutter-xs">
-                  <q-icon v-if="!searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                  <q-icon v-if="currentTab === 'active' && !searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
                   <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
                 </div>
               </q-item-section>
@@ -514,8 +612,20 @@ watch(
                     <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
                   </div>
                   <div class="row items-center q-gutter-xs option1-actions">
-                    <q-badge outline color="primary">{{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}</q-badge>
-                    <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
+                    <template v-if="isFullyVoted(song)">
+                      <q-badge v-if="rankMap.has(song.id)" color="secondary" class="text-weight-bold">
+                        {{ t('voting.rank', { rank: rankMap.get(song.id) }) }}
+                      </q-badge>
+                      <q-badge outline color="primary">
+                        {{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}
+                      </q-badge>
+                      <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
+                    </template>
+                    <template v-else>
+                      <q-badge outline color="amber-9" class="text-weight-medium">
+                        {{ t('voting.pendingVotes', { count: song.voteCount || 0, total: totalMembersCount }) }}
+                      </q-badge>
+                    </template>
                     <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
                       <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
                     </q-btn>
@@ -531,6 +641,12 @@ watch(
                 <div class="column q-gutter-xs song-actions">
                   <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
                     <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn v-if="currentTab === 'active'" flat round dense icon="archive" color="grey-7" size="sm" @click="archiveSong(song)">
+                    <q-tooltip>{{ t('voting.archiveSong') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn v-else flat round dense icon="unarchive" color="primary" size="sm" @click="reactivateSong(song)">
+                    <q-tooltip>{{ t('voting.reactivateSong') }}</q-tooltip>
                   </q-btn>
                   <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
                   <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />

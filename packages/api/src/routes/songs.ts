@@ -33,11 +33,12 @@ const createSongSchema = z.object({
   bpm: z.number().int().positive().nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAG_COUNT).default([]),
   notes: z.string().optional(),
-  type: z.enum(['song', 'pause', 'tuning', 'note']).default('song'),
+  type: z.enum(['song', 'pause', 'tuning', 'note', 'set', 'encore']).default('song'),
   pitch: z.number().int().min(-5).max(5).default(0),
   isSetlist: z.boolean().default(false),
   position: z.number().int().default(0),
   isPinned: z.boolean().default(false),
+  isArchived: z.boolean().default(false),
 })
 
 const updateSongSchema = z.object({
@@ -49,11 +50,12 @@ const updateSongSchema = z.object({
   bpm: z.number().int().positive().optional().nullable(),
   tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAG_COUNT).optional(),
   notes: z.string().optional().nullable(),
-  type: z.enum(['song', 'pause', 'tuning', 'note']).optional(),
+  type: z.enum(['song', 'pause', 'tuning', 'note', 'set', 'encore']).optional(),
   pitch: z.number().int().min(-5).max(5).optional(),
   isSetlist: z.boolean().optional(),
   position: z.number().int().optional(),
   isPinned: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
 })
 
 const reorderSchema = z.object({

@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
 import { useI18n } from '../composables/useI18n'
-import { exportXlsx } from '../utils/export'
+import { exportXlsx, exportPdf, exportDocx, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -25,6 +25,10 @@ type GigSetlist = {
   id: number
   bandId: number
   title: string
+  location?: string | null
+  gigDate?: string | null
+  gigTime?: string | null
+  notes?: string | null
   calendarEventId?: number | null
   calendarEventTitle?: string | null
   startTime?: string | null
@@ -42,6 +46,10 @@ type EditableGigMeta = {
   id: number
   title: string
   calendarEventId: number | null
+  location: string
+  gigDate: string
+  gigTime: string
+  notes: string
 }
 
 // Gig selection
@@ -259,23 +267,53 @@ watch(selectedListOption, (newVal) => {
   }
 })
 
+function mapGigToMeta(gig: GigSetlist): EditableGigMeta {
+  let defaultDate = gig.gigDate || ''
+  let defaultTime = gig.gigTime || ''
+  if (!defaultDate && gig.startTime) {
+    try {
+      const dt = new Date(gig.startTime)
+      defaultDate = dt.toISOString().split('T')[0]
+      defaultTime = dt.toTimeString().slice(0, 5)
+    } catch {}
+  }
+  return {
+    id: gig.id,
+    title: gig.title,
+    calendarEventId: gig.calendarEventId ?? null,
+    location: gig.location || '',
+    gigDate: defaultDate,
+    gigTime: defaultTime,
+    notes: gig.notes || '',
+  }
+}
+
 watch(selectedGigId, (gigId) => {
   if (!gigId) {
     selectedGigMeta.value = null
     return
   }
   const gig = gigs.value.find((entry) => entry.id === gigId)
-  selectedGigMeta.value = gig
-    ? { id: gig.id, title: gig.title, calendarEventId: gig.calendarEventId ?? null }
-    : null
+  selectedGigMeta.value = gig ? mapGigToMeta(gig) : null
 })
 
 watch(gigs, () => {
   if (!selectedGigId.value) return
   const gig = gigs.value.find((entry) => entry.id === selectedGigId.value)
   if (!gig) return
-  selectedGigMeta.value = { id: gig.id, title: gig.title, calendarEventId: gig.calendarEventId ?? null }
+  selectedGigMeta.value = mapGigToMeta(gig)
 })
+
+watch(
+  () => route.query.list,
+  (raw) => {
+    if (typeof raw === 'string' && (raw === 'master' || raw === 'user' || raw.startsWith('gig:'))) {
+      if (selectedListOption.value !== raw) {
+        selectedListOption.value = raw
+      }
+    }
+  },
+)
 
 async function createGigSetlist() {
   isSaving.value = true
@@ -288,6 +326,23 @@ async function createGigSetlist() {
     selectedListOption.value = `gig:${created.id}`
   } catch {
     $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function duplicateGigSetlist() {
+  if (!selectedGigMeta.value) return
+  isSaving.value = true
+  try {
+    const duplicated = await apiJson<GigSetlist>(`/gigs/${selectedGigMeta.value.id}/duplicate`, {
+      method: 'POST',
+    })
+    await fetchGigs()
+    selectedListOption.value = `gig:${duplicated.id}`
+    $q.notify({ message: t('setlist.duplicatedSuccess'), color: 'positive' })
+  } catch {
+    $q.notify({ message: t('common.error'), color: 'negative' })
   } finally {
     isSaving.value = false
   }
@@ -326,9 +381,14 @@ async function executeSaveGigMeta() {
       body: JSON.stringify({
         title: selectedGigMeta.value.title,
         calendarEventId: selectedGigMeta.value.calendarEventId,
+        location: selectedGigMeta.value.location || null,
+        gigDate: selectedGigMeta.value.gigDate || null,
+        gigTime: selectedGigMeta.value.gigTime || null,
+        notes: selectedGigMeta.value.notes || null,
       }),
     })
     await fetchGigs()
+    $q.notify({ message: t('common.saved'), color: 'positive' })
   } catch {
     $q.notify({ message: t('setlist.failedSave'), color: 'negative' })
   } finally {
@@ -709,22 +769,29 @@ async function submitAddUserSetlistSongs() {
 
 // Setlist note element
 const showSpecialModal = ref(false)
-type SpecialNoteType = 'pause' | 'tuning' | 'custom'
+type SpecialNoteType = 'set' | 'pause' | 'encore' | 'tuning' | 'custom'
 const specialElementForm = ref<{ noteType: SpecialNoteType; title: string; notes: string } | null>(null)
 const specialNoteTypeOptions = computed(() => [
+  { label: t('setlist.noteTypeSet'), value: 'set' },
   { label: t('setlist.noteTypePause'), value: 'pause' },
+  { label: t('setlist.noteTypeEncore'), value: 'encore' },
   { label: t('setlist.noteTypeTuning'), value: 'tuning' },
   { label: t('setlist.noteTypeCustom'), value: 'custom' },
 ])
 
 function defaultNoteTitleForType(noteType: SpecialNoteType) {
-  if (noteType === 'pause') return t('setlist.breakPause')
+  if (noteType === 'set') {
+    const existingSetsCount = activeSongs.value.filter((s) => s.type === 'set').length
+    return `SET ${existingSetsCount + 1}`
+  }
+  if (noteType === 'pause') return 'PAUSE'
+  if (noteType === 'encore') return 'ZUGABE'
   if (noteType === 'tuning') return t('setlist.tuningChange')
   return t('setlist.customNote')
 }
 
 function openSpecialModal() {
-  specialElementForm.value = { noteType: 'pause', title: defaultNoteTitleForType('pause'), notes: '' }
+  specialElementForm.value = { noteType: 'set', title: defaultNoteTitleForType('set'), notes: '' }
   showSpecialModal.value = true
 }
 
@@ -738,7 +805,7 @@ async function submitSpecialElement() {
   isSaving.value = true
   const noteType = specialElementForm.value.noteType
   try {
-    await songsStore.createSong({
+    const created = await songsStore.createSong({
       title: specialElementForm.value.title,
       artist: 'Band',
       type: noteType === 'custom' ? 'note' : noteType,
@@ -746,10 +813,22 @@ async function submitSpecialElement() {
       position: filteredSongs.value.length,
       isSetlist: true,
     } as any)
+
+    if (selectedGigId.value && created?.id) {
+      await apiJson(`/gigs/${selectedGigId.value}/songs`, {
+        method: 'POST',
+        body: JSON.stringify({ songId: created.id, position: gigSongs.value.length }),
+      })
+      await fetchGigSongs(selectedGigId.value)
+    }
+
     showSpecialModal.value = false
     await refreshAll()
-  } catch { $q.notify({ message: t('setlist.failedAdd'), color: 'negative' }) }
-  finally { isSaving.value = false }
+  } catch {
+    $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
 }
 
 // Edit modal
@@ -846,6 +925,171 @@ function handleExport() {
   })
 }
 
+// Print & Export Dialog
+const showPrintExportModal = ref(false)
+const exportPreset = ref<'standard' | 'drummer' | 'guitar' | 'all'>('standard')
+const selectedExportColumns = ref({
+  artist: true,
+  bpm: true,
+  tuning: false,
+  pitch: false,
+  notes: false,
+  length: false,
+})
+
+function applyExportPreset(preset: 'standard' | 'drummer' | 'guitar' | 'all') {
+  exportPreset.value = preset
+  if (preset === 'standard') {
+    selectedExportColumns.value = { artist: true, bpm: true, tuning: false, pitch: false, notes: false, length: false }
+  } else if (preset === 'drummer') {
+    selectedExportColumns.value = { artist: false, bpm: true, tuning: false, pitch: false, notes: true, length: false }
+  } else if (preset === 'guitar') {
+    selectedExportColumns.value = { artist: false, bpm: false, tuning: true, pitch: true, notes: false, length: false }
+  } else if (preset === 'all') {
+    selectedExportColumns.value = { artist: true, bpm: true, tuning: true, pitch: true, notes: true, length: true }
+  }
+}
+
+const exportPresets = computed(() => [
+  { label: t('setlist.presetStandard'), value: 'standard' },
+  { label: t('setlist.presetDrummer'), value: 'drummer' },
+  { label: t('setlist.presetGuitar'), value: 'guitar' },
+  { label: t('setlist.presetAll'), value: 'all' },
+])
+
+const exportColumnsList = computed<SetlistExportColumn[]>(() => {
+  const cols: SetlistExportColumn[] = [{ key: 'title', label: t('voting.songTitle') }]
+  if (selectedExportColumns.value.artist) cols.push({ key: 'artist', label: t('voting.artist') })
+  if (selectedExportColumns.value.bpm) cols.push({ key: 'bpm', label: t('setlist.bpm') })
+  if (selectedExportColumns.value.tuning) cols.push({ key: 'tuning', label: t('setlist.tuning') })
+  if (selectedExportColumns.value.pitch) cols.push({ key: 'pitch', label: t('setlist.pitch') })
+  if (selectedExportColumns.value.notes) cols.push({ key: 'notes', label: t('setlist.notes') })
+  if (selectedExportColumns.value.length) cols.push({ key: 'length', label: t('voting.lengthLabel') })
+  return cols
+})
+
+const previewItems = computed(() => {
+  let songIdx = 1
+  return filteredSongs.value.map((s) => {
+    const isSong = s.type === 'song'
+    const tuning = (s.tags ?? []).find(
+      (t) =>
+        t.toLowerCase().includes('drop') ||
+        t.toLowerCase().includes('tuning') ||
+        t.toLowerCase().includes('eb') ||
+        t.toLowerCase().includes('standard')
+    ) || null
+
+    return {
+      ...s,
+      songIndex: isSong ? songIdx++ : null,
+      tuning,
+      personalNote: getPersonalNote(s.id),
+    }
+  })
+})
+
+function buildExportData(): SetlistExportData {
+  const band = authStore.activeBand
+  const bandName = band?.name || 'bandstr'
+
+  let gigTitle = t('setlist.masterSetlist')
+  let gigDate = ''
+  let gigTime = ''
+  let gigLocation = ''
+  let gigNotes = ''
+
+  if (selectedGigId.value && selectedGigMeta.value) {
+    gigTitle = selectedGigMeta.value.title
+    gigDate = selectedGigMeta.value.gigDate
+    gigTime = selectedGigMeta.value.gigTime
+    gigLocation = selectedGigMeta.value.location
+    gigNotes = selectedGigMeta.value.notes
+  } else if (selectedSetlistMode.value === 'user') {
+    gigTitle = t('setlist.userSetlist')
+  }
+
+  const items: SetlistExportItem[] = filteredSongs.value.map((s) => ({
+    id: s.id,
+    title: s.title,
+    artist: s.artist,
+    type: s.type,
+    bpm: s.bpm,
+    pitch: s.pitch,
+    notes: s.notes,
+    lengthMs: s.lengthMs,
+    tuning: (s.tags ?? []).find(
+      (t) =>
+        t.toLowerCase().includes('drop') ||
+        t.toLowerCase().includes('tuning') ||
+        t.toLowerCase().includes('eb') ||
+        t.toLowerCase().includes('standard')
+    ) || null,
+    personalNote: getPersonalNote(s.id),
+  }))
+
+  return {
+    bandName,
+    gigTitle,
+    gigDate,
+    gigTime,
+    gigLocation,
+    gigNotes,
+    columns: exportColumnsList.value,
+    items,
+  }
+}
+
+const exportingPdf = ref(false)
+const exportingDocx = ref(false)
+const isExporting = computed(() => exportingPdf.value || exportingDocx.value)
+
+function getExportFilename(extension: 'pdf' | 'docx'): string {
+  const data = buildExportData()
+  const cleanTitle = (data.gigTitle || 'Setlist').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()
+  const dateStr = data.gigDate || new Date().toISOString().split('T')[0]
+  return `${cleanTitle}_${dateStr}.${extension}`
+}
+
+async function handleDownloadPdf() {
+  exportingPdf.value = true
+  try {
+    const data = buildExportData()
+    await exportPdf(data, getExportFilename('pdf'))
+    $q.notify({ message: 'PDF exportiert', color: 'positive' })
+  } catch (e: any) {
+    $q.notify({ message: e.message || 'PDF Export fehlgeschlagen', color: 'negative' })
+  } finally {
+    exportingPdf.value = false
+  }
+}
+
+async function handleDownloadDocx() {
+  exportingDocx.value = true
+  try {
+    const data = buildExportData()
+    await exportDocx(data, getExportFilename('docx'))
+    $q.notify({ message: 'Word (.docx) exportiert', color: 'positive' })
+  } catch (e: any) {
+    $q.notify({ message: e.message || 'DOCX Export fehlgeschlagen', color: 'negative' })
+  } finally {
+    exportingDocx.value = false
+  }
+}
+
+function handlePrint() {
+  window.print()
+}
+
+function openPrintExportModal() {
+  showPrintExportModal.value = true
+}
+
+function formatPitch(pitch: number | null | undefined): string {
+  if (typeof pitch !== 'number' || pitch === 0) return '-'
+  return (pitch > 0 ? '+' : '') + pitch
+}
+
 function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000)
   const seconds = Math.floor((ms % 60000) / 1000)
@@ -918,7 +1162,7 @@ onMounted(() => {
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
             <div class="row q-gutter-sm items-center">
-              <q-btn v-if="selectedSetlistMode === 'master' && !selectedGigId" flat round icon="note_add" @click="openSpecialModal">
+              <q-btn v-if="selectedSetlistMode === 'master' || selectedGigId" flat round icon="note_add" @click="openSpecialModal">
                 <q-tooltip>{{ t('setlist.addSetlistNote') }}</q-tooltip>
               </q-btn>
               <q-btn
@@ -930,7 +1174,12 @@ onMounted(() => {
               >
                 <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
               </q-btn>
-              <q-btn flat round icon="download" @click="handleExport" />
+              <q-btn flat round icon="print" @click="openPrintExportModal">
+                <q-tooltip>{{ t('setlist.printExport') }}</q-tooltip>
+              </q-btn>
+              <q-btn flat round icon="download" @click="handleExport">
+                <q-tooltip>{{ t('setlist.exportExcel') }}</q-tooltip>
+              </q-btn>
               <q-btn
                 v-if="selectedSetlistMode === 'master' || selectedGigId"
                 round
@@ -985,12 +1234,12 @@ onMounted(() => {
               :label="t('setlist.filterTags')"
             />
           </div>
-          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-sm rounded-borders bg-widget-surface">
-            <div class="row q-col-gutter-sm items-end">
-              <div class="col-12 col-md-5">
+          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-md rounded-borders bg-widget-surface border-subtle">
+            <div class="row q-col-gutter-sm q-mb-sm">
+              <div class="col-12 col-md-4">
                 <q-input v-model="selectedGigMeta.title" :label="t('common.title')" outlined dense />
               </div>
-              <div class="col-12 col-md-5">
+              <div class="col-12 col-md-4">
                 <q-select
                   v-model="selectedGigMeta.calendarEventId"
                   :options="calendarGigLinkOptions"
@@ -1001,14 +1250,36 @@ onMounted(() => {
                   :label="t('setlist.linkCalendarGig')"
                 />
               </div>
-              <div class="col-12 col-md-2 row justify-end q-gutter-xs">
-                <q-btn flat dense color="primary" :label="t('common.save')" @click="saveGigMeta" />
+              <div class="col-12 col-md-4">
+                <q-input v-model="selectedGigMeta.location" :label="t('setlist.location')" outlined dense />
+              </div>
+            </div>
+            <div class="row q-col-gutter-sm q-mb-sm">
+              <div class="col-12 col-sm-6 col-md-3">
+                <q-input v-model="selectedGigMeta.gigDate" :label="t('setlist.gigDate')" outlined dense placeholder="YYYY-MM-DD" />
+              </div>
+              <div class="col-12 col-sm-6 col-md-3">
+                <q-input v-model="selectedGigMeta.gigTime" :label="t('setlist.gigTime')" outlined dense placeholder="HH:MM" />
+              </div>
+              <div class="col-12 col-md-6">
+                <q-input v-model="selectedGigMeta.notes" :label="t('setlist.notes')" outlined dense />
+              </div>
+            </div>
+            <div class="row items-center justify-between q-mt-xs">
+              <div class="text-caption text-grey-7">
+                Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
+              </div>
+              <div class="row q-gutter-xs">
+                <q-btn outline dense color="secondary" icon="content_copy" :label="t('setlist.duplicateGig')" @click="duplicateGigSetlist" />
+                <q-btn color="primary" dense icon="print" :label="t('setlist.printExport')" @click="openPrintExportModal" />
+                <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />
                 <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
               </div>
             </div>
           </div>
-          <div class="text-caption text-grey-7 q-mb-md">
-            Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
+          <div v-else class="row items-center justify-between text-caption text-grey-7 q-mb-md">
+            <div>Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}</div>
+            <q-btn outline dense size="sm" color="primary" icon="print" :label="t('setlist.printExport')" @click="openPrintExportModal" />
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
@@ -1017,7 +1288,9 @@ onMounted(() => {
               :key="getItemKey(item)"
               class="q-pa-sm"
               :class="{
-                'border-dashed': item.type !== 'song',
+                'border-dashed': item.type !== 'song' && item.type !== 'set' && item.type !== 'encore',
+                'set-divider-item': item.type === 'set',
+                'encore-divider-item': item.type === 'encore',
                 'dragging-item': draggingIndex === index,
               }"
               :draggable="!searchQuery"
@@ -1102,6 +1375,24 @@ onMounted(() => {
                   <q-item-label caption v-if="item.lengthMs">
                     Length: {{ formatDuration(item.lengthMs) }}
                   </q-item-label>
+                </template>
+
+                <!-- Set divider -->
+                <template v-else-if="item.type === 'set'">
+                  <div class="row items-center q-gutter-sm text-primary text-weight-bold text-subtitle1">
+                    <q-icon name="layers" size="sm" />
+                    <span>{{ item.title }}</span>
+                    <q-icon v-if="item.notes" name="info" color="primary" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
+                  </div>
+                </template>
+
+                <!-- Encore divider -->
+                <template v-else-if="item.type === 'encore'">
+                  <div class="row items-center q-gutter-sm text-deep-orange text-weight-bold text-subtitle1">
+                    <q-icon name="celebration" size="sm" />
+                    <span>{{ item.title }}</span>
+                    <q-icon v-if="item.notes" name="info" color="deep-orange" size="xs" class="cursor-pointer q-ml-xs" @click="showNote(item.title, item.notes)" />
+                  </div>
                 </template>
 
                 <!-- Pause content -->
@@ -1525,6 +1816,187 @@ onMounted(() => {
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Print & Export Dialog -->
+    <q-dialog v-model="showPrintExportModal" maximized transition-show="slide-up" transition-hide="slide-down">
+      <q-card class="bg-grey-1 column full-height">
+        <q-toolbar class="bg-primary text-white no-print">
+          <q-toolbar-title class="row items-center q-gutter-sm">
+            <q-icon name="print" />
+            <span>{{ t('setlist.printExport') }}</span>
+          </q-toolbar-title>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-toolbar>
+
+        <!-- Top Controls / Toolbar -->
+        <q-card-section class="bg-white q-py-sm shadow-1 no-print">
+          <div class="row items-center justify-between q-col-gutter-md">
+            <!-- Presets -->
+            <div class="col-12 col-lg-auto row items-center q-gutter-sm">
+              <span class="text-caption text-weight-bold text-grey-8">Presets:</span>
+              <q-btn-toggle
+                v-model="exportPreset"
+                toggle-color="primary"
+                flat
+                dense
+                rounded
+                :options="exportPresets"
+                @update:model-value="applyExportPreset"
+              />
+            </div>
+
+            <!-- Column Checkboxes -->
+            <div class="col-12 col-lg-auto row items-center q-gutter-sm">
+              <span class="text-caption text-weight-bold text-grey-8">{{ t('setlist.columns') }}:</span>
+              <q-checkbox v-model="selectedExportColumns.artist" :label="t('voting.artist')" dense size="sm" />
+              <q-checkbox v-model="selectedExportColumns.bpm" label="BPM" dense size="sm" />
+              <q-checkbox v-model="selectedExportColumns.tuning" :label="t('setlist.tuning')" dense size="sm" />
+              <q-checkbox v-model="selectedExportColumns.pitch" :label="t('setlist.pitch')" dense size="sm" />
+              <q-checkbox v-model="selectedExportColumns.notes" :label="t('setlist.notes')" dense size="sm" />
+              <q-checkbox v-model="selectedExportColumns.length" :label="t('voting.lengthLabel')" dense size="sm" />
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="col-12 col-lg-auto row items-center q-gutter-sm">
+              <q-btn
+                color="secondary"
+                icon="description"
+                :label="t('setlist.exportDocx')"
+                :loading="exportingDocx"
+                no-caps
+                dense
+                @click="handleDownloadDocx"
+              />
+              <q-btn
+                color="primary"
+                icon="picture_as_pdf"
+                :label="t('setlist.exportPdf')"
+                :loading="exportingPdf"
+                no-caps
+                dense
+                @click="handleDownloadPdf"
+              />
+              <q-btn
+                color="grey-9"
+                icon="print"
+                :label="t('setlist.print')"
+                no-caps
+                dense
+                @click="handlePrint"
+              />
+            </div>
+          </div>
+        </q-card-section>
+
+        <!-- Preview / Printable Area -->
+        <q-card-section class="col overflow-auto q-pa-md flex justify-center bg-grey-3">
+          <div class="print-sheet-area bg-white text-black shadow-3 q-pa-lg">
+            <!-- Header -->
+            <div class="row items-center justify-between q-pb-md border-bottom-dark">
+              <div>
+                <div class="text-h5 text-weight-bolder">
+                  {{ selectedGigId && selectedGigMeta ? selectedGigMeta.title : (selectedSetlistMode === 'user' ? t('setlist.userSetlist') : t('setlist.masterSetlist')) }}
+                </div>
+                <div class="text-subtitle2 text-grey-8">
+                  {{ authStore.activeBand?.name || 'bandstr' }}
+                </div>
+              </div>
+              <div v-if="selectedGigId && selectedGigMeta" class="text-right text-caption">
+                <div v-if="selectedGigMeta.gigDate" class="text-weight-bold">
+                  {{ selectedGigMeta.gigDate }} <span v-if="selectedGigMeta.gigTime">@ {{ selectedGigMeta.gigTime }}</span>
+                </div>
+                <div v-if="selectedGigMeta.location" class="text-grey-8">
+                  📍 {{ selectedGigMeta.location }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Gig Notes (if any) -->
+            <div v-if="selectedGigId && selectedGigMeta?.notes" class="q-my-sm q-pa-sm bg-grey-2 rounded-borders text-caption">
+              <strong>Notes:</strong> {{ selectedGigMeta.notes }}
+            </div>
+
+            <!-- Printable Table -->
+            <table class="print-table q-mt-md full-width">
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center">#</th>
+                  <th style="text-align: left">{{ t('voting.songTitle') }}</th>
+                  <th v-if="selectedExportColumns.artist" style="text-align: left">{{ t('voting.artist') }}</th>
+                  <th v-if="selectedExportColumns.bpm" style="width: 70px; text-align: center">{{ t('setlist.bpm') }}</th>
+                  <th v-if="selectedExportColumns.tuning" style="width: 90px; text-align: center">{{ t('setlist.tuning') }}</th>
+                  <th v-if="selectedExportColumns.pitch" style="width: 70px; text-align: center">{{ t('setlist.pitch') }}</th>
+                  <th v-if="selectedExportColumns.notes" style="text-align: left">{{ t('setlist.notes') }}</th>
+                  <th v-if="selectedExportColumns.length" style="width: 70px; text-align: right">{{ t('voting.lengthLabel') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="(item, idx) in previewItems" :key="item.id || idx">
+                  <!-- Set Divider -->
+                  <tr v-if="item.type === 'set'" class="divider-row set-divider">
+                    <td :colspan="2 + (selectedExportColumns.artist ? 1 : 0) + (selectedExportColumns.bpm ? 1 : 0) + (selectedExportColumns.tuning ? 1 : 0) + (selectedExportColumns.pitch ? 1 : 0) + (selectedExportColumns.notes ? 1 : 0) + (selectedExportColumns.length ? 1 : 0)">
+                      <div class="row items-center q-gutter-xs text-weight-bold">
+                        <span>▶ {{ item.title.toUpperCase() }}</span>
+                        <span v-if="item.notes" class="text-caption text-weight-normal text-grey-8 q-ml-sm">({{ item.notes }})</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Encore Divider -->
+                  <tr v-else-if="item.type === 'encore'" class="divider-row encore-divider">
+                    <td :colspan="2 + (selectedExportColumns.artist ? 1 : 0) + (selectedExportColumns.bpm ? 1 : 0) + (selectedExportColumns.tuning ? 1 : 0) + (selectedExportColumns.pitch ? 1 : 0) + (selectedExportColumns.notes ? 1 : 0) + (selectedExportColumns.length ? 1 : 0)">
+                      <div class="row items-center q-gutter-xs text-weight-bold">
+                        <span>★ {{ item.title.toUpperCase() }}</span>
+                        <span v-if="item.notes" class="text-caption text-weight-normal text-grey-8 q-ml-sm">({{ item.notes }})</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Pause Divider -->
+                  <tr v-else-if="item.type === 'pause'" class="divider-row pause-divider">
+                    <td :colspan="2 + (selectedExportColumns.artist ? 1 : 0) + (selectedExportColumns.bpm ? 1 : 0) + (selectedExportColumns.tuning ? 1 : 0) + (selectedExportColumns.pitch ? 1 : 0) + (selectedExportColumns.notes ? 1 : 0) + (selectedExportColumns.length ? 1 : 0)">
+                      <div class="row items-center q-gutter-xs text-weight-bold text-italic">
+                        <span>⏸ {{ item.title }}</span>
+                        <span v-if="item.notes" class="text-caption text-weight-normal text-grey-8 q-ml-sm">({{ item.notes }})</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Tuning / Note Row -->
+                  <tr v-else-if="item.type === 'tuning' || item.type === 'note'" class="divider-row note-divider">
+                    <td :colspan="2 + (selectedExportColumns.artist ? 1 : 0) + (selectedExportColumns.bpm ? 1 : 0) + (selectedExportColumns.tuning ? 1 : 0) + (selectedExportColumns.pitch ? 1 : 0) + (selectedExportColumns.notes ? 1 : 0) + (selectedExportColumns.length ? 1 : 0)">
+                      <div class="text-italic text-grey-8">
+                        <span>{{ item.title }}</span>
+                        <span v-if="item.notes" class="q-ml-sm">— {{ item.notes }}</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Regular Song -->
+                  <tr v-else class="song-row">
+                    <td class="text-center text-weight-medium">{{ item.songIndex }}</td>
+                    <td class="text-weight-bold">{{ item.title }}</td>
+                    <td v-if="selectedExportColumns.artist" class="text-grey-9">{{ item.artist || '-' }}</td>
+                    <td v-if="selectedExportColumns.bpm" class="text-center font-monospace">{{ item.bpm || '-' }}</td>
+                    <td v-if="selectedExportColumns.tuning" class="text-center">{{ item.tuning || '-' }}</td>
+                    <td v-if="selectedExportColumns.pitch" class="text-center font-monospace">{{ formatPitch(item.pitch) }}</td>
+                    <td v-if="selectedExportColumns.notes" class="text-caption notes-cell">{{ item.notes || item.personalNote || '-' }}</td>
+                    <td v-if="selectedExportColumns.length" class="text-right font-monospace">{{ item.lengthMs ? formatDuration(item.lengthMs) : '-' }}</td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+
+            <!-- Footer summary -->
+            <div class="row justify-between items-center q-mt-lg text-caption text-grey-7 border-top-dark q-pt-sm">
+              <div>Total Songs: {{ filteredSongs.filter((s) => s.type === 'song').length }}</div>
+              <div>Generated with bandstr</div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -1625,5 +2097,106 @@ onMounted(() => {
 :deep(.song-picker-options-popup) {
   max-height: 55vh;
   overflow-y: auto;
+}
+
+.set-divider-item {
+  background: rgba(25, 118, 210, 0.08);
+  border-left: 4px solid var(--q-primary);
+}
+
+.encore-divider-item {
+  background: rgba(255, 87, 34, 0.08);
+  border-left: 4px solid #ff5722;
+}
+
+.print-sheet-area {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: auto;
+}
+
+.border-bottom-dark {
+  border-bottom: 2px solid #222;
+}
+
+.border-top-dark {
+  border-top: 1px solid #ddd;
+}
+
+.print-table {
+  border-collapse: collapse;
+  width: 100%;
+
+  th, td {
+    border-bottom: 1px solid #e0e0e0;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  th {
+    border-bottom: 2px solid #333;
+    font-weight: 700;
+  }
+
+  .divider-row td {
+    padding: 8px 10px;
+    border-bottom: 2px solid #333;
+  }
+
+  .set-divider td {
+    background-color: #f0f4f8;
+    color: #0d47a1;
+  }
+
+  .encore-divider td {
+    background-color: #fff3e0;
+    color: #e65100;
+  }
+
+  .pause-divider td {
+    background-color: #f5f5f5;
+    color: #616161;
+  }
+
+  .note-divider td {
+    background-color: #fafafa;
+    border-bottom: 1px solid #eee;
+  }
+
+  .song-row:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  .notes-cell {
+    max-width: 180px;
+    word-break: break-word;
+  }
+
+  .font-monospace {
+    font-family: monospace;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet-area, .print-sheet-area * {
+    visibility: visible;
+  }
+  .print-sheet-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 10mm;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
 }
 </style>

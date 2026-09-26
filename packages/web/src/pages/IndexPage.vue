@@ -539,8 +539,18 @@ async function confirmBierwart(member: any) {
                   <q-item-label caption><markdown-component :content="gig.description" /></q-item-label>
                 </q-item-section>
                 <q-item-section v-if="gig.gigSetlistId" side>
-                  <q-icon name="queue_music" color="primary" size="sm" />
-                  <q-tooltip>{{ t('home.openSetlist') }}</q-tooltip>
+                  <q-btn
+                    outline
+                    dense
+                    color="primary"
+                    icon="queue_music"
+                    :label="t('home.openSetlist')"
+                    size="sm"
+                    class="q-px-sm"
+                    @click.stop="goToGigSetlist(gig.gigSetlistId)"
+                  >
+                    <q-tooltip>{{ t('home.openSetlist') }}</q-tooltip>
+                  </q-btn>
                 </q-item-section>
               </q-item>
             </q-list>

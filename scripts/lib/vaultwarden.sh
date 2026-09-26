@@ -21,7 +21,12 @@ vw_creds_value() {
   local line
   line="$(grep -E "^$1=" "$REPO_ROOT/.creds.config" | tail -n 1 || true)"
   local value="${line#*=}"
-  printf '%s' "${value%$'\r'}"
+  value="${value%$'\r'}"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  printf '%s' "$value"
 }
 
 # Logs in / unlocks and exports BW_SESSION.
@@ -33,22 +38,25 @@ vw_login() {
   fi
   local server user password status
   server="$(vw_creds_value VAULTWARDEN_SERVER)"
+  [[ -z "$server" ]] && server="$(vw_creds_value VAULTWARDEN_API_BASE)"
   user="$(vw_creds_value VAULTWARDEN_USER)"
   password="$(vw_creds_value VAULTWARDEN_MASTER_PASSWORD)"
   if [[ -z "$server" || -z "$user" || -z "$password" ]]; then
-    echo "Error: VAULTWARDEN_SERVER, VAULTWARDEN_USER and VAULTWARDEN_MASTER_PASSWORD must be set in .creds.config."
+    echo "Error: VAULTWARDEN_SERVER (or VAULTWARDEN_API_BASE), VAULTWARDEN_USER and VAULTWARDEN_MASTER_PASSWORD must be set in .creds.config."
     exit 1
   fi
 
+  export BW_PASSWORD="$password"
   status="$(bw status | jq -r '.status')"
   if [[ "$status" == "unauthenticated" ]]; then
     bw config server "$server" >/dev/null
     echo "Logging in to Vaultwarden as $user ..."
-    BW_SESSION="$(bw login "$user" "$password" --raw)"
+    BW_SESSION="$(bw login "$user" --passwordenv BW_PASSWORD --raw)"
   else
     echo "Unlocking Vaultwarden ..."
-    BW_SESSION="$(bw unlock "$password" --raw)"
+    BW_SESSION="$(bw unlock --passwordenv BW_PASSWORD --raw)"
   fi
+  unset BW_PASSWORD
   export BW_SESSION
   bw sync >/dev/null
 }

@@ -1,9 +1,10 @@
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { db, pool } from './index.js'
 
-const MIGRATIONS_FOLDER = new URL('./migrations', import.meta.url).pathname
+const MIGRATIONS_FOLDER = fileURLToPath(new URL('./migrations', import.meta.url))
 
 type JournalEntry = {
   idx: number
@@ -187,10 +188,49 @@ async function ensureUserDefaultBandColumn() {
   `)
 }
 
-export async function runMigrations(options: { closePoolOnDone?: boolean } = {}) {
-  const { closePoolOnDone = false } = options
+async function ensureSongArchiveColumn() {
+  if (!(await publicTableExists('songs'))) return
+
+  await pool.query(`
+    ALTER TABLE "songs"
+      ADD COLUMN IF NOT EXISTS "is_archived" boolean DEFAULT false NOT NULL;
+  `)
+}
+
+async function ensureGigSetlistDetailsColumns() {
+  if (!(await publicTableExists('gig_setlists'))) return
+
+  await pool.query(`
+    ALTER TABLE "gig_setlists"
+      ADD COLUMN IF NOT EXISTS "location" text,
+      ADD COLUMN IF NOT EXISTS "gig_date" text,
+      ADD COLUMN IF NOT EXISTS "gig_time" text,
+      ADD COLUMN IF NOT EXISTS "notes" text;
+  `)
+}
+
+async function waitForDatabase(maxRetries = 10, delayMs = 2000): Promise<void> {
+  let attempt = 0
+  while (attempt < maxRetries) {
+    try {
+      await pool.query('SELECT 1')
+      return
+    } catch (err: any) {
+      attempt++
+      if (attempt >= maxRetries) {
+        throw new Error(`Database connection failed after ${maxRetries} attempts: ${err.message}`)
+      }
+      console.log(`Database not ready (attempt ${attempt}/${maxRetries}): ${err.message}. Retrying in ${delayMs / 1000}s...`)
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+}
+
+export async function runMigrations(options: { closePoolOnDone?: boolean; maxRetries?: number; retryDelayMs?: number } = {}) {
+  const { closePoolOnDone = false, maxRetries = 10, retryDelayMs = 2000 } = options
   const started = Date.now()
   try {
+    await waitForDatabase(maxRetries, retryDelayMs)
     await baselineLegacySchemaIfNeeded()
     await ensureBandsMonetizationColumns()
     await ensureUserProPlanColumns()
@@ -198,6 +238,8 @@ export async function runMigrations(options: { closePoolOnDone?: boolean } = {})
     await ensureUserDefaultBandColumn()
     await ensureSubscriptionProviderColumns()
     await ensureUserSubscriptionColumns()
+    await ensureSongArchiveColumn()
+    await ensureGigSetlistDetailsColumns()
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
     const ms = Date.now() - started
     console.log(`DB migrations applied in ${ms}ms`)
@@ -211,9 +253,13 @@ export async function runMigrations(options: { closePoolOnDone?: boolean } = {})
   }
 }
 
-// Keep standalone migration script behavior.
-if ((process.argv[1] ?? '').includes('/db/migrate')) {
-  void runMigrations({ closePoolOnDone: true }).catch(() => {
-    process.exitCode = 1
-  })
+// Standalone migration script execution.
+if (process.argv[1] && process.argv[1].includes('migrate')) {
+  try {
+    await runMigrations({ closePoolOnDone: true })
+  } catch (error) {
+    console.error('Fatal migration error:', error)
+    process.exit(1)
+  }
 }
+

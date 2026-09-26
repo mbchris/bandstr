@@ -93,6 +93,10 @@ export const gigSetlists = pgTable(
       .notNull()
       .references(() => bands.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
+    location: text('location'),
+    gigDate: text('gig_date'),
+    gigTime: text('gig_time'),
+    notes: text('notes'),
     calendarEventId: integer('calendar_event_id').references(() => calendarEvents.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

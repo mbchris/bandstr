@@ -235,6 +235,14 @@ body.is-android-native {
   }
 }
 
+body.q-ios-padding,
+body.platform-ios,
+body.is-ios-native {
+  .q-header {
+    padding-top: 0 !important;
+  }
+}
+
 // Ensure header typography stays readable on all backgrounds.
 .q-header .q-toolbar,
 .q-header .q-toolbar__title,

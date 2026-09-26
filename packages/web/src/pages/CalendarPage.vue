@@ -234,8 +234,84 @@ function openEventFromQuery() {
   void router.replace({ path: route.path, query: nextQuery })
 }
 
+const isSavingAttendance = ref(false)
+const showOverviewModal = ref(false)
+
+function getAttendanceSummary(rehearsalId: number) {
+  return calendarStore.attendanceMap[rehearsalId]?.summary
+}
+
+function getAttendanceTooltip(rehearsalId: number) {
+  const info = calendarStore.attendanceMap[rehearsalId]
+  if (!info) return ''
+  if (info.summary === 'all_present') return t('calendar.allPresent')
+  if (info.summary === 'has_absent') return t('calendar.hasAbsent')
+  return t('calendar.pendingAttendance')
+}
+
+const currentEditingAttendance = computed(() => {
+  if (!editingEvent.value || editingEvent.value.type !== 'rehearsal') return null
+  return calendarStore.attendanceMap[editingEvent.value.id] ?? null
+})
+
+const currentEditingMyAttendance = computed(() => {
+  return currentEditingAttendance.value?.myAttendance ?? null
+})
+
+async function updateAttendanceForCurrentEvent(status: 'present' | 'absent' | 'reset') {
+  if (!editingEvent.value) return
+  isSavingAttendance.value = true
+  try {
+    await calendarStore.setRehearsalAttendance(editingEvent.value.id, status)
+  } catch {
+    $q.notify({ message: t('home.failedAttendance'), color: 'negative' })
+  } finally {
+    isSavingAttendance.value = false
+  }
+}
+
+function isCurrentUser(userId: string) {
+  return authStore.user?.id === userId
+}
+
+function getMemberStatus(rehearsal: any, userId: string) {
+  const row = rehearsal.memberAttendance?.find((m: any) => m.userId === userId)
+  return row?.status ?? 'open'
+}
+
+async function toggleMyStatusInOverview(rehearsal: any) {
+  const current = rehearsal.myAttendance
+  const next = current === 'present' ? 'absent' : current === 'absent' ? 'reset' : 'present'
+  try {
+    await calendarStore.setRehearsalAttendance(rehearsal.id, next)
+  } catch {
+    $q.notify({ message: t('home.failedAttendance'), color: 'negative' })
+  }
+}
+
+function formatOverviewDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: '2-digit' })
+  } catch {
+    return dateStr
+  }
+}
+
+function openRehearsalFromOverview(rehearsal: any) {
+  const ev = calendarStore.events.find((e) => e.id === rehearsal.id)
+  if (ev) {
+    showOverviewModal.value = false
+    editEvent(ev)
+  }
+}
+
 onMounted(() => {
-  void Promise.all([calendarStore.fetchEvents(), bandStore.fetchMembers()]).then(() => {
+  void Promise.all([
+    calendarStore.fetchEvents(),
+    calendarStore.fetchRehearsalAttendance(),
+    bandStore.fetchMembers(),
+  ]).then(() => {
     openEventFromQuery()
   })
 })
@@ -255,7 +331,18 @@ watch(
         <q-card-section>
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('nav.calendar') }}</div>
-            <q-btn flat dense :label="t('calendar.today')" @click="goToToday" />
+            <div class="row items-center q-gutter-sm">
+              <q-btn
+                outline
+                dense
+                color="primary"
+                icon="checklist"
+                :label="t('calendar.rehearsalOverview')"
+                class="q-px-sm"
+                @click="showOverviewModal = true"
+              />
+              <q-btn flat dense :label="t('calendar.today')" @click="goToToday" />
+            </div>
           </div>
         </q-card-section>
 
@@ -287,11 +374,17 @@ watch(
                 <template v-for="(event, eIdx) in getEvents(dayData.year, dayData.month, dayData.day)" :key="event.id">
                   <div
                     v-if="eIdx < 3"
-                    class="event-chip text-caption ellipsis"
+                    class="event-chip text-caption ellipsis row items-center no-wrap"
                     :class="eventClass(event)"
                     @click.stop="editEvent(event)"
                   >
-                    {{ event.title }}
+                    <span
+                      v-if="event.type === 'rehearsal' && getAttendanceSummary(event.id)"
+                      class="attendance-status-dot q-mr-xs"
+                      :class="`dot-${getAttendanceSummary(event.id)}`"
+                      :title="getAttendanceTooltip(event.id)"
+                    />
+                    <span class="ellipsis col">{{ event.title }}</span>
                     <span v-if="event.isTentative" class="q-ml-xs">?</span>
                   </div>
                 </template>
@@ -346,6 +439,82 @@ watch(
           <q-input v-model="form.description" :label="t('calendar.description')" :placeholder="t('calendar.descPlaceholder')" type="textarea" outlined dense autogrow />
 
           <q-toggle v-model="form.isTentative" :label="t('calendar.tentativeLabel')" />
+
+          <template v-if="editingEvent && editingEvent.type === 'rehearsal'">
+            <q-separator class="q-my-sm" />
+            <div>
+              <div class="row items-center justify-between q-mb-sm">
+                <div class="text-subtitle2 text-weight-bold">{{ t('calendar.attendanceTitle') }}</div>
+                <q-badge
+                  v-if="currentEditingAttendance?.summary === 'all_present'"
+                  color="positive"
+                  icon="check_circle"
+                  :label="t('calendar.allPresent')"
+                />
+                <q-badge
+                  v-else-if="currentEditingAttendance?.summary === 'has_absent'"
+                  color="negative"
+                  icon="cancel"
+                  :label="t('calendar.hasAbsent')"
+                />
+                <q-badge
+                  v-else
+                  color="amber-9"
+                  icon="help_outline"
+                  :label="t('calendar.pendingAttendance')"
+                />
+              </div>
+
+              <!-- Own attendance controls -->
+              <div class="row items-center q-gutter-sm q-mb-sm">
+                <q-btn
+                  flat
+                  dense
+                  icon="check"
+                  :color="currentEditingMyAttendance === 'present' ? 'positive' : 'grey-7'"
+                  :class="{ 'bg-green-1 text-weight-bold': currentEditingMyAttendance === 'present' }"
+                  :label="t('home.confirmAttendance')"
+                  :loading="isSavingAttendance"
+                  @click="updateAttendanceForCurrentEvent('present')"
+                />
+                <q-btn
+                  flat
+                  dense
+                  icon="event_busy"
+                  :color="currentEditingMyAttendance === 'absent' ? 'negative' : 'grey-7'"
+                  :class="{ 'bg-red-1 text-weight-bold': currentEditingMyAttendance === 'absent' }"
+                  :label="t('home.markAbsent')"
+                  :loading="isSavingAttendance"
+                  @click="updateAttendanceForCurrentEvent('absent')"
+                />
+                <q-btn
+                  flat
+                  dense
+                  icon="restart_alt"
+                  color="grey-8"
+                  :label="t('home.resetAttendance')"
+                  :loading="isSavingAttendance"
+                  @click="updateAttendanceForCurrentEvent('reset')"
+                />
+              </div>
+
+              <!-- Member attendance chips -->
+              <div v-if="currentEditingAttendance?.memberAttendance?.length" class="q-mt-xs">
+                <div class="row q-gutter-xs">
+                  <q-chip
+                    v-for="m in currentEditingAttendance.memberAttendance"
+                    :key="m.userId"
+                    dense
+                    :color="m.status === 'present' ? 'green-1' : m.status === 'absent' ? 'red-1' : 'grey-2'"
+                    :text-color="m.status === 'present' ? 'positive' : m.status === 'absent' ? 'negative' : 'grey-8'"
+                    :icon="m.status === 'present' ? 'check_circle' : m.status === 'absent' ? 'cancel' : 'help_outline'"
+                  >
+                    {{ m.userName }}: {{ m.status === 'present' ? t('home.attendanceConfirmed') : m.status === 'absent' ? t('home.attendanceAbsent') : t('home.attendanceUnset') }}
+                  </q-chip>
+                </div>
+              </div>
+            </div>
+          </template>
         </q-card-section>
         <q-card-actions class="row justify-between">
           <div class="row q-gutter-sm">
@@ -388,7 +557,25 @@ watch(
                 <template v-if="event.endTime"> — {{ formatTime(event.endTime) }}</template>
               </q-item-label>
             </q-item-section>
-            <q-item-section side>
+            <q-item-section side class="row items-center q-gutter-xs">
+              <q-badge
+                v-if="event.type === 'rehearsal' && getAttendanceSummary(event.id) === 'all_present'"
+                color="positive"
+                icon="check_circle"
+                :label="t('calendar.allPresent')"
+              />
+              <q-badge
+                v-else-if="event.type === 'rehearsal' && getAttendanceSummary(event.id) === 'has_absent'"
+                color="negative"
+                icon="cancel"
+                :label="t('calendar.hasAbsent')"
+              />
+              <q-badge
+                v-else-if="event.type === 'rehearsal'"
+                color="amber-9"
+                icon="help_outline"
+                :label="t('calendar.pendingAttendance')"
+              />
               <q-icon name="chevron_right" color="grey" />
             </q-item-section>
           </q-item>
@@ -400,6 +587,109 @@ watch(
 
         <q-card-actions>
           <q-btn class="full-width" color="primary" icon="add" :label="t('calendar.createEvent')" @click="openCreateFromDayView" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Rehearsal Overview Dialog -->
+    <q-dialog v-model="showOverviewModal">
+      <q-card style="min-width: 680px; max-width: 95vw">
+        <q-card-section class="row items-center justify-between">
+          <div class="text-h6 row items-center q-gutter-sm">
+            <q-icon name="checklist" color="primary" />
+            <span>{{ t('calendar.rehearsalOverview') }}</span>
+          </div>
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-pa-none">
+          <div v-if="calendarStore.loadingAttendance" class="text-center q-pa-md">
+            <q-spinner color="primary" size="2em" />
+          </div>
+          <div v-else-if="!calendarStore.upcomingRehearsals.length" class="text-center text-grey q-pa-lg">
+            {{ t('calendar.noUpcomingRehearsals') }}
+          </div>
+          <div v-else class="q-table__container q-table--horizontal-separator" style="overflow-x: auto">
+            <table class="q-table q-table--dense full-width">
+              <thead>
+                <tr>
+                  <th class="text-left q-px-sm">{{ t('calendar.tableDate') }}</th>
+                  <th class="text-left q-px-sm">{{ t('calendar.tableRehearsal') }}</th>
+                  <th v-for="member in calendarStore.attendanceMembers" :key="member.userId" class="text-center q-px-xs">
+                    {{ member.userName }}
+                  </th>
+                  <th class="text-center q-px-sm">{{ t('calendar.tableStatus') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="r in calendarStore.upcomingRehearsals"
+                  :key="r.id"
+                  class="cursor-pointer rehearsal-matrix-row"
+                  @click="openRehearsalFromOverview(r)"
+                >
+                  <td class="text-weight-bold q-px-sm">
+                    {{ formatOverviewDate(r.startTime) }}
+                  </td>
+                  <td class="q-px-sm">
+                    <span class="text-weight-medium">{{ r.title }}</span>
+                    <div class="text-caption text-grey">{{ formatTime(r.startTime) }} - {{ formatTime(r.endTime) }}</div>
+                  </td>
+                  <td
+                    v-for="member in calendarStore.attendanceMembers"
+                    :key="member.userId"
+                    class="text-center q-px-xs"
+                    @click.stop="isCurrentUser(member.userId) ? toggleMyStatusInOverview(r) : null"
+                    :class="{ 'cursor-pointer own-status-cell': isCurrentUser(member.userId) }"
+                  >
+                    <q-badge
+                      v-if="getMemberStatus(r, member.userId) === 'present'"
+                      color="positive"
+                      icon="check"
+                      rounded
+                    >
+                      <q-tooltip>{{ member.userName }}: {{ t('home.attendanceConfirmed') }}</q-tooltip>
+                    </q-badge>
+                    <q-badge
+                      v-else-if="getMemberStatus(r, member.userId) === 'absent'"
+                      color="negative"
+                      icon="close"
+                      rounded
+                    >
+                      <q-tooltip>{{ member.userName }}: {{ t('home.attendanceAbsent') }}</q-tooltip>
+                    </q-badge>
+                    <q-badge
+                      v-else
+                      color="grey-6"
+                      label="?"
+                      rounded
+                    >
+                      <q-tooltip>{{ member.userName }}: {{ t('home.attendanceUnset') }}</q-tooltip>
+                    </q-badge>
+                  </td>
+                  <td class="text-center q-px-sm">
+                    <q-badge
+                      v-if="r.summary === 'all_present'"
+                      color="positive"
+                      :label="t('calendar.allPresent')"
+                    />
+                    <q-badge
+                      v-else-if="r.summary === 'has_absent'"
+                      color="negative"
+                      :label="t('calendar.hasAbsent')"
+                    />
+                    <q-badge
+                      v-else
+                      color="amber-9"
+                      :label="t('calendar.pendingAttendance')"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.close')" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -436,5 +726,38 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.attendance-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+
+  &.dot-all_present {
+    background-color: #10b981;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+  }
+  &.dot-has_absent {
+    background-color: #ef4444;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+  }
+  &.dot-pending {
+    background-color: #f59e0b;
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+  }
+}
+
+.rehearsal-matrix-row:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.own-status-cell {
+  transition: background-color 0.15s;
+}
+
+.own-status-cell:hover {
+  background-color: rgba(0, 0, 0, 0.08);
 }
 </style>

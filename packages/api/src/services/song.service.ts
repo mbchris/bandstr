@@ -32,11 +32,12 @@ export type CreateSongInput = {
   bpm?: number | null
   tags?: string[]
   notes?: string
-  type?: 'song' | 'pause' | 'tuning' | 'note'
+  type?: 'song' | 'pause' | 'tuning' | 'note' | 'set' | 'encore'
   pitch?: number
   isSetlist?: boolean
   position?: number
   isPinned?: boolean
+  isArchived?: boolean
 }
 
 export type UpdateSongInput = Partial<CreateSongInput>
@@ -139,6 +140,7 @@ export const songService = {
         isSetlist: data.isSetlist ?? false,
         position: data.position ?? 0,
         isPinned: data.isPinned ?? false,
+        isArchived: data.isArchived ?? false,
         addedBy: userId,
       })
       .returning()
@@ -228,6 +230,7 @@ export const songService = {
         isSetlist: data.isSetlist ?? existing.isSetlist,
         position: data.position ?? existing.position,
         isPinned: data.isPinned ?? existing.isPinned,
+        isArchived: data.isArchived ?? existing.isArchived,
       })
       .where(and(eq(songsTable.id, id), eq(songsTable.bandId, bandId)))
       .returning()

@@ -241,7 +241,7 @@ const backupSchema = z.object({
         lengthMs: z.number().int().nullable().optional(),
         bpm: z.number().int().nullable().optional(),
         notes: z.string().nullable().optional(),
-        type: z.enum(['song', 'pause', 'tuning']).optional(),
+        type: z.enum(['song', 'pause', 'tuning', 'note', 'set', 'encore']).optional(),
         pitch: z.number().int().optional(),
         isSetlist: z.boolean().optional(),
         position: z.number().int().optional(),

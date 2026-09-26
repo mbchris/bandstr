@@ -23,6 +23,10 @@ const gigSongParamSchema = z.object({
 const gigSetlistBodySchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   calendarEventId: z.number().int().positive().nullable().optional(),
+  location: z.string().trim().max(500).nullable().optional(),
+  gigDate: z.string().trim().max(50).nullable().optional(),
+  gigTime: z.string().trim().max(50).nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
 })
 
 const addSongBodySchema = z.object({
@@ -66,6 +70,10 @@ gigs.get('/', async (c) => {
       id: gigSetlists.id,
       bandId: gigSetlists.bandId,
       title: gigSetlists.title,
+      location: gigSetlists.location,
+      gigDate: gigSetlists.gigDate,
+      gigTime: gigSetlists.gigTime,
+      notes: gigSetlists.notes,
       calendarEventId: gigSetlists.calendarEventId,
       createdAt: gigSetlists.createdAt,
       calendarEventTitle: calendarEvents.title,
@@ -90,7 +98,7 @@ gigs.get('/', async (c) => {
 // POST /gigs
 gigs.post('/', zValidator('json', gigSetlistBodySchema), async (c) => {
   const bandId = c.get('bandId')
-  const { title, calendarEventId } = c.req.valid('json')
+  const { title, calendarEventId, location, gigDate, gigTime, notes } = c.req.valid('json')
 
   let linkedCalendarTitle: string | null = null
   if (typeof calendarEventId === 'number') {
@@ -107,6 +115,10 @@ gigs.post('/', zValidator('json', gigSetlistBodySchema), async (c) => {
       bandId,
       title: finalTitle,
       calendarEventId: calendarEventId ?? null,
+      location: location ?? null,
+      gigDate: gigDate ?? null,
+      gigTime: gigTime ?? null,
+      notes: notes ?? null,
     })
     .returning()
 
@@ -121,7 +133,7 @@ gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetli
   const gig = await getGigSetlistForBandOrNull(bandId, gigId)
   if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
 
-  const { title, calendarEventId } = c.req.valid('json')
+  const { title, calendarEventId, location, gigDate, gigTime, notes } = c.req.valid('json')
 
   if (typeof calendarEventId === 'number') {
     const event = await getCalendarGigForBandOrNull(bandId, calendarEventId)
@@ -138,16 +150,69 @@ gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetli
       )
   }
 
+  const updatePayload: Record<string, any> = {
+    title: title?.trim() || gig.title,
+    calendarEventId: calendarEventId === undefined ? gig.calendarEventId : calendarEventId,
+  }
+  if (location !== undefined) updatePayload.location = location
+  if (gigDate !== undefined) updatePayload.gigDate = gigDate
+  if (gigTime !== undefined) updatePayload.gigTime = gigTime
+  if (notes !== undefined) updatePayload.notes = notes
+
   const [updated] = await db
     .update(gigSetlists)
-    .set({
-      title: title?.trim() || gig.title,
-      calendarEventId: calendarEventId === undefined ? gig.calendarEventId : calendarEventId,
-    })
+    .set(updatePayload)
     .where(and(eq(gigSetlists.id, gigId), eq(gigSetlists.bandId, bandId)))
     .returning()
 
   return c.json(updated)
+})
+
+// POST /gigs/:id/duplicate
+gigs.post('/:id/duplicate', zValidator('param', idParamSchema), async (c) => {
+  const bandId = c.get('bandId')
+  const { id: gigId } = c.req.valid('param')
+
+  const gig = await getGigSetlistForBandOrNull(bandId, gigId)
+  if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
+
+  const newTitle = `${gig.title} (Kopie)`
+
+  const [newGig] = await db
+    .insert(gigSetlists)
+    .values({
+      bandId,
+      title: newTitle,
+      location: gig.location,
+      gigDate: gig.gigDate,
+      gigTime: gig.gigTime,
+      notes: gig.notes,
+      calendarEventId: null,
+    })
+    .returning()
+
+  // Copy songs from original gig
+  const existingSongs = await db
+    .select({
+      songId: gigSongs.songId,
+      position: gigSongs.position,
+    })
+    .from(gigSongs)
+    .where(and(eq(gigSongs.gigId, gigId), eq(gigSongs.bandId, bandId)))
+    .orderBy(asc(gigSongs.position))
+
+  if (existingSongs.length > 0) {
+    await db.insert(gigSongs).values(
+      existingSongs.map((s) => ({
+        bandId,
+        gigId: newGig.id,
+        songId: s.songId,
+        position: s.position,
+      })),
+    )
+  }
+
+  return c.json(newGig, 201)
 })
 
 // DELETE /gigs/:id

@@ -43,15 +43,20 @@ creds_value() {
   line="$(grep -E "^${key}=" "$CREDS_FILE" | tail -n 1 || true)"
   local value="${line#*=}"
   value="${value%$'\r'}"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
   printf '%s' "$value"
 }
 
 VW_SERVER="$(creds_value VAULTWARDEN_SERVER)"
+[[ -z "$VW_SERVER" ]] && VW_SERVER="$(creds_value VAULTWARDEN_API_BASE)"
 VW_USER="$(creds_value VAULTWARDEN_USER)"
 VW_PASSWORD="$(creds_value VAULTWARDEN_MASTER_PASSWORD)"
 
 if [[ -z "$VW_SERVER" || -z "$VW_USER" || -z "$VW_PASSWORD" ]]; then
-  echo "Error: VAULTWARDEN_SERVER, VAULTWARDEN_USER and VAULTWARDEN_MASTER_PASSWORD must all be set in $CREDS_FILE."
+  echo "Error: VAULTWARDEN_SERVER (or VAULTWARDEN_API_BASE), VAULTWARDEN_USER and VAULTWARDEN_MASTER_PASSWORD must all be set in $CREDS_FILE."
   exit 1
 fi
 

@@ -4,7 +4,7 @@ export type PlanId = 'free' | 'band' | 'pro'
 
 export type BandRole = 'owner' | 'admin' | 'member'
 
-export type SongType = 'song' | 'pause' | 'tuning'
+export type SongType = 'song' | 'pause' | 'tuning' | 'note' | 'set' | 'encore'
 
 export type CalendarEventType = 'rehearsal' | 'gig' | 'event' | 'unavailability'
 

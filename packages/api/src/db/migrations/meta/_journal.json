@@ -92,6 +92,20 @@
       "when": 1778866562600,
       "tag": "0013_song_bpm",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778900000000,
+      "tag": "0014_song_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778910000000,
+      "tag": "0015_gig_setlist_details",
+      "breakpoints": true
     }
   ]
 }

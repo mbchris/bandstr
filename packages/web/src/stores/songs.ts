@@ -21,11 +21,12 @@ export type Song = {
   bpm?: number | null
   tags: string[]
   notes?: string | null
-  type: 'song' | 'pause' | 'tuning' | 'note'
+  type: 'song' | 'pause' | 'tuning' | 'note' | 'set' | 'encore'
   pitch: number
   isSetlist: boolean
   position: number
   isPinned: boolean
+  isArchived?: boolean
   addedBy?: string | null
   userSetlistPosition?: number
   userSetlistPinned?: boolean
