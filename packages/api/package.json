@@ -12,6 +12,8 @@
     "cli:mail-test": "node dist/cli/mail-test.js",
     "cli:mail-test:dev": "tsx src/cli/mail-test.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:runtime": "node dist/db/migrate.js",
@@ -19,6 +21,7 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@bandstr/shared": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.7.6",
     "better-auth": "^1.5.6",
@@ -35,7 +38,8 @@
     "@types/pg": "^8.11.11",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^5.0.2"
   },
   "engines": {
     "node": ">=20.0.0"
