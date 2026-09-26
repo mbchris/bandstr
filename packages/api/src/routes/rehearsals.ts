@@ -360,8 +360,8 @@ rehearsals.put(
 )
 
 const createProposalSchema = z.object({
-  proposedStartTime: z.string().datetime(),
-  proposedEndTime: z.string().datetime(),
+  proposedStartTime: z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid datetime string' }),
+  proposedEndTime: z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid datetime string' }),
   comment: z.string().max(5000).optional(),
 })
 
