@@ -122,107 +122,45 @@ Copy and paste the text block below directly into the App Store Connect Resoluti
 ```markdown
 Dear Apple App Review Team,
 
-Thank you for your review and detailed feedback regarding bandstr (Submission ID: 384ac34e-ab2a-4d6a-82f6-22f7b739c6ab).
-
-We have resolved all items identified across Guidelines 4.8, 4, 2.1, 2.1(a), 1.5, and 2.1(b). Below is a summary of the technical improvements implemented in this build, along with the answers to your business model questionnaire.
-
----
+Thank you for your feedback regarding bandstr (Submission ID: 384ac34e-ab2a-4d6a-82f6-22f7b739c6ab). We have resolved all items across Guidelines 4.8, 4, 2.1, 2.1(a), 1.5, and 2.1(b).
 
 ### 1. Guideline 4.8 - Design: Login Services (Sign in with Apple)
+- Integrated **Sign in with Apple** on iOS and Web alongside existing login options, strictly following Apple Human Interface Guidelines.
+- Supports Apple private email relay, collects only name and email, and does not track users for advertising.
 
-**Issue:** Third-party login options were offered without an equivalent privacy-preserving login service.
-**Resolution:**
-- We integrated **Sign in with Apple** across both iOS and Web platforms.
-- The "Sign in with Apple" button is positioned alongside existing authentication methods on login and registration screens, adhering to Apple Human Interface Guidelines (styling, layout, Apple branding).
-- It supports Apple's private email relay, collects only essential name and email details, and does not track user activity across apps for advertising.
-- The backend Better Auth service validates Apple identity tokens and public keys securely.
-
----
-
-### 2. Guideline 4 - Design: In-App Safari View Controller & Account Deletion
-
-**Issue 1 (In-App Browser):** External Safari opened during social login flows.
-**Resolution:**
-- We integrated `@capacitor/browser` utilizing native `SFSafariViewController` on iOS.
-- All OAuth sign-in flows (Apple, Google, GitHub) now open directly inside the app in an embedded Safari sheet with standard URL inspection and SSL indicators.
-- Upon completion, the custom scheme deep link (`org.capacitor.bandstr://`) returns authentication tokens and automatically dismisses the in-app browser sheet, returning users seamlessly to their dashboard.
-
-**Issue 2 (Account Deletion Discoverability):** Account deletion mechanism must be easily discoverable.
-**Resolution:**
-- Account deletion is now accessible through two immediate navigation paths:
-  1. **User Account Menu:** An explicit "Account Security & Deletion" option (`delete_forever` icon) is present in the main user profile dropdown menu.
-  2. **Dashboard Profile Section:** A direct navigation link is available directly on the user profile summary card.
-- Navigating to `/delete-account` provides clear confirmation dialogue, revokes all active sessions, and permanently removes the user's personal data and account records from the database in compliance with Guideline 5.1.1(v).
-
----
+### 2. Guideline 4 - Design: In-App Browser & Account Deletion
+- **In-App Browser:** Replaced external browser redirects with `@capacitor/browser` (`SFSafariViewController`). All social logins (Apple, Google, GitHub) open in an embedded sheet and dismiss automatically upon authentication.
+- **Account Deletion (Guideline 5.1.1(v)):** Made immediately discoverable via:
+  1. User Menu: "Account Security & Deletion" in the top-right account dropdown.
+  2. Dashboard: Direct link on the user profile summary card.
+  Both navigate to `/delete-account`, which confirms deletion, revokes active tokens, and permanently deletes user data.
 
 ### 3. Guideline 2.1 - Information Needed: Reviewer Demo Account
+The demo account is seeded in production with verified status and full feature access:
+- **Username:** `appcert@example.org`
+- **Password:** [INSERT_DEMO_PASSWORD_HERE]
+- **Pre-populated Data:** Assigned as Owner of "The Bandstr Demo Band" with sample songs, setlists, rehearsal/gig calendar events, and voting polls. Email verification is pre-completed for instant sign-in.
 
-**Issue:** Provided demo credentials (`appcert@example.org`) failed to authenticate.
-**Resolution:**
-- We created an automated database seeding tool (`seed-demo-account`) that provisions a fully verified reviewer account with populated sample content.
-- The demo credentials have been seeded in production and verified:
-  - **Username:** `appcert@example.org`
-  - **Password:** [INSERT_DEMO_PASSWORD_HERE]
-- The demo account is pre-populated with active band data:
-  - **Band:** "The Bandstr Demo Band" (Owner permissions)
-  - **Song Repertoire:** Sample songs with keys, tempo, and Spotify links
-  - **Setlists:** Configured live performance setlists
-  - **Calendar:** Upcoming rehearsal and gig dates with attendance tracking
-  - **Voting:** Active song proposal poll with votes
-- The account has email verification pre-flagged as completed, allowing immediate access without email activation.
+### 4. Guideline 2.1(a) - Performance: App Completeness (Email Verification)
+- Verified outbound SMTP production delivery with valid SPF/DKIM/TLS.
+- Added an interactive **"Resend verification email"** button on the sign-in/sign-up screen if an email is delayed.
+- Reviewers can sign in immediately with the pre-verified demo credentials above.
 
----
-
-### 4. Guideline 2.1(a) - Performance: App Completeness (Email Verification Delivery)
-
-**Issue:** Account registration did not deliver a verification email to the reviewer.
-**Resolution:**
-- **SMTP Delivery Infrastructure:** We updated and verified our production outbound email service with validated SPF, DKIM, and TLS configuration to guarantee inbox delivery for verification emails.
-- **In-App Resend Verification:** The registration screen now features an interactive **"Resend verification email"** button alongside clear user messaging. If an email is delayed or caught in network spam filters, users can immediately request a new token directly from the screen without restarting registration.
-- **Review Access:** Reviewers can authenticate directly using the pre-verified demo credentials (`appcert@example.org`), which bypass email confirmation entirely.
-
----
-
-### 5. Guideline 1.5 - Safety: Public Support URL
-
-**Issue:** Support URL (`https://4ki.app/`) did not direct to a functional support page.
-**Resolution:**
-- We deployed a dedicated, publicly accessible support portal:
+### 5. Guideline 1.5 - Safety: Support URL
+- Updated App Store Connect Support URL to our dedicated public portal:
   **Support URL:** `https://bandstr.apps.4ki.app/support`
-- The support page does not require login and provides:
-  - Direct support email contact: `support@4ki.app`
-  - Functional support ticket submission form connected to our ticket system
-  - Comprehensive FAQ covering account access, band invitations, setlists, and subscriptions
-  - Direct navigation links to Legal Notice (`/impress`) and Privacy Policy (`/gdpr`)
-- The Support URL has been updated in App Store Connect metadata to `https://bandstr.apps.4ki.app/support`.
+- Publicly accessible without login, providing direct contact (`support@4ki.app`), FAQ, ticket submission, and links to Privacy Policy (`/gdpr`) and Legal Notice (`/impress`).
 
----
+### 6. Guideline 2.1(b) - Business Model & In-App Purchase Compliance
+1. **Users:** Musicians, band members, and managers coordinating rehearsals, setlists, and song repertoires.
+2. **Purchase Location:** "bandstr pro" subscriptions can be purchased directly in the iOS app via Apple In-App Purchase (StoreKit auto-renewable subscriptions), on Android via Google Play, and on web via Stripe.
+3. **Purchased Features:** "bandstr pro" unlocks unlimited setlists, unlimited members, personal/shared notes, and data export. Under our cooperative model ("bandstr plus"), all band members inherit Pro features when any member holds a Pro subscription.
+4. **Unlocked Features Outside IAP:** None that bypass IAP. In accordance with **Guideline 3.1.3(b) (Multiplatform Services)**, users who subscribed on web or Android can access their subscription on iOS by logging into their account. All subscription tiers are offered inside the iOS app via Apple In-App Purchase at equivalent terms, with no external purchase links.
 
-### 6. Guideline 2.1(b) - Information Needed: Business Model & In-App Purchase Compliance
-
-Below are the responses to Apple's four business model and digital purchase questions:
-
-#### 1. Who are the users that will use the paid features in the app?
-Musicians, band members, and band managers using bandstr to coordinate rehearsal schedules, manage song repertoires, vote on new material, and organize gig setlists.
-
-#### 2. Where can users purchase the features that can be accessed in the app?
-Users can purchase the "bandstr pro" subscription directly within the iOS app using Apple In-App Purchase (StoreKit auto-renewable subscriptions). Subscriptions are also available on Android via Google Play and on the web via Stripe.
-
-#### 3. What specific types of previously purchased features can a user access in the app?
-A user with an active "bandstr pro" subscription accesses unlimited setlist size, unlimited band member limits, personal and shared song notes, and data export/import. Under bandstr's cooperative band model ("bandstr plus"), when any member of a band holds a Pro subscription, all members of that band inherit Pro feature access within that band.
-
-#### 4. What paid content, subscriptions, or features are unlocked within the app that do not use In-App Purchase?
-None that circumvent In-App Purchase. 
-
-In accordance with **Guideline 3.1.3(b) (Multiplatform Services)**, users who previously subscribed on other platforms (such as the web or Google Play) may access their subscription benefits in the iOS app upon logging into their account. All subscription tiers available across other platforms are also offered directly inside the iOS app via Apple In-App Purchase at equivalent terms. The iOS app contains no external purchasing links or calls to action to purchase outside of Apple In-App Purchase.
-
----
-
-We appreciate your assistance in reviewing bandstr. Please let us know if any additional information or testing accounts are required.
+Please let us know if you need any additional information.
 
 Sincerely,  
-The bandstr Development Team  
+The bandstr Team  
 support@4ki.app
 ```
 
