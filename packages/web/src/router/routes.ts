@@ -17,7 +17,6 @@ const routes: RouteRecordRaw[] = [
       { path: 'bands/manage', component: () => import('../pages/ManageBandsPage.vue') },
       { path: 'band/new', component: () => import('../pages/BandCreatePage.vue') },
       { path: 'billing', component: () => import('../pages/BillingPage.vue') },
-      { path: 'support', component: () => import('../pages/SupportPage.vue') },
       { path: 'account/security', component: () => import('../pages/AccountSecurityPage.vue') },
       { path: 'delete-account', component: () => import('../pages/DeleteAccountPage.vue') },
     ],
@@ -34,6 +33,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../layouts/AuthLayout.vue'),
     children: [
       { path: '', component: () => import('../pages/LoginPage.vue') },
+    ],
+  },
+  {
+    path: '/support',
+    component: () => import('../layouts/PublicLayout.vue'),
+    children: [
+      { path: '', component: () => import('../pages/SupportPage.vue') },
     ],
   },
   {

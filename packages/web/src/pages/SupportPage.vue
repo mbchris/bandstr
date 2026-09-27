@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Notify } from 'quasar'
 import { Capacitor } from '@capacitor/core'
 import { api } from '../boot/api'
@@ -7,9 +8,19 @@ import { fetchRuntimeBuildId, resolveBuildIdFromEnv } from '../composables/build
 
 type SupportType = 'bug' | 'feature' | 'comment'
 
+const router = useRouter()
+
 function isUsableBuildId(value: string): boolean {
   const normalized = value.trim().toLowerCase()
   return Boolean(normalized) && normalized !== 'unknown' && normalized !== 'dev'
+}
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+  void router.push('/')
 }
 
 const kind = ref<SupportType>('bug')
@@ -125,9 +136,99 @@ function summarize(value: string): string {
 <template>
   <q-page class="q-pa-md support-page">
     <div class="support-wrap">
+      <div class="row items-center q-mb-md support-back-row">
+        <q-btn flat icon="arrow_back" label="Back" @click="goBack" />
+      </div>
+
       <div class="text-h5 q-mb-sm">Support</div>
       <div class="text-body2 text-grey-5 q-mb-md">
-        Report bugs, suggest features, or leave a comment for the development team.
+        Get assistance, explore frequent questions, or contact the bandstr development team.
+      </div>
+
+      <!-- Direct Contact Card -->
+      <q-card flat bordered class="q-pa-md q-mb-lg support-contact-card">
+        <div class="row items-center q-gutter-sm q-mb-xs">
+          <q-icon name="mail" size="22px" color="primary" />
+          <div class="text-subtitle1 text-weight-medium">Direct Contact</div>
+        </div>
+        <div class="text-body2 text-grey-5">
+          Have questions or need help with your account? Contact us directly at
+          <a href="mailto:support@4ki.app" class="support-email-link">support@4ki.app</a>.
+        </div>
+      </q-card>
+
+      <!-- FAQ Section -->
+      <div class="text-h6 q-mb-sm">Frequently Asked Questions</div>
+      <q-list bordered class="rounded-borders q-mb-xl faq-list">
+        <q-expansion-item
+          group="faq"
+          icon="login"
+          label="Login & Account Access"
+          header-class="text-weight-medium"
+        >
+          <q-card>
+            <q-card-section class="text-body2 text-grey-4">
+              <div class="text-weight-bold q-mb-xs">How do I sign in or create an account?</div>
+              <p class="q-mb-sm">
+                You can sign in using email and password, or use Google or Apple sign-in. New accounts can be registered directly from the login screen.
+              </p>
+              <div class="text-weight-bold q-mb-xs">How do I reset my password?</div>
+              <p class="q-mb-none">
+                If you forgot your password, visit the <router-link to="/reset-password" class="text-primary">Reset Password</router-link> page to receive a password reset link by email.
+              </p>
+            </q-card-section>
+          </q-card>
+        </q-expansion-item>
+
+        <q-separator />
+
+        <q-expansion-item
+          group="faq"
+          icon="group"
+          label="Band Invites & Collaboration"
+          header-class="text-weight-medium"
+        >
+          <q-card>
+            <q-card-section class="text-body2 text-grey-4">
+              <div class="text-weight-bold q-mb-xs">How do I invite members to my band?</div>
+              <p class="q-mb-sm">
+                Band owners and administrators can create invitation links or QR codes in the band management settings. Share the invite link with your bandmates to allow them to join.
+              </p>
+              <div class="text-weight-bold q-mb-xs">Can I belong to multiple bands?</div>
+              <p class="q-mb-none">
+                Yes! Your user account can belong to multiple bands, and you can switch between active bands from the navigation bar.
+              </p>
+            </q-card-section>
+          </q-card>
+        </q-expansion-item>
+
+        <q-separator />
+
+        <q-expansion-item
+          group="faq"
+          icon="credit_card"
+          label="Subscriptions & Billing"
+          header-class="text-weight-medium"
+        >
+          <q-card>
+            <q-card-section class="text-body2 text-grey-4">
+              <div class="text-weight-bold q-mb-xs">What plans are available?</div>
+              <p class="q-mb-sm">
+                Bandstr provides both Free and Pro plans. The Free plan includes basic song library management, setlist organization, and scheduling. The Pro plan unlocks multiple active bands, expanded storage, and premium tools.
+              </p>
+              <div class="text-weight-bold q-mb-xs">How do I manage or cancel a subscription?</div>
+              <p class="q-mb-none">
+                Subscriptions created on the web can be managed via the Billing section. If you subscribed through Apple App Store In-App Purchases, you can manage or cancel your subscription at any time in your Apple ID Account Settings.
+              </p>
+            </q-card-section>
+          </q-card>
+        </q-expansion-item>
+      </q-list>
+
+      <!-- Ticket Submission Form -->
+      <div class="text-h6 q-mb-sm">Submit a Support Ticket</div>
+      <div class="text-body2 text-grey-5 q-mb-md">
+        Report a bug, suggest a feature, or leave feedback for the development team.
       </div>
 
       <q-card flat bordered class="q-pa-md">
@@ -150,7 +251,7 @@ function summarize(value: string): string {
             v-model="email"
             outlined
             dense
-            label="Email (optional)"
+            label="Email (optional, for replies)"
             type="email"
             autocomplete="email"
           />
@@ -161,7 +262,7 @@ function summarize(value: string): string {
             autogrow
             type="textarea"
             label="Message"
-            input-style="min-height: 220px;"
+            input-style="min-height: 180px;"
             :rules="[messageRule]"
           />
 
@@ -188,6 +289,13 @@ function summarize(value: string): string {
           <div><strong>Summary:</strong> {{ summarize(lastSubmission.message) }}</div>
         </div>
       </q-card>
+
+      <!-- Legal Links -->
+      <div class="row justify-center items-center q-gutter-md q-mt-xl legal-links">
+        <router-link to="/impress" class="legal-link">Impressum / Legal Notice</router-link>
+        <span class="text-grey-6">•</span>
+        <router-link to="/gdpr" class="legal-link">Datenschutz / Privacy Policy</router-link>
+      </div>
     </div>
   </q-page>
 </template>
@@ -196,9 +304,43 @@ function summarize(value: string): string {
 .support-page {
   display: flex;
   justify-content: center;
+  min-height: 100vh;
 }
 
 .support-wrap {
   width: min(760px, 100%);
+  padding-bottom: 48px;
+}
+
+.support-back-row {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
+
+.support-contact-card {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.support-email-link {
+  color: var(--q-primary);
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.faq-list {
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.legal-links {
+  font-size: 13px;
+}
+
+.legal-link {
+  color: rgba(148, 163, 184, 0.9);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+    color: var(--q-primary);
+  }
 }
 </style>

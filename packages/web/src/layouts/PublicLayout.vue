@@ -10,6 +10,8 @@
 
     <q-footer bordered class="impress-footer">
       <div class="footer-links">
+        <router-link to="/support" class="impress-link">Support</router-link>
+        <span class="footer-separator">|</span>
         <router-link to="/impress" class="impress-link">Impress</router-link>
         <span class="footer-separator">|</span>
         <router-link to="/gdpr" class="impress-link">Datenschutz</router-link>

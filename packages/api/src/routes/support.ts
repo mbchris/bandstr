@@ -2,10 +2,10 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
-import { requireAuth, type AuthEnv } from '../middleware/auth.js'
+import { optionalAuth, type OptionalAuthEnv } from '../middleware/auth.js'
 import { resolveBuildIdFromEnvironment } from '../lib/build-id.js'
 
-export const support = new Hono<AuthEnv>()
+export const support = new Hono<OptionalAuthEnv>()
 
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 2_000_000
 const DEFAULT_SUPPORT_ASSIGNEE = 'mbchris'
@@ -215,7 +215,7 @@ function hasAssigneeValidationError(payload: { errors?: GitHubApiError[] }): boo
   })
 }
 
-support.use('*', requireAuth)
+support.use('*', optionalAuth)
 
 support.get('/config', (c) => {
   try {
@@ -271,7 +271,7 @@ support.post('/tickets', zValidator('json', createTicketSchema), async (c) => {
         repo: repoConfig.repo,
         token,
         screenshotDataUrl,
-        userId: user.id,
+        userId: user ? user.id : 'anonymous',
       })
     } catch (error) {
       return c.json(
@@ -286,9 +286,9 @@ support.post('/tickets', zValidator('json', createTicketSchema), async (c) => {
   const issueBody = makeIssueBody({
     kind: body.type,
     message: body.message,
-    userName: user.name,
-    userId: user.id,
-    userEmail: user.email,
+    userName: user?.name ?? (body.email?.trim() || 'Anonymous'),
+    userId: user?.id ?? 'anonymous',
+    userEmail: user?.email ?? (body.email?.trim() || 'none'),
     replyEmail: body.email?.trim() || undefined,
     bandId: bandIdHeader || undefined,
     buildId: clientBuildId || getBuildId(),
