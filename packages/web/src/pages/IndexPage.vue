@@ -332,8 +332,9 @@ async function confirmBierwart(member: any) {
 
 <template>
   <q-page padding>
-    <div class="row q-col-gutter-lg" style="max-width: 1200px; margin: 0 auto">
-      <div class="col-12 col-md-6">
+    <div style="max-width: 1200px; margin: 0 auto">
+      <div class="row q-col-gutter-lg">
+        <div class="col-12 col-md-6">
         <q-card v-if="nextRehearsal" flat bordered>
           <q-card-section>
             <div class="row items-center justify-between">
@@ -561,7 +562,7 @@ async function confirmBierwart(member: any) {
       </div>
     </div>
 
-    <div class="row q-col-gutter-lg q-mt-md" style="max-width: 1200px; margin: 0 auto">
+    <div class="row q-col-gutter-lg q-mt-md">
       <div class="col-12">
         <q-card flat bordered>
           <q-expansion-item
@@ -588,6 +589,7 @@ async function confirmBierwart(member: any) {
         </q-card>
       </div>
     </div>
+  </div>
 
     <q-dialog v-model="showRehearsalEdit">
       <q-card style="min-width: 400px">
