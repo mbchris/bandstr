@@ -176,6 +176,14 @@ function deepLinkRedirectPage(target: string, label: string): string {
 </html>`
 }
 
+export function formatMobileRedirectTarget(rawTarget: string, isAndroid: boolean): string {
+  if (isAndroid && rawTarget.startsWith('org.capacitor.bandstr://')) {
+    const remaining = rawTarget.substring('org.capacitor.bandstr://'.length)
+    return `intent://${remaining}#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end;`
+  }
+  return rawTarget
+}
+
 // Native OAuth completion bridge:
 app.get('/api/mobile-auth/complete', async (c) => {
   const appCallbackURL = (c.req.query('appCallbackURL') ?? '').trim()
@@ -185,14 +193,7 @@ app.get('/api/mobile-auth/complete', async (c) => {
 
   const userAgent = c.req.header('User-Agent') ?? ''
   const isAndroid = userAgent.includes('Android')
-
-  const getTarget = (rawTarget: string) => {
-    if (isAndroid && rawTarget.startsWith('org.capacitor.bandstr://')) {
-      const remaining = rawTarget.substring('org.capacitor.bandstr://'.length)
-      return `intent://${remaining}#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;end;`
-    }
-    return rawTarget
-  }
+  const getTarget = (rawTarget: string) => formatMobileRedirectTarget(rawTarget, isAndroid)
 
   try {
     const current = await auth.api.getSession({ headers: c.req.raw.headers })
@@ -250,9 +251,7 @@ app.get('/api/mobile-auth/error', (c) => {
 
   const userAgent = c.req.header('User-Agent') ?? ''
   const isAndroid = userAgent.includes('Android')
-  const finalTarget = isAndroid && target.startsWith('org.capacitor.bandstr://')
-    ? `intent://${target.substring('org.capacitor.bandstr://'.length)}#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;end;`
-    : target
+  const finalTarget = formatMobileRedirectTarget(target, isAndroid)
 
   console.warn('[mobile-auth/error] redirecting error to app callback:', finalTarget)
   return c.html(deepLinkRedirectPage(finalTarget, 'auth_error'))
