@@ -274,7 +274,26 @@ async function onSwipeRight(song: Song, reset: () => void) {
     try {
       await songsStore.updateSong(song.id, { isArchived: false } as any)
       await songsStore.fetchSongs()
-      $q.notify({ message: t('voting.songReactivated'), color: 'positive' })
+      $q.notify({
+        message: t('voting.songReactivatedNamed', { title: song.title }),
+        color: 'positive',
+        timeout: 6000,
+        actions: [
+          {
+            label: t('common.undo'),
+            color: 'white',
+            handler: async () => {
+              try {
+                await songsStore.updateSong(song.id, { isArchived: true } as any)
+                await songsStore.fetchSongs()
+                $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
+              } catch {
+                $q.notify({ message: t('common.error'), color: 'negative' })
+              }
+            },
+          },
+        ],
+      })
     } catch {
       $q.notify({ message: t('common.error'), color: 'negative' })
     } finally {
@@ -296,8 +315,24 @@ async function onSwipeRight(song: Song, reset: () => void) {
     await songsStore.updateSong(song.id, { isSetlist: true } as any)
     await songsStore.fetchSongs()
     $q.notify({
-      message: t('voting.songAccepted'),
+      message: t('voting.songAcceptedNamed', { title: song.title }),
       color: 'positive',
+      timeout: 6000,
+      actions: [
+        {
+          label: t('common.undo'),
+          color: 'white',
+          handler: async () => {
+            try {
+              await songsStore.updateSong(song.id, { isSetlist: false } as any)
+              await songsStore.fetchSongs()
+              $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
+            } catch {
+              $q.notify({ message: t('common.error'), color: 'negative' })
+            }
+          },
+        },
+      ],
     })
   } catch {
     $q.notify({ message: t('voting.failedTransfer'), color: 'negative' })
@@ -315,7 +350,26 @@ async function onSwipeLeft(song: Song, reset: () => void) {
   try {
     await songsStore.updateSong(song.id, { isArchived: true } as any)
     await songsStore.fetchSongs()
-    $q.notify({ message: t('voting.songArchived'), color: 'positive' })
+    $q.notify({
+      message: t('voting.songArchivedNamed', { title: song.title }),
+      color: 'positive',
+      timeout: 6000,
+      actions: [
+        {
+          label: t('common.undo'),
+          color: 'white',
+          handler: async () => {
+            try {
+              await songsStore.updateSong(song.id, { isArchived: false } as any)
+              await songsStore.fetchSongs()
+              $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
+            } catch {
+              $q.notify({ message: t('common.error'), color: 'negative' })
+            }
+          },
+        },
+      ],
+    })
   } catch {
     $q.notify({ message: t('common.error'), color: 'negative' })
   } finally {

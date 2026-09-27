@@ -12,6 +12,28 @@ describe('Voting Swipe-to-Setlist and Swipe-to-Archive (#25)', () => {
     expect(de.voting.songAccepted).toBeTruthy()
   })
 
+  it('has i18n keys for undo and named song notifications in English and German', () => {
+    expect(en.common).toHaveProperty('undo')
+    expect(de.common).toHaveProperty('undo')
+    expect(en.common).toHaveProperty('undone')
+    expect(de.common).toHaveProperty('undone')
+
+    expect(en.voting).toHaveProperty('songAcceptedNamed')
+    expect(de.voting).toHaveProperty('songAcceptedNamed')
+    expect(en.voting.songAcceptedNamed).toContain('{title}')
+    expect(de.voting.songAcceptedNamed).toContain('{title}')
+
+    expect(en.voting).toHaveProperty('songArchivedNamed')
+    expect(de.voting).toHaveProperty('songArchivedNamed')
+    expect(en.voting.songArchivedNamed).toContain('{title}')
+    expect(de.voting.songArchivedNamed).toContain('{title}')
+
+    expect(en.voting).toHaveProperty('songReactivatedNamed')
+    expect(de.voting).toHaveProperty('songReactivatedNamed')
+    expect(en.voting.songReactivatedNamed).toContain('{title}')
+    expect(de.voting.songReactivatedNamed).toContain('{title}')
+  })
+
   it('verifies VotingPage.vue includes q-slide-item with green right-swipe and red left-swipe', () => {
     const pagePath = path.resolve(__dirname, '../src/pages/VotingPage.vue')
     const content = fs.readFileSync(pagePath, 'utf-8')
@@ -38,5 +60,16 @@ describe('Voting Swipe-to-Setlist and Swipe-to-Archive (#25)', () => {
     // Script must define swipe handlers
     expect(content).toContain('onSwipeRight')
     expect(content).toContain('onSwipeLeft')
+  })
+
+  it('verifies swipe notifications offer an Undo action with song title and extended timeout', () => {
+    const pagePath = path.resolve(__dirname, '../src/pages/VotingPage.vue')
+    const content = fs.readFileSync(pagePath, 'utf-8')
+
+    // Must notify with undo action
+    expect(content).toContain("t('common.undo')")
+    expect(content).toContain("songAcceptedNamed")
+    expect(content).toContain("songArchivedNamed")
+    expect(content).toContain("timeout: 6000")
   })
 })

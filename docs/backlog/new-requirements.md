@@ -230,6 +230,7 @@
   - [x] Swiping song left moves the song to archive with toast notification.
   - [x] In the Archive tab, swiping right reactivates the song to active voting with `unarchive` icon.
   - [x] Limits on the free tier for master setlist are respected when swiping to accept.
+  - [x] Swipe notification banner lists the affected song title and provides an "Undo" action for 6 seconds to safely revert accidental moves.
 
 ## TASK-0225: Calendar to Setlist Link & Autocomplete Selection (#26)
 - **Status:** done

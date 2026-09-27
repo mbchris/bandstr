@@ -44,6 +44,8 @@ export default {
     signedIn: 'Signed in',
     title: 'Title',
     warning: 'Warning',
+    undo: 'Undo',
+    undone: 'Action undone',
   },
 
   // Login page
@@ -259,9 +261,12 @@ export default {
     archiveSong: 'Archive song',
     confirmArchive: 'Do you really want to archive "{title}" by {artist}? The song will be removed from active voting but keeps all vote records.',
     songArchived: 'Song archived',
+    songArchivedNamed: '"{title}" moved to archive',
     songAccepted: 'Song accepted and added to setlist',
+    songAcceptedNamed: '"{title}" accepted and added to setlist',
     reactivateSong: 'Reactivate',
     songReactivated: 'Song moved back to active voting',
+    songReactivatedNamed: '"{title}" moved back to active voting',
     pendingVotes: '⏳ {count}/{total} votes',
     rank: 'Rank #{rank}',
     spotifyLabel: 'Spotify',
