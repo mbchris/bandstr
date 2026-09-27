@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Notify } from 'quasar'
 import { Capacitor } from '@capacitor/core'
 import { api } from '../boot/api'
+import { useAuthStore } from '../stores/auth'
 import { fetchRuntimeBuildId, resolveBuildIdFromEnv } from '../composables/buildInfo'
 
 type SupportType = 'bug' | 'feature' | 'comment'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 function isUsableBuildId(value: string): boolean {
   const normalized = value.trim().toLowerCase()
@@ -25,7 +27,18 @@ function goBack() {
 
 const kind = ref<SupportType>('bug')
 const message = ref('')
-const email = ref('')
+const email = ref(authStore.user?.email ?? '')
+
+watch(
+  () => authStore.user?.email,
+  (newUserEmail) => {
+    if (newUserEmail && !email.value) {
+      email.value = newUserEmail
+    }
+  },
+  { immediate: true },
+)
+
 const submitting = ref(false)
 const buildId = ref(resolveBuildIdFromEnv('dev'))
 const appVersion = ref(Capacitor.isNativePlatform() ? (process.env.APP_VERSION ?? 'unknown').trim() || 'unknown' : 'web')

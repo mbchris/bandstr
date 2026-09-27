@@ -40,5 +40,9 @@ describe('Support route access', () => {
     expect(content).toContain('submit')
     expect(content).toContain('/impress')
     expect(content).toContain('/gdpr')
+
+    // Pre-populates email from authStore
+    expect(content).toContain('useAuthStore')
+    expect(content).toContain('authStore.user?.email')
   })
 })
