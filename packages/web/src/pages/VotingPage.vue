@@ -161,8 +161,8 @@ function voteScore(song: Song, userId: string): number | null {
 
 function voteBorderColor(score: number | null): string {
   if (score === null) return '#9e9e9e'
-  const clampedScore = Math.max(0, Math.min(3, score))
-  const hue = (clampedScore / 3) * 120
+  const clampedScore = Math.max(0, Math.min(9, score))
+  const hue = (clampedScore / 9) * 120
   return `hsl(${hue} 80% 42%)`
 }
 
@@ -197,28 +197,45 @@ function votedNamesLabel(song: Song): string {
 }
 
 // Voting
-async function toggleVote(song: Song, score: number) {
+async function toggleVote(song: Song, score: number, remove = false) {
   try {
-    const remove = song.hasVoted === score
-    await apiJson('/votes', { method: 'POST', body: JSON.stringify({ songId: song.id, score: remove ? undefined : score, remove }) })
+    await apiJson('/votes', {
+      method: 'POST',
+      body: JSON.stringify({
+        songId: song.id,
+        score: remove ? undefined : score,
+        remove,
+      }),
+    })
     await songsStore.fetchSongs()
-  } catch (e: any) { $q.notify({ message: e.message || t('voting.failedVote'), color: 'negative' }) }
+  } catch (e: any) {
+    $q.notify({ message: e.message || t('voting.failedVote'), color: 'negative' })
+  }
 }
 
 const showVotePicker = ref(false)
 const voteSong = ref<Song | null>(null)
+const currentVoteScore = ref(5)
 const showDetailsDialog = ref(false)
 const detailsSong = ref<Song | null>(null)
 
 function openVotePicker(song: Song) {
   if (!currentUserId.value) return
   voteSong.value = song
+  const userVote = voteScore(song, currentUserId.value)
+  currentVoteScore.value = userVote !== null ? userVote : 5
   showVotePicker.value = true
 }
 
-async function selectOwnVote(score: number) {
+async function onVoteSliderCommit(val: number | null) {
+  if (!voteSong.value || val === null) return
+  await toggleVote(voteSong.value, val)
+  showVotePicker.value = false
+}
+
+async function clearOwnVote() {
   if (!voteSong.value) return
-  await toggleVote(voteSong.value, score)
+  await toggleVote(voteSong.value, 0, true)
   showVotePicker.value = false
 }
 
@@ -377,32 +394,6 @@ async function onSwipeLeft(song: Song, reset: () => void) {
   }
 }
 
-async function archiveSong(song: Song) {
-  $q.dialog({
-    title: t('voting.archiveSong'),
-    message: t('voting.confirmArchive', { title: song.title, artist: song.artist }),
-    cancel: true,
-  }).onOk(async () => {
-    try {
-      await songsStore.updateSong(song.id, { isArchived: true } as any)
-      await songsStore.fetchSongs()
-      $q.notify({ message: t('voting.songArchived'), color: 'positive' })
-    } catch {
-      $q.notify({ message: t('common.error'), color: 'negative' })
-    }
-  })
-}
-
-async function reactivateSong(song: Song) {
-  try {
-    await songsStore.updateSong(song.id, { isArchived: false } as any)
-    await songsStore.fetchSongs()
-    $q.notify({ message: t('voting.songReactivated'), color: 'positive' })
-  } catch {
-    $q.notify({ message: t('common.error'), color: 'negative' })
-  }
-}
-
 async function deleteSong(song: Song) {
   $q.dialog({ title: t('common.delete'), message: t('voting.failedDelete', { title: song.title }), cancel: true }).onOk(async () => {
     await songsStore.deleteSong(song.id)
@@ -524,21 +515,6 @@ function normalizeVotingLengthInput() {
   }
 }
 
-// Transfer
-const showTransferModal = ref(false)
-const songToTransfer = ref<Song | null>(null)
-
-function openTransferModal(song: Song) { songToTransfer.value = song; showTransferModal.value = true }
-
-async function transferToSetlist() {
-  if (!songToTransfer.value) return
-  try {
-    await songsStore.updateSong(songToTransfer.value.id, { isSetlist: true } as any)
-    showTransferModal.value = false
-    await songsStore.fetchSongs()
-  } catch { $q.notify({ message: t('voting.failedTransfer'), color: 'negative' }) }
-}
-
 // Export
 function handleExport() {
   // Dynamically import xlsx for Excel export
@@ -634,7 +610,7 @@ watch(
                 <template #prepend><q-icon name="search" /></template>
               </q-input>
             </div>
-            <div class="col-12 col-sm-3">
+            <div class="col-6 col-sm-3">
               <q-select
                 v-model="votingFilter"
                 dense
@@ -645,7 +621,7 @@ watch(
                 :label="t('voting.filterLabel')"
               />
             </div>
-            <div class="col-12 col-sm-3">
+            <div class="col-6 col-sm-3">
               <q-select
                 v-model="votingSort"
                 dense
@@ -722,7 +698,10 @@ watch(
                     {{ t('voting.lengthLabel') }}: {{ formatDuration(song.lengthMs) }}
                   </div>
                   <div class="option1-vote-row q-mt-sm">
-                    <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
+                    <div
+                      class="avatar-stack cursor-pointer bg-widget-surface rounded-borders q-px-sm q-py-xs"
+                      @click="openDetailsDialog(song)"
+                    >
                       <q-avatar
                         v-for="(member, i) in votedMembers(song)"
                         :key="`${song.id}-voted-${member.id}`"
@@ -737,6 +716,11 @@ watch(
                       <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
                       <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
                     </div>
+
+                    <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
+                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
+                    </q-btn>
+
                     <div class="row items-center q-gutter-xs option1-actions">
                       <template v-if="isFullyVoted(song)">
                         <q-badge v-if="rankMap.has(song.id)" color="secondary" class="text-weight-bold">
@@ -752,12 +736,6 @@ watch(
                           {{ t('voting.pendingVotes', { count: song.voteCount || 0, total: totalMembersCount }) }}
                         </q-badge>
                       </template>
-                      <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
-                        <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
-                      </q-btn>
-                      <q-btn dense flat icon="visibility" @click="openDetailsDialog(song)">
-                        <q-tooltip>{{ t('voting.details') }}</q-tooltip>
-                      </q-btn>
                     </div>
                   </div>
                 </q-item-section>
@@ -765,17 +743,12 @@ watch(
                 <!-- Actions -->
                 <q-item-section side class="song-order-actions">
                   <div class="column q-gutter-xs song-actions">
-                    <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
-                      <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
+                    <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)">
+                      <q-tooltip>{{ t('common.edit') }}</q-tooltip>
                     </q-btn>
-                    <q-btn v-if="currentTab === 'active'" flat round dense icon="archive" color="grey-7" size="sm" @click="archiveSong(song)">
-                      <q-tooltip>{{ t('voting.archiveSong') }}</q-tooltip>
+                    <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)">
+                      <q-tooltip>{{ t('common.delete') }}</q-tooltip>
                     </q-btn>
-                    <q-btn v-else flat round dense icon="unarchive" color="primary" size="sm" @click="reactivateSong(song)">
-                      <q-tooltip>{{ t('voting.reactivateSong') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
-                    <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
                   </div>
                 </q-item-section>
               </q-item>
@@ -832,46 +805,45 @@ watch(
       </q-card>
     </q-dialog>
 
-    <!-- Transfer Dialog -->
-    <q-dialog v-model="showTransferModal">
-      <q-card style="min-width: 350px">
-        <q-card-section>
-          <div class="text-h6">{{ t('voting.sendToSetlist') }}</div>
-        </q-card-section>
-        <q-card-section v-if="songToTransfer">
-          <p>{{ t('voting.confirmTransfer', { title: songToTransfer.title, artist: songToTransfer.artist }) }}</p>
-          <p class="text-caption text-grey">{{ t('voting.currentScore', { score: Number(songToTransfer.voteAverage || 0).toFixed(1) }) }}</p>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('voting.confirmBtn')" @click="transferToSetlist" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
     <!-- Vote Picker -->
     <q-dialog v-model="showVotePicker">
       <q-card class="vote-picker-card">
-        <q-card-section class="row items-center">
+        <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">{{ t('voting.chooseYourVote') }}</div>
           <q-space />
           <q-btn flat round dense icon="close" v-close-popup />
         </q-card-section>
         <q-separator />
-        <q-list separator>
-          <q-item clickable v-ripple @click="selectOwnVote(0)">
-            <q-item-section>{{ t('voting.voteOptionVeto') }}</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple @click="selectOwnVote(1)">
-            <q-item-section>{{ t('voting.voteOptionOk') }}</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple @click="selectOwnVote(2)">
-            <q-item-section>{{ t('voting.voteOptionGood') }}</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple @click="selectOwnVote(3)">
-            <q-item-section>{{ t('voting.voteOptionGreat') }}</q-item-section>
-          </q-item>
-        </q-list>
+        <q-card-section class="q-pt-md q-pb-md">
+          <div class="row items-center justify-between q-mb-md">
+            <span class="text-subtitle2 text-weight-bold">{{ voteSong?.title }}</span>
+            <q-badge
+              :style="{ backgroundColor: voteBorderColor(currentVoteScore), color: '#fff' }"
+              class="text-weight-bold text-subtitle2 q-px-sm q-py-xs"
+            >
+              {{ currentVoteScore }}
+            </q-badge>
+          </div>
+          <div class="q-px-sm q-py-xs">
+            <q-slider
+              v-model="currentVoteScore"
+              :min="0"
+              :max="9"
+              :step="1"
+              snap
+              label
+              @change="onVoteSliderCommit"
+              class="vote-slider"
+            />
+          </div>
+          <div class="row justify-between text-caption text-grey-7 q-px-xs q-mt-xs">
+            <span>0 ({{ t('voting.veto') }})</span>
+            <span>9 ({{ t('voting.great') }})</span>
+          </div>
+        </q-card-section>
+        <q-card-actions v-if="voteSong && voteSong.hasVoted !== -1" align="right" class="q-pt-none q-px-md q-pb-md">
+          <q-btn flat dense color="negative" :label="t('voting.clearVote')" @click="clearOwnVote" />
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -886,8 +858,18 @@ watch(
         <q-separator />
         <q-card-section v-if="detailsSong">
           <div class="text-subtitle2">{{ detailsSong.title }} - {{ detailsSong.artist }}</div>
-          <div class="text-caption text-grey-7 q-mt-xs">{{ t('voting.avg') }}: {{ Number(detailsSong.voteAverage || 0).toFixed(1) }} | {{ t('voting.votes') }}: {{ detailsSong.voteCount }}</div>
-          <q-list class="q-mt-sm" dense bordered separator>
+          <div class="row items-center q-gutter-xs q-mt-xs">
+            <q-badge v-if="rankMap.has(detailsSong.id)" color="secondary" class="text-weight-bold">
+              {{ t('voting.rank', { rank: rankMap.get(detailsSong.id) }) }}
+            </q-badge>
+            <q-badge outline color="primary">
+              {{ t('voting.avg') }}: {{ Number(detailsSong.voteAverage || 0).toFixed(1) }}
+            </q-badge>
+            <q-badge outline color="grey-7">
+              {{ detailsSong.voteCount }}/{{ totalMembersCount }} {{ t('voting.votes') }}
+            </q-badge>
+          </div>
+          <q-list class="q-mt-md" dense bordered separator>
             <q-item v-for="member in visibleMembers" :key="`d-${detailsSong.id}-${member.id}`">
               <q-item-section avatar>
                 <q-avatar
@@ -970,7 +952,20 @@ watch(
 }
 
 .vote-picker-card {
-  min-width: 280px;
+  min-width: 320px;
+  max-width: 95vw;
+}
+
+.vote-slider {
+  :deep(.q-slider__track-container) {
+    background: linear-gradient(90deg, #ef4444, #eab308, #22c55e);
+    border-radius: 4px;
+    height: 8px;
+  }
+
+  :deep(.q-slider__track) {
+    background: transparent !important;
+  }
 }
 
 .round-add-btn {
