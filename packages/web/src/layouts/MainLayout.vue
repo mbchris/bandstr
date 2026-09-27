@@ -8,15 +8,13 @@ import { useNotificationsStore, type AppNotification } from '../stores/notificat
 import { useI18n } from '../composables/useI18n'
 import defaultLogoDark from '../assets/bandstr_rect_wh.webp'
 import defaultLogoLight from '../assets/bandstr_rect_bl.webp'
-import homeBl from '../assets/icons/home_bl.webp'
-import homeWh from '../assets/icons/home_wh.webp'
-import votingBl from '../assets/icons/voting_bl.webp'
-import votingWh from '../assets/icons/voting_wh.webp'
-import setlistBl from '../assets/icons/setlist_bl.webp'
-import setlistWh from '../assets/icons/setlist_wh.webp'
-import calendarBl from '../assets/icons/calendar_bl.webp'
-import calendarWh from '../assets/icons/calendar_wh.webp'
-import adminBl from '../assets/icons/admin_bl.webp'
+import {
+  Home,
+  ThumbsUp,
+  ListMusic,
+  Calendar,
+  Settings,
+} from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const bandStore = useBandStore()
@@ -71,17 +69,15 @@ const navLinks = computed(() => {
   }
 
   const links = [
-    { label: t('nav.home'), to: '/', iconLight: homeBl, iconDark: homeWh, iconActive: homeWh },
-    { label: t('nav.voting'), to: '/voting', iconLight: votingBl, iconDark: votingWh, iconActive: votingWh },
-    { label: t('nav.setlist'), to: '/setlist', iconLight: setlistBl, iconDark: setlistWh, iconActive: setlistWh },
-    { label: t('nav.calendar'), to: '/calendar', iconLight: calendarBl, iconDark: calendarWh, iconActive: calendarWh },
+    { id: 'home', label: t('nav.home'), to: '/', icon: Home, activeIcon: Home },
+    { id: 'voting', label: t('nav.voting'), to: '/voting', icon: ThumbsUp, activeIcon: ThumbsUp },
+    { id: 'setlist', label: t('nav.setlist'), to: '/setlist', icon: ListMusic, activeIcon: ListMusic },
+    { id: 'calendar', label: t('nav.calendar'), to: '/calendar', icon: Calendar, activeIcon: Calendar },
   ]
 
   if (isAdmin.value) {
-    links.push({ label: t('nav.admin'), to: '/admin', iconLight: adminBl, iconDark: adminBl, iconActive: adminBl })
+    links.push({ id: 'admin', label: t('nav.admin'), to: '/admin', icon: Settings, activeIcon: Settings })
   }
-
-  // links.push({ icon: 'payment', label: 'Billing', to: '/billing' })
 
   return links
 })
@@ -92,11 +88,6 @@ const routerViewKey = computed(() => `${route.fullPath}::band-${authStore.active
 
 function isActiveRoute(path: string) {
   return route.path === path
-}
-
-function getNavIcon(link: { to: string; iconLight: string; iconDark: string; iconActive: string }) {
-  if (isActiveRoute(link.to)) return link.iconActive
-  return $q.dark.isActive ? link.iconDark : link.iconLight
 }
 
 function toggleDarkMode() {
@@ -432,34 +423,30 @@ onBeforeUnmount(() => {
     </q-page-container>
 
     <q-footer bordered class="bottom-nav-footer safe-area-bottom">
-      <div v-if="showTopNav" class="bottom-nav q-px-sm q-py-xs">
-        <div class="row items-center no-wrap bottom-nav-scroll justify-center">
-          <q-btn
+      <nav v-if="showTopNav" class="bandstr-bottom-nav">
+        <div class="row items-center no-wrap nav-items-row justify-center">
+          <button
             v-for="link in navLinks"
             :key="link.to"
-            flat
-            dense
-            :to="link.to"
-            class="bottom-nav-btn q-mr-xs"
-            :class="{ 'bottom-nav-btn--active': isActiveRoute(link.to) }"
+            type="button"
+            class="nav-item"
+            :class="{ active: isActiveRoute(link.to) }"
             :aria-label="link.label"
             :title="link.label"
+            @click="router.push(link.to)"
           >
-            <span class="bottom-nav-content">
-              <img
-                :src="getNavIcon(link)"
-                :alt="link.label"
-                class="bottom-nav-icon"
-                :class="{
-                  'bottom-nav-icon--inactive': !isActiveRoute(link.to),
-                  'bottom-nav-icon--admin-dark': $q.dark.isActive && link.to === '/admin'
-                }"
+            <div class="icon-container">
+              <component
+                :is="isActiveRoute(link.to) ? link.activeIcon : link.icon"
+                class="tab-icon"
+                :size="22"
+                :stroke-width="isActiveRoute(link.to) ? 2.3 : 1.8"
               />
-              <span class="bottom-nav-label">{{ link.label }}</span>
-            </span>
-          </q-btn>
+            </div>
+            <span class="tab-label">{{ link.label }}</span>
+          </button>
         </div>
-      </div>
+      </nav>
     </q-footer>
   </q-layout>
 </template>
@@ -479,104 +466,118 @@ onBeforeUnmount(() => {
 }
 
 .bottom-nav-footer {
-  background: var(--surface) !important;
-  background-color: var(--surface) !important;
-  border-top: 1px solid var(--border);
+  background: rgba(250, 251, 253, 0.92) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
 }
 
-.bottom-nav {
-  background: var(--surface-raised) !important;
-  background-color: var(--surface-raised) !important;
-  --nav-btn-bg: rgba(39, 39, 42, 0.42);
-  --nav-btn-border: rgba(15, 23, 42, 0.08);
-  --nav-label: #e5e7eb;
-  --nav-label-active: #f4f4f5;
-  --nav-active-bg: #111827;
-  --nav-active-border: #111827;
-  --nav-active-glow: 0 0 0 1px rgba(17, 24, 39, 0.16) inset;
-  --nav-icon-inactive-opacity: 0.92;
-  --nav-icon-inactive-filter: none;
+.bandstr-bottom-nav {
+  padding: 6px 12px 6px;
+  max-width: 560px;
+  margin: 0 auto;
 }
 
-.bottom-nav-scroll {
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-  gap: 6px;
+.nav-items-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 8px;
 }
 
-.bottom-nav-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.bottom-nav-btn {
-  width: 76px;
-  height: 78px;
-  min-width: 76px;
-  min-height: 78px;
-  padding: 8px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--nav-btn-border);
-  background: var(--nav-btn-bg);
-}
-
-.bottom-nav-btn--active {
-  background: var(--nav-active-bg);
-  border-color: var(--nav-active-border);
-  box-shadow: var(--nav-active-glow);
-}
-
-.bottom-nav-icon {
-  display: block;
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-
-.bottom-nav-icon--inactive {
-  opacity: var(--nav-icon-inactive-opacity);
-  filter: var(--nav-icon-inactive-filter);
-}
-
-.bottom-nav-icon--admin-dark {
-  filter: brightness(0) invert(1);
-}
-
-.bottom-nav-content {
+.nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  line-height: 1;
+  flex: 1;
+  min-width: 56px;
+  max-width: 88px;
+  height: 52px;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    color: #4b5563;
+  }
+
+  .icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 28px;
+    border-radius: 14px;
+    transition: all 160ms ease;
+  }
+
+  .tab-icon {
+    display: block;
+    color: inherit;
+    transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .tab-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-top: 2px;
+    color: inherit;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    transition: all 160ms ease;
+  }
+
+  &.active {
+    color: #6366f1;
+
+    .icon-container {
+      background: rgba(99, 102, 241, 0.10);
+    }
+
+    .tab-icon {
+      transform: translateY(-1px);
+    }
+
+    .tab-label {
+      font-weight: 600;
+      color: #6366f1;
+    }
+  }
 }
 
-.bottom-nav-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--nav-label);
-  text-transform: none;
-  letter-spacing: 0;
-}
+:global(body.body--dark) {
+  .bottom-nav-footer {
+    background: rgba(24, 24, 27, 0.92) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
 
-.bottom-nav-btn--active .bottom-nav-label {
-  color: var(--nav-label-active);
-}
+  .nav-item {
+    color: #a1a1aa;
 
-:global(body.body--dark) .bottom-nav {
-  --nav-btn-bg: rgba(39, 39, 42, 0.42);
-  --nav-btn-border: rgba(255, 255, 255, 0.12);
-  --nav-label: #e5e7eb;
-  --nav-label-active: #f4f4f5;
-  --nav-active-bg: #27272a;
-  --nav-active-border: rgba(255, 255, 255, 0.2);
-  --nav-active-glow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
-  --nav-icon-inactive-opacity: 0.9;
-  --nav-icon-inactive-filter: none;
-}
+    &:hover {
+      color: #d4d4d8;
+    }
 
-:global(body.body--dark) .bottom-nav-footer {
-  border-top-color: var(--border);
+    &.active {
+      color: #818cf8;
+
+      .icon-container {
+        background: rgba(99, 102, 241, 0.20);
+      }
+
+      .tab-label {
+        color: #818cf8;
+      }
+    }
+  }
 }
 
 .brand-link {
@@ -601,33 +602,27 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 430px) {
-  .bottom-nav {
-    padding-left: 8px;
-    padding-right: 8px;
+  .bandstr-bottom-nav {
+    padding: 4px 6px 4px;
   }
 
-  .bottom-nav-scroll {
-    justify-content: flex-start;
+  .nav-items-row {
+    gap: 4px;
   }
 
-  .bottom-nav-btn {
-    width: calc((100vw - 46px) / 5);
-    min-width: calc((100vw - 46px) / 5);
-    max-width: 76px;
-    height: 72px;
-    min-height: 72px;
-    margin-right: 0 !important;
-    padding: 7px 4px;
-  }
+  .nav-item {
+    min-width: 48px;
+    height: 48px;
+    padding: 3px 2px;
 
-  .bottom-nav-icon {
-    width: 25px;
-    height: 25px;
-  }
+    .icon-container {
+      width: 28px;
+      height: 24px;
+    }
 
-  .bottom-nav-label {
-    font-size: 0.66rem;
-    line-height: 1.05;
+    .tab-label {
+      font-size: 0.65rem;
+    }
   }
 }
 </style>

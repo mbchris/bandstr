@@ -48,3 +48,31 @@ describe('Account Deletion UI Discoverability (Apple Guideline 4)', () => {
     expect(profileSection).toContain("t('nav.deleteAccount')")
   })
 })
+
+describe('Navigation Bar & Icon Redesign (Issue #29)', () => {
+  it('verifies MainLayout uses Lucide icons for tabs instead of raster webp icons', () => {
+    const layoutPath = path.resolve(__dirname, '../src/layouts/MainLayout.vue')
+    const content = fs.readFileSync(layoutPath, 'utf-8')
+
+    // Must import Lucide icons
+    expect(content).toContain("from 'lucide-vue-next'")
+    expect(content).toContain('Home')
+    expect(content).toContain('ThumbsUp')
+    expect(content).toContain('ListMusic')
+    expect(content).toContain('Calendar')
+    expect(content).toContain('Settings')
+
+    // Must not import old raster tab webp icons
+    expect(content).not.toContain("home_bl.webp")
+    expect(content).not.toContain("voting_bl.webp")
+    expect(content).not.toContain("setlist_bl.webp")
+    expect(content).not.toContain("calendar_bl.webp")
+    expect(content).not.toContain("admin_bl.webp")
+
+    // Must use .bandstr-bottom-nav and modern .nav-item
+    expect(content).toContain('class="bandstr-bottom-nav"')
+    expect(content).toContain('class="nav-item"')
+    expect(content).toContain('class="tab-icon"')
+  })
+})
+
