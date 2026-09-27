@@ -31,7 +31,7 @@ type RequestLike = {
 }
 
 const MOBILE_LOCAL_ORIGINS = ['capacitor://localhost', 'http://localhost', 'https://localhost']
-const SUPPORTED_SOCIAL_PROVIDERS = new Set(['google', 'github'])
+const SUPPORTED_SOCIAL_PROVIDERS = new Set(['google', 'github', 'apple'])
 
 function getAllowedOrigins(): string[] {
   const configured = (process.env.CORS_ORIGINS ?? 'http://localhost:9000')

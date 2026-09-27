@@ -52,6 +52,7 @@ export default {
     subtitle: 'Official band workspace',
     google: 'Sign in with Google',
     github: 'Sign in with GitHub',
+    apple: 'Sign in with Apple',
     authorizedOnly: 'Sign in with your Google or GitHub account',
     clearSession: 'Clear session / Logout',
     clearSessionHint: 'Use this if you are stuck or want to switch accounts.',

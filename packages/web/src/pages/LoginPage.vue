@@ -10,8 +10,11 @@ import { useI18n } from '../composables/useI18n'
 const { t } = useI18n()
 
 const processingToken = ref(!!((new URLSearchParams(window.location.search)).get('token') || window.location.hash.includes('token=')))
+const loadingApple = ref(false)
 const loadingGoogle = ref(false)
 const loadingGithub = ref(false)
+const appleIcon =
+  'img:data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20170%20170%22%20width%3D%22170%22%20height%3D%22170%22%3E%3Cpath%20fill%3D%22%23fff%22%20d%3D%22m150.37%20130.25c-2.45%205.66-5.35%2010.87-8.71%2015.66-4.58%206.53-8.33%2011.05-11.22%2013.56-4.48%204.12-9.28%206.23-14.42%206.35-3.69%200-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58%200-9.49%201.05-14.75%203.17-5.26%202.13-9.5%203.24-12.74%203.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.58-7.7-11.64-13.98-6.19-9.57-11.19-20.65-15-33.24-3.81-12.59-5.72-24.32-5.72-35.19%200-14.24%203.62-26.01%2010.86-35.31%207.24-9.3%2016.32-14.07%2027.23-14.31%204.89%200%2010.42%201.27%2016.59%203.81%206.18%202.54%2010.15%203.88%2011.91%204.02%202.57-.42%206.66-1.85%2012.28-4.3%205.62-2.44%2010.9-3.6%2015.84-3.48%2012.18.61%2022.09%205.3%2029.74%2014.07-10.74%206.5-16.03%2015.65-15.86%2027.46.21%209.68%203.95%2017.65%2011.23%2023.91%207.28%206.26%2015.93%209.73%2025.96%2010.41-2.52%207.69-5.74%2015.81-9.66%2024.36zm-31.54-106.65c0%206.16-2.29%2011.96-6.86%2017.4-4.57%205.44-10.23%208.97-16.98%2010.59-.22-1.3-.33-2.61-.33-3.92%200-5.83%202.26-11.63%206.77-17.41%204.51-5.78%2010.36-9.35%2017.55-10.72.33%201.35.49%202.7.49%204.06z%22%2F%3E%3C%2Fsvg%3E'
 const loadingEmailSignIn = ref(false)
 const loadingEmailSignUp = ref(false)
 const loadingPasswordReset = ref(false)
@@ -289,6 +292,26 @@ async function requestPasswordReset() {
   }
 }
 
+async function loginApple() {
+  loadingApple.value = true
+  error.value = null
+  info.value = null
+  try {
+    if (isNative) {
+      await startNativeSocialLogin('apple')
+    } else {
+      const result = await authClient.signIn.social({ provider: 'apple', callbackURL: socialCallbackUrl })
+      if (result?.error) {
+        throw new Error(result.error.message || t('login.loginFailed'))
+      }
+    }
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : t('login.loginFailed')
+  } finally {
+    loadingApple.value = false
+  }
+}
+
 async function loginGoogle() {
   loadingGoogle.value = true
   error.value = null
@@ -329,7 +352,7 @@ async function loginGithub() {
   }
 }
 
-async function startNativeSocialLogin(provider: 'google' | 'github') {
+async function startNativeSocialLogin(provider: 'google' | 'github' | 'apple') {
   if (!nativeOauthStartUrlBase || !nativeBridgeCallbackUrl) {
     throw new Error(t('login.nativeOauthRequiresApi'))
   }
@@ -622,6 +645,18 @@ watch(
       <q-separator dark spaced />
 
       <q-btn
+        color="black"
+        text-color="white"
+        :icon="appleIcon"
+        :label="t('login.apple')"
+        class="full-width q-mb-md auth-apple-btn"
+        unelevated
+        size="md"
+        :loading="loadingApple"
+        @click="loginApple"
+      />
+
+      <q-btn
         color="white"
         text-color="dark"
         icon="img:https://www.google.com/favicon.ico"
@@ -778,6 +813,16 @@ watch(
 .auth-mode-toggle :deep(.q-btn--active) {
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+}
+
+.auth-apple-btn {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.auth-apple-btn :deep(.q-btn__content) {
+  color: #ffffff;
 }
 
 .q-btn-github {

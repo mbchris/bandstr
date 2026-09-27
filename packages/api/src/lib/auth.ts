@@ -133,6 +133,10 @@ export const auth = betterAuth({
       clientSecret: process.env.GHUB_CLIENT_SECRET ?? '',
       prompt: 'login',
     },
+    apple: {
+      clientId: process.env.APPLE_CLIENT_ID ?? '',
+      clientSecret: process.env.APPLE_CLIENT_SECRET ?? '',
+    },
   },
 
   emailVerification: {

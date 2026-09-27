@@ -52,6 +52,7 @@ export default {
     subtitle: 'Offizieller Band-Workspace',
     google: 'Mit Google anmelden',
     github: 'Mit GitHub anmelden',
+    apple: 'Mit Apple anmelden',
     authorizedOnly: 'Melde dich mit deinem Google- oder GitHub-Konto an',
     clearSession: 'Sitzung löschen / Abmelden',
     clearSessionHint: 'Verwende dies, wenn du feststeckst oder das Konto wechseln möchtest.',
