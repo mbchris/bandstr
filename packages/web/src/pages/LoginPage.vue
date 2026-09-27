@@ -144,6 +144,9 @@ const nativeBridgeCallbackUrl = normalizedApiBase
 const socialCallbackUrl = isNative
   ? nativeAppCallbackUrl
   : webCallbackUrl
+const verificationCallbackUrl = isNative
+  ? `${nativeCallbackUrl}?verified=1`
+  : `${window.location.origin}/login?verified=1`
 
 function buildTestUrls(path: string): string[] {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
@@ -239,6 +242,9 @@ async function signInWithEmail() {
     await router.replace({ path: redirectPath })
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t('login.loginFailed')
+    if (signinEmail.value.trim()) {
+      lastRegisteredEmail.value = signinEmail.value.trim()
+    }
   } finally {
     loadingEmailSignIn.value = false
   }
@@ -255,7 +261,7 @@ async function signUpWithEmail() {
       name: desiredName,
       email: desiredEmail,
       password: signupPassword.value,
-      callbackURL: `${window.location.origin}/login?verified=1`,
+      callbackURL: verificationCallbackUrl,
     })
 
     if (typeof payload.token === 'string' && payload.token) {
@@ -282,12 +288,15 @@ async function signUpWithEmail() {
 async function resendVerificationEmail() {
   const emailToVerify = lastRegisteredEmail.value.trim() || signinEmail.value.trim()
   if (!emailToVerify) return
+  if (!lastRegisteredEmail.value) {
+    lastRegisteredEmail.value = emailToVerify
+  }
   error.value = null
   loadingResendVerification.value = true
   try {
     await postAuth('/send-verification-email', {
       email: emailToVerify,
-      callbackURL: `${window.location.origin}/login?verified=1`,
+      callbackURL: verificationCallbackUrl,
     })
     info.value = t('login.verificationResent')
     try {
@@ -542,6 +551,7 @@ async function copyDebugToClipboard() {
     `Native bridge callback=${nativeBridgeCallbackUrl || '(missing API_URL)'}`,
     `Web callback=${webCallbackUrl}`,
     `Social callback=${socialCallbackUrl}`,
+    `Verification callback=${verificationCallbackUrl}`,
     `User agent=${userAgent}`,
     '',
     'Debug Output',
@@ -561,7 +571,7 @@ async function copyDebugToClipboard() {
 }
 
 onMounted(async () => {
-  if (route.query.verified === '1') {
+  if (route.query.verified === '1' || getParamFromCurrentHref('verified') === '1') {
     info.value = t('login.emailVerificationSucceeded')
   } else if (route.query.error && typeof route.query.error === 'string') {
     error.value = t('login.authenticationError', { error: route.query.error })
@@ -779,6 +789,7 @@ watch(
             <div>Native bridge callback (effective): {{ nativeBridgeCallbackUrl || '(missing API_URL)' }}</div>
             <div>Web callback (effective): {{ webCallbackUrl }}</div>
             <div>Social callback (effective): {{ socialCallbackUrl }}</div>
+            <div>Verification callback (effective): {{ verificationCallbackUrl }}</div>
             <div>User agent: {{ userAgent }}</div>
           </q-card-section>
           <q-card-section class="q-pt-none">

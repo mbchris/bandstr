@@ -11,6 +11,8 @@ process.env.MOBILE_CALLBACK_URL = 'org.capacitor.bandstr://localhost/#/login'
 const mockBrowserOpen = vi.fn().mockResolvedValue(undefined)
 const mockBrowserClose = vi.fn().mockResolvedValue(undefined)
 
+let isNativePlatformMock = false
+
 vi.mock('@capacitor/browser', () => ({
   Browser: {
     open: (...args: unknown[]) => mockBrowserOpen(...args),
@@ -20,8 +22,8 @@ vi.mock('@capacitor/browser', () => ({
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
-    isNativePlatform: () => false,
-    getPlatform: () => 'web',
+    isNativePlatform: () => isNativePlatformMock,
+    getPlatform: () => (isNativePlatformMock ? 'ios' : 'web'),
   },
 }))
 
@@ -70,6 +72,7 @@ describe('Email Verification Delivery & Resend Flow (Guideline 2.1(a))', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
+    isNativePlatformMock = false
     mockRoute.path = '/login'
     mockRoute.query = {}
     originalFetch = global.fetch
@@ -93,6 +96,11 @@ describe('Email Verification Delivery & Resend Flow (Guideline 2.1(a))', () => {
       expect(content).toContain('resendVerificationEmail')
       expect(content).toContain('/send-verification-email')
       expect(content).toContain('auth-resend-verification-btn')
+    })
+
+    it('contains verificationCallbackUrl resolving native and web callback appropriately in LoginPage.vue', () => {
+      expect(content).toContain('verificationCallbackUrl')
+      expect(content).toContain('nativeCallbackUrl')
     })
 
     it('contains resend verification translation keys in en.ts and de.ts', () => {
@@ -263,6 +271,133 @@ describe('Email Verification Delivery & Resend Flow (Guideline 2.1(a))', () => {
 
       await vi.waitFor(() => {
         expect(vm.text()).toContain('SMTP connection timeout')
+      })
+    })
+
+    it('uses native verification callback URL on native platforms for sign-up and resend', async () => {
+      isNativePlatformMock = true
+
+      const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const urlStr = String(url)
+        if (urlStr.includes('/sign-up/email')) {
+          return {
+            ok: true,
+            json: async () => ({ status: true }),
+          }
+        }
+        if (urlStr.includes('/send-verification-email')) {
+          const body = JSON.parse(String(init?.body || '{}'))
+          return {
+            ok: true,
+            json: async () => ({ status: true, email: body.email }),
+          }
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        }
+      })
+      global.fetch = mockFetch as unknown as typeof fetch
+
+      const vm = await mountLoginPage()
+
+      // Switch to signup mode
+      const signupToggle = vm.find('.toggle-signup')
+      if (signupToggle.exists()) {
+        await signupToggle.trigger('click')
+      }
+
+      const inputs = vm.findAll('input')
+      await inputs[0].setValue('Native User')
+      await inputs[1].setValue('native@apple.com')
+      await inputs[2].setValue('SecretPass123!')
+
+      const form = vm.find('form')
+      await form.trigger('submit')
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/sign-up/email'),
+          expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"callbackURL":"org.capacitor.bandstr://localhost/#/login?verified=1"'),
+          }),
+        )
+      })
+
+      await vi.waitFor(() => {
+        const resendBtn = vm.find('.auth-resend-verification-btn')
+        expect(resendBtn.exists()).toBe(true)
+      })
+
+      const resendBtn = vm.find('.auth-resend-verification-btn')
+      await resendBtn.trigger('click')
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/send-verification-email'),
+          expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"callbackURL":"org.capacitor.bandstr://localhost/#/login?verified=1"'),
+          }),
+        )
+      })
+    })
+
+    it('displays resend verification button when signInWithEmail fails for pre-existing unverified users', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const urlStr = String(url)
+        if (urlStr.includes('/sign-in/email')) {
+          return {
+            ok: false,
+            status: 403,
+            json: async () => ({ message: 'Email not verified' }),
+          }
+        }
+        if (urlStr.includes('/send-verification-email')) {
+          const body = JSON.parse(String(init?.body || '{}'))
+          return {
+            ok: true,
+            json: async () => ({ status: true, email: body.email }),
+          }
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        }
+      })
+      global.fetch = mockFetch as unknown as typeof fetch
+
+      const vm = await mountLoginPage()
+
+      // Default authMode is signin
+      const inputs = vm.findAll('input')
+      expect(inputs.length).toBeGreaterThanOrEqual(2)
+      await inputs[0].setValue('unverified@apple.com')
+      await inputs[1].setValue('SecretPass123!')
+
+      const form = vm.find('form')
+      await form.trigger('submit')
+
+      // Error message should be visible and resend button should appear
+      await vi.waitFor(() => {
+        expect(vm.text()).toContain('Email not verified')
+        const resendBtn = vm.find('.auth-resend-verification-btn')
+        expect(resendBtn.exists()).toBe(true)
+      })
+
+      const resendBtn = vm.find('.auth-resend-verification-btn')
+      await resendBtn.trigger('click')
+
+      // Resend request sent with pre-existing unverified user's email
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/send-verification-email'),
+          expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"email":"unverified@apple.com"'),
+          }),
+        )
       })
     })
   })
