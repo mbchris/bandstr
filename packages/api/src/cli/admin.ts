@@ -1,8 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
 import { and, eq } from 'drizzle-orm'
+import { hashPassword } from 'better-auth/crypto'
 import { db, pool } from '../db/index.js'
-import { bandMembers, bands, songs, users, votes } from '../db/schema.js'
+import {
+  accounts,
+  bandMembers,
+  bands,
+  calendarEvents,
+  gigSetlists,
+  gigSongs,
+  rehearsalSongs,
+  songs,
+  users,
+  votes,
+} from '../db/schema.js'
 import { sendPushToDevice } from '../lib/push-delivery.js'
 import { listRegisteredPushDevicesForBand } from '../lib/push-device-admin.js'
 
@@ -804,6 +816,389 @@ async function listBandPushDevices(options: Record<string, string | boolean>): P
   )
 }
 
+export type SeedDemoAccountOptions = {
+  email?: string
+  password?: string
+  name?: string
+  bandName?: string
+  'band-name'?: string
+}
+
+function slugify(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'demo-band'
+  )
+}
+
+export async function seedDemoAccount(
+  rawOptions: Record<string, string | boolean> | SeedDemoAccountOptions = {},
+): Promise<{ userId: string; bandId: number; email: string }> {
+  const options = rawOptions as Record<string, string | boolean>
+  const email = (optionalStringOption(options, 'email') ?? 'appcert@example.org').trim()
+  const password = (optionalStringOption(options, 'password') ?? 'appcert@example.org').trim()
+  const name = (optionalStringOption(options, 'name') ?? 'App Store Reviewer').trim()
+  const bandName = (
+    optionalStringOption(options, 'band-name') ??
+    optionalStringOption(options, 'bandName') ??
+    'The Bandstr Demo Band'
+  ).trim()
+
+  // 1. Upsert user record
+  const [existingUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1)
+
+  let userId: string
+  if (existingUser) {
+    userId = existingUser.id
+    await db
+      .update(users)
+      .set({
+        name,
+        emailVerified: true,
+        devProPlan: true,
+        devProPlanAssignedAt: existingUser.devProPlanAssignedAt ?? new Date(),
+        subscriptionPlan: 'pro',
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+  } else {
+    userId = `demo-usr-${randomUUID()}`
+    await db.insert(users).values({
+      id: userId,
+      name,
+      email,
+      emailVerified: true,
+      devProPlan: true,
+      devProPlanAssignedAt: new Date(),
+      subscriptionPlan: 'pro',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  }
+
+  // 2. Upsert credential row in account table
+  const hashedPassword = await hashPassword(password)
+  const [existingAccount] = await db
+    .select()
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.providerId, 'credential')))
+    .limit(1)
+
+  if (existingAccount) {
+    await db
+      .update(accounts)
+      .set({
+        password: hashedPassword,
+        updatedAt: new Date(),
+      })
+      .where(eq(accounts.id, existingAccount.id))
+  } else {
+    await db.insert(accounts).values({
+      id: `demo-acc-${randomUUID()}`,
+      accountId: userId,
+      providerId: 'credential',
+      userId,
+      password: hashedPassword,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  }
+
+  // 3. Upsert demo band
+  const bandSlug = slugify(bandName)
+  const [existingBand] = await db
+    .select()
+    .from(bands)
+    .where(eq(bands.slug, bandSlug))
+    .limit(1)
+
+  let bandId: number
+  if (existingBand) {
+    bandId = existingBand.id
+    await db
+      .update(bands)
+      .set({
+        name: bandName,
+        plan: 'pro',
+      })
+      .where(eq(bands.id, bandId))
+  } else {
+    const [newBand] = await db
+      .insert(bands)
+      .values({
+        name: bandName,
+        slug: bandSlug,
+        plan: 'pro',
+        createdAt: new Date(),
+      })
+      .returning({ id: bands.id })
+    bandId = newBand.id
+  }
+
+  // Update user's defaultBandId
+  await db
+    .update(users)
+    .set({ defaultBandId: bandId })
+    .where(eq(users.id, userId))
+
+  // 4. Attach user as owner in band_members
+  const [existingMembership] = await db
+    .select()
+    .from(bandMembers)
+    .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.userId, userId)))
+    .limit(1)
+
+  if (existingMembership) {
+    await db
+      .update(bandMembers)
+      .set({
+        role: 'owner',
+      })
+      .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.userId, userId)))
+  } else {
+    await db.insert(bandMembers).values({
+      bandId,
+      userId,
+      role: 'owner',
+      sortOrder: 1,
+      isHidden: false,
+      beerCount: 0,
+      joinedAt: new Date(),
+    })
+  }
+
+  // 5. Ensure sample songs exist
+  const existingSongs = await db
+    .select()
+    .from(songs)
+    .where(eq(songs.bandId, bandId))
+
+  let songIds = existingSongs.map((s) => s.id)
+  if (existingSongs.length === 0) {
+    const sampleSongsData = [
+      {
+        bandId,
+        title: 'Nordwind',
+        artist: 'Aurora Kollektiv',
+        notes: 'Intro 8 bars',
+        type: 'song',
+        pitch: 0,
+        isSetlist: true,
+        position: 1,
+        isPinned: true,
+        addedBy: userId,
+        lengthMs: 212000,
+        bpm: 128,
+      },
+      {
+        bandId,
+        title: 'Glasfassade',
+        artist: 'Stadtlichter',
+        notes: 'Half step down',
+        type: 'song',
+        pitch: -1,
+        isSetlist: true,
+        position: 2,
+        isPinned: false,
+        addedBy: userId,
+        lengthMs: 238000,
+        bpm: 112,
+      },
+      {
+        bandId,
+        title: 'Kurzschluss',
+        artist: bandName,
+        notes: 'Original song',
+        type: 'song',
+        pitch: 0,
+        isSetlist: true,
+        position: 3,
+        isPinned: false,
+        addedBy: userId,
+        lengthMs: 254000,
+        bpm: 140,
+      },
+      {
+        bandId,
+        title: 'Rückenwind',
+        artist: 'Elin Marsh',
+        notes: 'Candidate for next set',
+        type: 'song',
+        pitch: 0,
+        isSetlist: false,
+        position: 0,
+        isPinned: false,
+        addedBy: userId,
+        lengthMs: 247000,
+        bpm: 118,
+      },
+      {
+        bandId,
+        title: 'Kalte Sonne',
+        artist: 'Marlow Trio',
+        notes: null,
+        type: 'song',
+        pitch: 0,
+        isSetlist: false,
+        position: 0,
+        isPinned: false,
+        addedBy: userId,
+        lengthMs: 219000,
+        bpm: 100,
+      },
+    ]
+
+    const insertedSongs = await db
+      .insert(songs)
+      .values(sampleSongsData)
+      .returning({ id: songs.id })
+    songIds = insertedSongs.map((s) => s.id)
+  }
+
+  // 6. Ensure calendar events (rehearsal and gig) exist
+  const existingEvents = await db
+    .select()
+    .from(calendarEvents)
+    .where(eq(calendarEvents.bandId, bandId))
+
+  let rehearsalEventId: number | null = null
+  let gigEventId: number | null = null
+
+  if (existingEvents.length === 0) {
+    const now = new Date()
+    const rehearsalStart = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+    rehearsalStart.setHours(19, 0, 0, 0)
+    const rehearsalEnd = new Date(rehearsalStart.getTime() + 3 * 60 * 60 * 1000)
+
+    const gigStart = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+    gigStart.setHours(20, 0, 0, 0)
+    const gigEnd = new Date(gigStart.getTime() + 3 * 60 * 60 * 1000)
+
+    const [rehearsal] = await db
+      .insert(calendarEvents)
+      .values({
+        bandId,
+        title: 'Band Rehearsal',
+        description: 'Go through new setlist',
+        startTime: rehearsalStart,
+        endTime: rehearsalEnd,
+        type: 'rehearsal',
+        isTentative: false,
+      })
+      .returning({ id: calendarEvents.id })
+
+    const [gig] = await db
+      .insert(calendarEvents)
+      .values({
+        bandId,
+        title: 'Club Concert',
+        description: 'Live performance - 45 min set',
+        startTime: gigStart,
+        endTime: gigEnd,
+        type: 'gig',
+        isTentative: false,
+      })
+      .returning({ id: calendarEvents.id })
+
+    rehearsalEventId = rehearsal.id
+    gigEventId = gig.id
+  } else {
+    const r = existingEvents.find((e) => e.type === 'rehearsal')
+    const g = existingEvents.find((e) => e.type === 'gig')
+    if (r) rehearsalEventId = r.id
+    if (g) gigEventId = g.id
+  }
+
+  // 7. Ensure setlists exist
+  const existingSetlists = await db
+    .select()
+    .from(gigSetlists)
+    .where(eq(gigSetlists.bandId, bandId))
+
+  if (existingSetlists.length === 0) {
+    const [setlist] = await db
+      .insert(gigSetlists)
+      .values({
+        bandId,
+        title: 'Main Setlist',
+        location: 'Main Stage',
+        gigDate: 'Next Saturday',
+        gigTime: '20:00',
+        notes: 'Standard 45min set',
+        calendarEventId: gigEventId,
+      })
+      .returning({ id: gigSetlists.id })
+
+    if (songIds.length > 0) {
+      const setlistSongs = songIds.slice(0, 3)
+      for (let i = 0; i < setlistSongs.length; i += 1) {
+        await db.insert(gigSongs).values({
+          bandId,
+          gigId: setlist.id,
+          songId: setlistSongs[i],
+          position: i + 1,
+        })
+      }
+    }
+  }
+
+  // Ensure rehearsal songs exist
+  if (rehearsalEventId && songIds.length > 0) {
+    const existingRehearsalSongs = await db
+      .select()
+      .from(rehearsalSongs)
+      .where(and(eq(rehearsalSongs.rehearsalId, rehearsalEventId), eq(rehearsalSongs.bandId, bandId)))
+
+    if (existingRehearsalSongs.length === 0) {
+      const toLink = songIds.slice(0, 2)
+      for (const sId of toLink) {
+        await db.insert(rehearsalSongs).values({
+          bandId,
+          rehearsalId: rehearsalEventId,
+          songId: sId,
+        })
+      }
+    }
+  }
+
+  // 8. Ensure votes exist
+  const existingVotes = await db
+    .select()
+    .from(votes)
+    .where(eq(votes.bandId, bandId))
+
+  if (existingVotes.length === 0 && songIds.length >= 4) {
+    await db.insert(votes).values([
+      {
+        bandId,
+        songId: songIds[3],
+        userId,
+        score: 3,
+        comment: 'Great candidate for the next setlist!',
+      },
+      {
+        bandId,
+        songId: songIds[4] ?? songIds[0],
+        userId,
+        score: 2,
+        comment: 'Good tempo, needs some polish on the outro.',
+      },
+    ])
+  }
+
+  console.log(
+    `Demo account seeded: email=${email} userId=${userId} bandId=${bandId} bandName="${bandName}"`,
+  )
+
+  return { userId, bandId, email }
+}
+
 function printHelp(): void {
   console.log(`
 bandstr admin CLI (run inside container):
@@ -822,6 +1217,7 @@ Commands:
   change-subscription-for-user --user-id "<user-id>" --enabled true|false
   list-band-push-devices --band-id <id> [--include-disabled true|false]
   send-band-push --band-id <id> --title "<title>" --body "<body>" [--path "/calendar"] [--query "bandId=1"] [--dry-run true|false]
+  seed-demo-account [--email "<email>"] [--password "<password>"] [--name "<name>"] [--band-name "<band-name>"]
 
 Notes:
   - "votings" maps source songs to target songs by song signature (title/artist/type/position/links).
@@ -873,16 +1269,28 @@ async function main(): Promise<void> {
     case 'send-band-push':
       await sendBandPush(options)
       break
+    case 'seed-demo-account':
+      await seedDemoAccount(options)
+      break
     default:
       throw new Error(`Unknown command "${command}". Run with "help" for usage.`)
   }
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error('[admin-cli] failed', error)
-    process.exitCode = 1
-  })
-  .finally(async () => {
-    await pool.end()
-  })
+const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)
+const isDirectRun =
+  !isTestEnv &&
+  typeof process.argv[1] === 'string' &&
+  (process.argv[1].endsWith('admin.ts') || process.argv[1].endsWith('admin.js'))
+
+if (isDirectRun) {
+  main()
+    .catch((error: unknown) => {
+      console.error('[admin-cli] failed', error)
+      process.exitCode = 1
+    })
+    .finally(async () => {
+      await pool.end()
+    })
+}
+
