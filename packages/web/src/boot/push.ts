@@ -258,12 +258,9 @@ export default boot(async ({ router }) => {
     await flushPendingPushRoute()
   }
 
-  await PushNotifications.requestPermissions().then((permission) => {
-    if (permission.receive === 'granted') {
-      void PushNotifications.register()
-    }
-  }).catch(() => undefined)
-
+  // Wire up listeners BEFORE calling register() — on iOS the 'registration'
+  // event fires almost immediately after register(), so any listener added
+  // after that call will miss the token.
   await PushNotifications.removeAllListeners().catch(() => undefined)
 
   await PushNotifications.addListener('registration', (token) => {
@@ -282,6 +279,12 @@ export default boot(async ({ router }) => {
   })
 
   await PushNotifications.addListener('registrationError', () => undefined)
+
+  await PushNotifications.requestPermissions().then((permission) => {
+    if (permission.receive === 'granted') {
+      void PushNotifications.register()
+    }
+  }).catch(() => undefined)
 
   void flushPendingPushRoute()
 })
