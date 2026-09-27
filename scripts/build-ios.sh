@@ -151,7 +151,7 @@ if [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISION
     # shellcheck source=lib/vaultwarden.sh
     source "$SCRIPT_DIR/lib/vaultwarden.sh"
     echo "Loading iOS release signing secrets from Vaultwarden..."
-    if vw_login >/dev/null 2>&1; then
+    if vw_login; then
       signing_item="$(vw_item_id "$VW_SIGNING_ITEM")"
       asc_item="$(vw_item_id "$VW_ASC_ITEM")"
       if [[ -n "$signing_item" ]]; then
@@ -192,13 +192,19 @@ if [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISION
 
         for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
           mkdir -p "$dir"
+          chflags nouchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
           cp -f "$vault_work_dir/appstore.mobileprovision" "$dir/$profile_uuid.mobileprovision"
+          if [[ "$dir" == *"UserData"* ]]; then
+            chflags uchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
+          fi
         done
 
         export IOS_SIGN_IDENTITY="$cert_sha1"
         export IOS_PROVISIONING_PROFILE_UUID="$profile_uuid"
         export IOS_SIGN_KEYCHAIN="$vault_keychain"
       fi
+    else
+      echo "Warning: Vaultwarden login failed. Proceeding without automated signing setup."
     fi
   fi
 fi

@@ -60,6 +60,15 @@ printf '%s' "$updated_json" | bw encode | bw edit item "$signing_item" >/dev/nul
 vw_replace_attachment "$signing_item" "$work_dir/signing/appstore.mobileprovision"
 bw sync >/dev/null
 
-echo "Done! Provisioning profile updated in Vaultwarden:"
+for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+  mkdir -p "$dir"
+  chflags nouchg "$dir/$(m profileUuid).mobileprovision" 2>/dev/null || true
+  cp -f "$work_dir/signing/appstore.mobileprovision" "$dir/$(m profileUuid).mobileprovision"
+  if [[ "$dir" == *"UserData"* ]]; then
+    chflags uchg "$dir/$(m profileUuid).mobileprovision" 2>/dev/null || true
+  fi
+done
+
+echo "Done! Provisioning profile updated in Vaultwarden and installed locally:"
 echo "  PROFILE_NAME = $(m profileName)"
 echo "  PROFILE_UUID = $(m profileUuid) (expires $(m profileExpires))"

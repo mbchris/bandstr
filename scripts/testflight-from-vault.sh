@@ -95,7 +95,11 @@ fi
 # --- 3. Install the provisioning profile -------------------------------------
 for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
   mkdir -p "$dir"
+  chflags nouchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
   cp -f "$work_dir/appstore.mobileprovision" "$dir/$profile_uuid.mobileprovision"
+  if [[ "$dir" == *"UserData"* ]]; then
+    chflags uchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
+  fi
 done
 
 # --- 4. Build number ---------------------------------------------------------
