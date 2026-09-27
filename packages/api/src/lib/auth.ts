@@ -24,7 +24,7 @@ const isProduction = (process.env.NODE_ENV ?? '').toLowerCase() === 'production'
 const debugAutoActivateUsers = /^(1|true|yes|on)$/i.test(
   (process.env.DEBUG_AUTO_ACTIVATE_USERS ?? '').trim(),
 )
-const DEFAULT_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 365 * 1 // 1 year
+const DEFAULT_SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 120 // 120 DAYS
 
 function getSessionExpiresInSeconds(): number {
   const fromEnv = Number.parseInt(process.env.AUTH_SESSION_EXPIRES_IN_SECONDS ?? '', 10)
