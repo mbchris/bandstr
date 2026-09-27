@@ -256,6 +256,7 @@ export default {
     archiveSong: 'Archive song',
     confirmArchive: 'Do you really want to archive "{title}" by {artist}? The song will be removed from active voting but keeps all vote records.',
     songArchived: 'Song archived',
+    songAccepted: 'Song accepted and added to setlist',
     reactivateSong: 'Reactivate',
     songReactivated: 'Song moved back to active voting',
     pendingVotes: '⏳ {count}/{total} votes',

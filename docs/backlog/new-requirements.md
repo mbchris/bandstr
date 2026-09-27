@@ -13,6 +13,7 @@
 - **Admin**: Add confirmation box when changing "Bierwart".
 - **UI**: Make band logo clickable to return to home page.
 - **Calendar**: Show unavailabilities on start page and rehearsal detail page.
+- **Voting**: Swipe to accept song (send to setlist, green edge) or archive (red edge) (#25).
 # Acceptance criteria for new requirements
 
 ## TASK-0201: Foundation - Editable User List in Admin
@@ -217,6 +218,17 @@
   - [x] Support column customization and role presets: Standard (Titel, Interpret, BPM), Drummer (Titel, BPM, Notizen), Gitarre (Titel, Tuning, Pitch), and Alle Spalten.
   - [x] Export formats: PDF (`exportPdf` via jsPDF and autoTable), Word (`exportDocx` via docx), and direct print (`window.print()`).
   - [x] Native mobile support via `@capacitor/filesystem` and `@capacitor/share` with fallback to browser download.
+
+## TASK-0224: Voting - Swipe to Accept (Setlist) or Archive (#25)
+- **Status:** done
+- **Labels:** feature, frontend, voting
+- **Acceptance Criteria:**
+  - [x] Swiping song right in Voting reveals green edge with acceptance icon (`check`).
+  - [x] Swiping song right sends the song to the master Setlist with toast notification.
+  - [x] Swiping song left in Voting reveals red edge with archive icon (`archive`).
+  - [x] Swiping song left moves the song to archive with toast notification.
+  - [x] In the Archive tab, swiping right reactivates the song to active voting with `unarchive` icon.
+  - [x] Limits on the free tier for master setlist are respected when swiping to accept.
 
 # Sample Acceptance Criteria (use this for reference)
 

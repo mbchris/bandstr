@@ -257,6 +257,7 @@ export default {
     archiveSong: 'Song archivieren',
     confirmArchive: 'Möchtest du "{title}" von {artist} wirklich ins Archiv verschieben? Der Song verschwindet aus dem aktiven Voting, bleibt aber mit allen Stimmen gespeichert.',
     songArchived: 'Song archiviert',
+    songAccepted: 'Song akzeptiert und zur Setlist hinzugefügt',
     reactivateSong: 'Reaktivieren',
     songReactivated: 'Song wieder im aktiven Voting',
     pendingVotes: '⏳ {count}/{total} Stimmen',

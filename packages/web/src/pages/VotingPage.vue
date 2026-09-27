@@ -269,6 +269,60 @@ function onDragEnd() {
   draggingIndex.value = null
 }
 
+async function onSwipeRight(song: Song, reset: () => void) {
+  if (currentTab.value === 'archived') {
+    try {
+      await songsStore.updateSong(song.id, { isArchived: false } as any)
+      await songsStore.fetchSongs()
+      $q.notify({ message: t('voting.songReactivated'), color: 'positive' })
+    } catch {
+      $q.notify({ message: t('common.error'), color: 'negative' })
+    } finally {
+      reset()
+    }
+    return
+  }
+
+  if (atSetlistLimit.value) {
+    $q.notify({
+      message: t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }),
+      color: 'warning',
+    })
+    reset()
+    return
+  }
+
+  try {
+    await songsStore.updateSong(song.id, { isSetlist: true } as any)
+    await songsStore.fetchSongs()
+    $q.notify({
+      message: t('voting.songAccepted'),
+      color: 'positive',
+    })
+  } catch {
+    $q.notify({ message: t('voting.failedTransfer'), color: 'negative' })
+  } finally {
+    reset()
+  }
+}
+
+async function onSwipeLeft(song: Song, reset: () => void) {
+  if (currentTab.value !== 'active') {
+    reset()
+    return
+  }
+
+  try {
+    await songsStore.updateSong(song.id, { isArchived: true } as any)
+    await songsStore.fetchSongs()
+    $q.notify({ message: t('voting.songArchived'), color: 'positive' })
+  } catch {
+    $q.notify({ message: t('common.error'), color: 'negative' })
+  } finally {
+    reset()
+  }
+}
+
 async function archiveSong(song: Song) {
   $q.dialog({
     title: t('voting.archiveSong'),
@@ -551,108 +605,127 @@ watch(
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
-            <q-item
+            <q-slide-item
               v-for="(song, index) in filteredSongs"
               :key="song.id"
-              class="q-pa-sm song-item"
-              :draggable="currentTab === 'active' && !searchQuery && votingSort === 'default'"
-              @dragstart="onDragStart(index)"
-              @dragover.prevent
-              @drop="onDrop(index)"
-              @dragend="onDragEnd"
+              class="voting-slide-item"
+              left-color="positive"
+              right-color="negative"
+              @left="({ reset }) => onSwipeRight(song, reset)"
+              @right="({ reset }) => onSwipeLeft(song, reset)"
             >
-              <q-item-section side class="song-order-controls">
-                <div class="column items-center q-gutter-xs">
-                  <q-icon v-if="currentTab === 'active' && !searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
-                  <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
+              <template #left>
+                <div class="row items-center q-gutter-xs">
+                  <q-icon :name="currentTab === 'active' ? 'check' : 'unarchive'" size="28px" />
                 </div>
-              </q-item-section>
+              </template>
+              <template #right>
+                <div v-if="currentTab === 'active'" class="row items-center q-gutter-xs">
+                  <q-icon name="archive" size="28px" />
+                </div>
+              </template>
 
-              <!-- Thumbnail -->
-              <q-item-section side class="song-order-thumb">
-                <div v-if="song.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
-                  Pitch {{ song.pitch > 0 ? '+' : '' }}{{ song.pitch }}
-                </div>
-                <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank">
-                  <q-avatar rounded size="48px"><img :src="song.thumbnailUrl" /></q-avatar>
-                </a>
-                <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
-              </q-item-section>
-
-              <!-- Info -->
-              <q-item-section class="song-order-info">
-                <q-item-label class="text-weight-bold">
-                  {{ song.title }}
-                  <q-icon v-if="song.notes" name="info" color="grey" size="xs" class="cursor-pointer">
-                    <q-tooltip>{{ song.notes }}</q-tooltip>
-                  </q-icon>
-                </q-item-label>
-                <q-item-label caption>{{ song.artist }}</q-item-label>
-                <div class="row q-gutter-xs q-mt-xs">
-                  <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.spotifyLabel') }}</a>
-                  <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.youtubeLabel') }}</a>
-                </div>
-                <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
-                  {{ t('voting.lengthLabel') }}: {{ formatDuration(song.lengthMs) }}
-                </div>
-                <div class="option1-vote-row q-mt-sm">
-                  <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
-                    <q-avatar
-                      v-for="(member, i) in votedMembers(song)"
-                      :key="`${song.id}-voted-${member.id}`"
-                      size="24px"
-                      class="stack-avatar"
-                      :style="stackedAvatarStyle(song, member.id, i)"
-                      color="primary"
-                      text-color="white"
-                    >
-                      <span>{{ getInitials(member.name) }}</span>
-                    </q-avatar>
-                    <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
-                    <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
+              <q-item
+                class="q-pa-sm song-item"
+                :draggable="currentTab === 'active' && !searchQuery && votingSort === 'default'"
+                @dragstart="onDragStart(index)"
+                @dragover.prevent
+                @drop="onDrop(index)"
+                @dragend="onDragEnd"
+              >
+                <q-item-section side class="song-order-controls">
+                  <div class="column items-center q-gutter-xs">
+                    <q-icon v-if="currentTab === 'active' && !searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
+                    <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
                   </div>
-                  <div class="row items-center q-gutter-xs option1-actions">
-                    <template v-if="isFullyVoted(song)">
-                      <q-badge v-if="rankMap.has(song.id)" color="secondary" class="text-weight-bold">
-                        {{ t('voting.rank', { rank: rankMap.get(song.id) }) }}
-                      </q-badge>
-                      <q-badge outline color="primary">
-                        {{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}
-                      </q-badge>
-                      <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
-                    </template>
-                    <template v-else>
-                      <q-badge outline color="amber-9" class="text-weight-medium">
-                        {{ t('voting.pendingVotes', { count: song.voteCount || 0, total: totalMembersCount }) }}
-                      </q-badge>
-                    </template>
-                    <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
-                      <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
-                    </q-btn>
-                    <q-btn dense flat icon="visibility" @click="openDetailsDialog(song)">
-                      <q-tooltip>{{ t('voting.details') }}</q-tooltip>
-                    </q-btn>
-                  </div>
-                </div>
-              </q-item-section>
+                </q-item-section>
 
-              <!-- Actions -->
-              <q-item-section side class="song-order-actions">
-                <div class="column q-gutter-xs song-actions">
-                  <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
-                    <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn v-if="currentTab === 'active'" flat round dense icon="archive" color="grey-7" size="sm" @click="archiveSong(song)">
-                    <q-tooltip>{{ t('voting.archiveSong') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn v-else flat round dense icon="unarchive" color="primary" size="sm" @click="reactivateSong(song)">
-                    <q-tooltip>{{ t('voting.reactivateSong') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
-                  <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
-                </div>
-              </q-item-section>
-            </q-item>
+                <!-- Thumbnail -->
+                <q-item-section side class="song-order-thumb">
+                  <div v-if="song.pitch !== 0" class="text-caption text-center text-weight-bold q-mb-xs">
+                    Pitch {{ song.pitch > 0 ? '+' : '' }}{{ song.pitch }}
+                  </div>
+                  <a v-if="song.spotifyUrl && song.thumbnailUrl" :href="song.spotifyUrl" target="_blank">
+                    <q-avatar rounded size="48px"><img :src="song.thumbnailUrl" /></q-avatar>
+                  </a>
+                  <q-avatar v-else rounded size="48px" color="grey-3"><q-icon name="music_note" color="grey" /></q-avatar>
+                </q-item-section>
+
+                <!-- Info -->
+                <q-item-section class="song-order-info">
+                  <q-item-label class="text-weight-bold">
+                    {{ song.title }}
+                    <q-icon v-if="song.notes" name="info" color="grey" size="xs" class="cursor-pointer">
+                      <q-tooltip>{{ song.notes }}</q-tooltip>
+                    </q-icon>
+                  </q-item-label>
+                  <q-item-label caption>{{ song.artist }}</q-item-label>
+                  <div class="row q-gutter-xs q-mt-xs">
+                    <a v-if="song.spotifyUrl" :href="song.spotifyUrl" target="_blank" class="text-green text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.spotifyLabel') }}</a>
+                    <a v-if="song.youtubeUrl" :href="song.youtubeUrl" target="_blank" class="text-red text-caption text-weight-bold" style="text-decoration:none">{{ t('voting.youtubeLabel') }}</a>
+                  </div>
+                  <div v-if="song.lengthMs" class="text-caption text-grey-7 q-mt-xs">
+                    {{ t('voting.lengthLabel') }}: {{ formatDuration(song.lengthMs) }}
+                  </div>
+                  <div class="option1-vote-row q-mt-sm">
+                    <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
+                      <q-avatar
+                        v-for="(member, i) in votedMembers(song)"
+                        :key="`${song.id}-voted-${member.id}`"
+                        size="24px"
+                        class="stack-avatar"
+                        :style="stackedAvatarStyle(song, member.id, i)"
+                        color="primary"
+                        text-color="white"
+                      >
+                        <span>{{ getInitials(member.name) }}</span>
+                      </q-avatar>
+                      <span v-if="!votedMembers(song).length" class="text-caption text-grey-6 q-pr-xs">{{ t('voting.noVotesYet') }}</span>
+                      <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
+                    </div>
+                    <div class="row items-center q-gutter-xs option1-actions">
+                      <template v-if="isFullyVoted(song)">
+                        <q-badge v-if="rankMap.has(song.id)" color="secondary" class="text-weight-bold">
+                          {{ t('voting.rank', { rank: rankMap.get(song.id) }) }}
+                        </q-badge>
+                        <q-badge outline color="primary">
+                          {{ t('voting.avg') }} {{ Number(song.voteAverage || 0).toFixed(1) }}
+                        </q-badge>
+                        <q-badge outline color="grey-7">{{ song.voteCount }} {{ t('voting.votes') }}</q-badge>
+                      </template>
+                      <template v-else>
+                        <q-badge outline color="amber-9" class="text-weight-medium">
+                          {{ t('voting.pendingVotes', { count: song.voteCount || 0, total: totalMembersCount }) }}
+                        </q-badge>
+                      </template>
+                      <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
+                        <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
+                      </q-btn>
+                      <q-btn dense flat icon="visibility" @click="openDetailsDialog(song)">
+                        <q-tooltip>{{ t('voting.details') }}</q-tooltip>
+                      </q-btn>
+                    </div>
+                  </div>
+                </q-item-section>
+
+                <!-- Actions -->
+                <q-item-section side class="song-order-actions">
+                  <div class="column q-gutter-xs song-actions">
+                    <q-btn v-if="!song.isSetlist" flat round dense icon="arrow_forward" :color="atSetlistLimit ? 'grey-4' : 'grey'" size="sm" :disable="atSetlistLimit" @click="openTransferModal(song)">
+                      <q-tooltip>{{ atSetlistLimit ? t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }) : t('voting.sendToSetlist') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn v-if="currentTab === 'active'" flat round dense icon="archive" color="grey-7" size="sm" @click="archiveSong(song)">
+                      <q-tooltip>{{ t('voting.archiveSong') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn v-else flat round dense icon="unarchive" color="primary" size="sm" @click="reactivateSong(song)">
+                      <q-tooltip>{{ t('voting.reactivateSong') }}</q-tooltip>
+                    </q-btn>
+                    <q-btn v-if="canEdit(song)" flat round dense icon="edit" size="sm" @click="openEditModal(song)" />
+                    <q-btn v-if="canDelete(song)" flat round dense icon="delete" color="red" size="sm" @click="deleteSong(song)" />
+                  </div>
+                </q-item-section>
+              </q-item>
+            </q-slide-item>
           </q-list>
 
           <q-banner v-else rounded class="bg-widget-surface">{{ t('voting.noSongs') }}</q-banner>
@@ -856,5 +929,13 @@ watch(
 
 .cursor-grab {
   cursor: grab;
+}
+
+.voting-slide-item {
+  border-bottom: 1px solid var(--q-separator-color, rgba(0, 0, 0, 0.12));
+
+  :deep(.q-slide-item__content) {
+    background: var(--surface);
+  }
 }
 </style>
