@@ -91,6 +91,8 @@ async function registerTokenOnApi(token: PushNotificationToken) {
     headers.Authorization = `Bearer ${authStore.token}`
   }
 
+  console.info(`[push] Registering token with backend (${platform}/${tokenType}). User: ${authStore.user?.id ?? 'token-only'}`)
+
   const response = await fetch(`${base}/api/notifications/devices/register`, {
     method: 'POST',
     headers,
@@ -100,18 +102,33 @@ async function registerTokenOnApi(token: PushNotificationToken) {
       tokenType,
       token: token.value,
     }),
-  }).catch(() => null)
+  }).catch((err) => {
+    console.error('[push] Register fetch failed:', err)
+    return null
+  })
 
   if (!response || !response.ok) {
+    console.warn(`[push] Register endpoint failed with status: ${response?.status ?? 'network error'}`)
     return false
   }
 
-  localStorage.setItem(REGISTERED_TOKEN_KEY, token.value)
+  console.info('[push] Successfully registered push device on backend')
+  const userKey = authStore.user?.id ?? (authStore.token ? 'token' : 'anon')
+  localStorage.setItem(REGISTERED_TOKEN_KEY, `${userKey}:${token.value}`)
   return true
 }
 
-function readAlreadyRegisteredToken() {
-  return localStorage.getItem(REGISTERED_TOKEN_KEY)
+function readAlreadyRegisteredToken(userKey?: string) {
+  const stored = localStorage.getItem(REGISTERED_TOKEN_KEY)
+  if (!stored) return null
+  if (userKey && stored.startsWith(`${userKey}:`)) {
+    return stored.slice(userKey.length + 1)
+  }
+  // Plain legacy token format
+  if (!stored.includes(':')) {
+    return stored
+  }
+  return null
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -200,25 +217,34 @@ export default boot(async ({ router }) => {
 
   const authStore = useAuthStore()
 
-  let pendingToken: PushNotificationToken | null = null
+  let activeToken: PushNotificationToken | null = null
   let retryTimer: number | null = null
 
   const attemptRegistration = async () => {
-    if (!pendingToken) return
-    const alreadyRegistered = readAlreadyRegisteredToken()
-    if (alreadyRegistered === pendingToken.value) {
+    if (!activeToken) return
+    if (!authStore.isAuthenticated && !authStore.token) {
       return
     }
 
-    const ok = await registerTokenOnApi(pendingToken)
-    if (ok) {
-      pendingToken = null
-      if (retryTimer !== null) {
-        window.clearInterval(retryTimer)
-        retryTimer = null
-      }
+    const userKey = authStore.user?.id ?? (authStore.token ? 'token' : 'anon')
+    const alreadyRegistered = readAlreadyRegisteredToken(userKey)
+    if (alreadyRegistered === activeToken.value) {
+      return
+    }
+
+    const ok = await registerTokenOnApi(activeToken)
+    if (ok && retryTimer !== null) {
+      window.clearInterval(retryTimer)
+      retryTimer = null
     }
   }
+
+  // When user logs in or auth state updates, attempt registration if we already have a device token
+  authStore.$subscribe(() => {
+    if (activeToken && (authStore.isAuthenticated || authStore.token)) {
+      void attemptRegistration()
+    }
+  })
 
   let pushNavigationInFlight = false
 
@@ -264,13 +290,14 @@ export default boot(async ({ router }) => {
   await PushNotifications.removeAllListeners().catch(() => undefined)
 
   await PushNotifications.addListener('registration', (token) => {
-    pendingToken = token
+    console.info('[push] Native device token received:', token.value.slice(0, 8) + '...')
+    activeToken = token
     void attemptRegistration()
     if (retryTimer === null) {
       retryTimer = window.setInterval(() => {
         if (!authStore.isAuthenticated && !authStore.token) return
         void attemptRegistration()
-      }, 4000)
+      }, 3000)
     }
   })
 
@@ -278,13 +305,18 @@ export default boot(async ({ router }) => {
     void onAction(action)
   })
 
-  await PushNotifications.addListener('registrationError', () => undefined)
+  await PushNotifications.addListener('registrationError', (error) => {
+    console.error('[push] Push registration error from OS:', error)
+  })
 
   await PushNotifications.requestPermissions().then((permission) => {
+    console.info('[push] Permission request result:', permission.receive)
     if (permission.receive === 'granted') {
       void PushNotifications.register()
     }
-  }).catch(() => undefined)
+  }).catch((err) => {
+    console.error('[push] Permission request failed:', err)
+  })
 
   void flushPendingPushRoute()
 })
