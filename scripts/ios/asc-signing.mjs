@@ -74,10 +74,31 @@ async function findBundleId(identifier) {
   return match
 }
 
+async function ensureCapability(bundleId, capabilityType) {
+  const caps = await api('GET', `/bundleIds/${bundleId}/bundleIdCapabilities`)
+  const hasCap = caps.data?.some((c) => c.attributes?.capabilityType === capabilityType)
+  if (hasCap) {
+    console.log(`Capability '${capabilityType}' is already enabled.`)
+    return
+  }
+  console.log(`Enabling capability '${capabilityType}' on bundle ID ...`)
+  await api('POST', '/bundleIdCapabilities', {
+    data: {
+      type: 'bundleIdCapabilities',
+      attributes: { capabilityType },
+      relationships: {
+        bundleId: { data: { type: 'bundleIds', id: bundleId } },
+      },
+    },
+  })
+  console.log(`Capability '${capabilityType}' enabled successfully.`)
+}
+
 async function createSigning(outDir) {
   const bundleIdentifier = env('APPLE_BUNDLE_ID')
   mkdirSync(outDir, { recursive: true })
   const bundle = await findBundleId(bundleIdentifier)
+  await ensureCapability(bundle.id, 'PUSH_NOTIFICATIONS')
 
   const keyPem = join(outDir, 'distribution.key.pem')
   const csrPem = join(outDir, 'distribution.csr.pem')
@@ -142,6 +163,49 @@ async function createSigning(outDir) {
   console.log(`Profile ${profileAttrs.uuid} (expires ${profileAttrs.expirationDate})`)
 }
 
+async function renewProfile(certId, outDir) {
+  const bundleIdentifier = env('APPLE_BUNDLE_ID')
+  mkdirSync(outDir, { recursive: true })
+  const bundle = await findBundleId(bundleIdentifier)
+  await ensureCapability(bundle.id, 'PUSH_NOTIFICATIONS')
+
+  const profilePath = join(outDir, 'appstore.mobileprovision')
+  const profileName = `bandstr App Store ${new Date().toISOString().slice(0, 10)} ${certId.slice(0, 6)}`
+  console.log(`Creating App Store provisioning profile '${profileName}' with Push Notifications ...`)
+  const profile = await api('POST', '/profiles', {
+    data: {
+      type: 'profiles',
+      attributes: { name: profileName, profileType: 'IOS_APP_STORE' },
+      relationships: {
+        bundleId: { data: { type: 'bundleIds', id: bundle.id } },
+        certificates: { data: [{ type: 'certificates', id: certId }] },
+      },
+    },
+  })
+  const profileAttrs = profile.data.attributes
+  writeFileSync(profilePath, Buffer.from(profileAttrs.profileContent, 'base64'))
+
+  const meta = {
+    bundleId: bundleIdentifier,
+    certificateId: certId,
+    profileId: profile.data.id,
+    profileName,
+    profileUuid: profileAttrs.uuid,
+    profileExpires: profileAttrs.expirationDate,
+  }
+  writeFileSync(join(outDir, 'profile.json'), JSON.stringify(meta, null, 2), { mode: 0o600 })
+  console.log(`Profile ${profileAttrs.uuid} created (expires ${profileAttrs.expirationDate})`)
+}
+
+async function checkBundle() {
+  const bundleIdentifier = env('APPLE_BUNDLE_ID')
+  const bundle = await findBundleId(bundleIdentifier)
+  console.log(`Bundle ID: ${bundle.attributes.identifier} (ID: ${bundle.id})`)
+  const caps = await api('GET', `/bundleIds/${bundle.id}/bundleIdCapabilities`)
+  const capList = caps.data?.map((c) => c.attributes?.capabilityType).join(', ') || 'none'
+  console.log(`Enabled capabilities: ${capList}`)
+}
+
 async function nextBuildNumber() {
   const bundleIdentifier = env('APPLE_BUNDLE_ID')
   const apps = await api('GET', `/apps?filter[bundleId]=${encodeURIComponent(bundleIdentifier)}`)
@@ -158,10 +222,19 @@ try {
     const idx = args.indexOf('--out-dir')
     if (idx === -1 || !args[idx + 1]) throw new Error('Usage: asc-signing.mjs create-signing --out-dir DIR')
     await createSigning(args[idx + 1])
+  } else if (command === 'renew-profile') {
+    const certIdx = args.indexOf('--cert-id')
+    const outIdx = args.indexOf('--out-dir')
+    if (certIdx === -1 || !args[certIdx + 1] || outIdx === -1 || !args[outIdx + 1]) {
+      throw new Error('Usage: asc-signing.mjs renew-profile --cert-id CERT_ID --out-dir DIR')
+    }
+    await renewProfile(args[certIdx + 1], args[outIdx + 1])
+  } else if (command === 'check-bundle') {
+    await checkBundle()
   } else if (command === 'next-build-number') {
     await nextBuildNumber()
   } else {
-    throw new Error('Usage: asc-signing.mjs create-signing --out-dir DIR | next-build-number')
+    throw new Error('Usage: asc-signing.mjs create-signing --out-dir DIR | renew-profile --cert-id ID --out-dir DIR | check-bundle | next-build-number')
   }
 } catch (err) {
   console.error(`Error: ${err instanceof Error ? err.message : String(err)}`)
