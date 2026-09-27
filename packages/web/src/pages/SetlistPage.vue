@@ -103,11 +103,23 @@ function filterCalendarGigOptions(val: string, update: (callback: () => void) =>
   })
 }
 
+const currentTab = ref<'active' | 'archived'>('active')
+
+const activeSetlistSongsCount = computed(() =>
+  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && !s.isArchived).length,
+)
+const archivedSetlistSongsCount = computed(() =>
+  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && s.isArchived).length,
+)
+
 // Active song list depends on gig selection
 const activeSongs = computed(() => {
   if (selectedGigId.value) return gigSongs.value
   if (selectedSetlistMode.value === 'user') return userSetlistSongs.value
-  return songsStore.songs.filter((s) => s.isSetlist)
+  if (currentTab.value === 'archived') {
+    return songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && s.isArchived)
+  }
+  return songsStore.songs.filter((s) => s.isSetlist && (s.type !== 'song' || !s.isArchived))
 })
 
 const filteredSongs = computed(() => {
@@ -152,9 +164,7 @@ function getItemKey(item: Song) {
 const FREE_SETLIST_LIMIT = 15
 
 const songCount = computed(() => activeSongs.value.filter((s) => s.type === 'song').length)
-const masterSetlistSongCount = computed(() =>
-  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song').length,
-)
+const masterSetlistSongCount = computed(() => activeSetlistSongsCount.value)
 const userSetlistSongIds = computed(() => new Set(userSetlistSongs.value.map((s) => s.id)))
 const availableTagOptions = computed(() => {
   const uniqueTags = new Set<string>()
@@ -185,14 +195,14 @@ function canModifySong(item: Song) {
 
 const masterSetlistItems = computed(() =>
   songsStore.songs
-    .filter((s) => s.isSetlist)
+    .filter((s) => s.isSetlist && !s.isArchived)
     .sort((a, b) => a.position - b.position),
 )
 
 // Master songs for user setlist picker
 const masterSongOptions = computed(() =>
   songsStore.songs
-    .filter((s) => s.type === 'song' && s.isSetlist)
+    .filter((s) => s.type === 'song' && s.isSetlist && !s.isArchived)
     .map((s) => ({ label: `${s.title} - ${s.artist}`, value: s.id }))
 )
 const availableUserSetlistSongOptions = computed(() =>
@@ -299,6 +309,7 @@ async function refreshAll() {
 
 watch(selectedListOption, (newVal) => {
   selectedTagFilters.value = []
+  currentTab.value = 'active'
   if (newVal === 'user') {
     selectedSetlistMode.value = 'user'
     selectedGigId.value = null
@@ -508,6 +519,7 @@ async function reorderItems(items: Song[]) {
 
 function onDragStart(index: number, event: DragEvent) {
   if (searchQuery.value) return
+  if (!selectedGigId.value && selectedSetlistMode.value === 'master' && currentTab.value === 'archived') return
   draggingIndex.value = index
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
@@ -517,6 +529,7 @@ function onDragStart(index: number, event: DragEvent) {
 
 async function onDrop(index: number) {
   if (searchQuery.value) return
+  if (!selectedGigId.value && selectedSetlistMode.value === 'master' && currentTab.value === 'archived') return
   if (draggingIndex.value === null || draggingIndex.value === index) return
   const items = [...filteredSongs.value]
   const [moved] = items.splice(draggingIndex.value, 1)
@@ -551,6 +564,121 @@ async function togglePin(item: Song) {
     }
     await refreshAll()
   } catch {}
+}
+
+async function onSwipeRight(item: Song, reset: () => void) {
+  if (item.type !== 'song' || selectedGigId.value || selectedSetlistMode.value !== 'master') {
+    reset()
+    return
+  }
+
+  if (currentTab.value === 'archived') {
+    if (atSetlistLimit.value) {
+      $q.notify({
+        message: t('voting.proSetlistLimitTooltip', { limit: FREE_SETLIST_LIMIT }),
+        color: 'warning',
+      })
+      reset()
+      return
+    }
+
+    try {
+      await songsStore.updateSong(item.id, { isArchived: false } as any)
+      await songsStore.fetchSongs()
+      $q.notify({
+        message: t('setlist.songReactivatedNamed', { title: item.title }),
+        color: 'positive',
+        timeout: 6000,
+        actions: [
+          {
+            label: t('common.undo'),
+            color: 'white',
+            handler: async () => {
+              try {
+                await songsStore.updateSong(item.id, { isArchived: true } as any)
+                await songsStore.fetchSongs()
+                $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
+              } catch {
+                $q.notify({ message: t('common.error'), color: 'negative' })
+              }
+            },
+          },
+        ],
+      })
+    } catch {
+      $q.notify({ message: t('common.error'), color: 'negative' })
+    } finally {
+      reset()
+    }
+    return
+  }
+
+  // Active tab: move to voting (isSetlist: false)
+  try {
+    await songsStore.updateSong(item.id, { isSetlist: false } as any)
+    await songsStore.fetchSongs()
+    $q.notify({
+      message: t('setlist.songMovedToVotingNamed', { title: item.title }),
+      color: 'positive',
+      timeout: 6000,
+      actions: [
+        {
+          label: t('common.undo'),
+          color: 'white',
+          handler: async () => {
+            try {
+              await songsStore.updateSong(item.id, { isSetlist: true } as any)
+              await songsStore.fetchSongs()
+              $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
+            } catch {
+              $q.notify({ message: t('common.error'), color: 'negative' })
+            }
+          },
+        },
+      ],
+    })
+  } catch {
+    $q.notify({ message: t('common.error'), color: 'negative' })
+  } finally {
+    reset()
+  }
+}
+
+async function onSwipeLeft(item: Song, reset: () => void) {
+  if (item.type !== 'song' || selectedGigId.value || selectedSetlistMode.value !== 'master' || currentTab.value !== 'active') {
+    reset()
+    return
+  }
+
+  // Active tab: archive song (isArchived: true)
+  try {
+    await songsStore.updateSong(item.id, { isArchived: true } as any)
+    await songsStore.fetchSongs()
+    $q.notify({
+      message: t('setlist.songArchivedNamed', { title: item.title }),
+      color: 'positive',
+      timeout: 6000,
+      actions: [
+        {
+          label: t('common.undo'),
+          color: 'white',
+          handler: async () => {
+            try {
+              await songsStore.updateSong(item.id, { isArchived: false } as any)
+              await songsStore.fetchSongs()
+              $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
+            } catch {
+              $q.notify({ message: t('common.error'), color: 'negative' })
+            }
+          },
+        },
+      ],
+    })
+  } catch {
+    $q.notify({ message: t('common.error'), color: 'negative' })
+  } finally {
+    reset()
+  }
 }
 
 async function removeFromSetlist(item: Song) {
@@ -1249,6 +1377,23 @@ onMounted(() => {
         </q-card-section>
 
         <q-card-section>
+          <q-tabs
+            v-if="!selectedGigId && selectedSetlistMode === 'master'"
+            v-model="currentTab"
+            dense
+            align="left"
+            class="text-grey-7 q-mb-sm"
+            active-color="primary"
+            indicator-color="primary"
+          >
+            <q-tab name="active" :label="t('voting.activeTab')">
+              <q-badge color="primary" floating rounded>{{ activeSetlistSongsCount }}</q-badge>
+            </q-tab>
+            <q-tab name="archived" :label="t('voting.archiveTab')">
+              <q-badge color="grey-7" floating rounded>{{ archivedSetlistSongsCount }}</q-badge>
+            </q-tab>
+          </q-tabs>
+
           <div class="row q-gutter-sm q-mb-md">
             <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
               <template #prepend><q-icon name="search" /></template>
@@ -1355,41 +1500,85 @@ onMounted(() => {
           </div>
 
           <q-list v-if="filteredSongs.length" separator>
-            <q-item
+            <q-slide-item
               v-for="(item, index) in filteredSongs"
               :key="getItemKey(item)"
-              class="q-pa-sm"
+              class="setlist-slide-item"
               :class="{
-                'border-dashed': item.type !== 'song' && item.type !== 'set' && item.type !== 'encore',
-                'set-divider-item': item.type === 'set',
-                'encore-divider-item': item.type === 'encore',
-                'dragging-item': draggingIndex === index,
+                'set-divider-slide': item.type === 'set',
+                'encore-divider-slide': item.type === 'encore',
               }"
-              :draggable="!searchQuery"
-              @dragstart="onDragStart(index, $event)"
-              @dragover.prevent
-              @drop="onDrop(index)"
-              @dragend="onDragEnd"
+              :left-color="currentTab === 'archived' ? 'positive' : 'primary'"
+              right-color="negative"
+              @left="({ reset }) => onSwipeRight(item, reset)"
+              @right="({ reset }) => onSwipeLeft(item, reset)"
             >
-              <!-- Reorder + Pin -->
-              <q-item-section side>
-                <div class="column items-center q-gutter-xs">
-                  <q-icon name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
-                  <q-btn flat round dense icon="keyboard_arrow_up" size="sm" @click="moveItem(index, -1)" />
-                  <q-btn flat round dense icon="keyboard_arrow_down" size="sm" @click="moveItem(index, 1)" />
-                  <span class="text-caption text-grey">{{ index + 1 }}</span>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    :icon="isPinnedItem(item) ? 'lock' : 'lock_open'"
-                    :color="isPinnedItem(item) ? 'primary' : 'grey'"
-                    :class="{ 'pinned-lock-btn': isPinnedItem(item) }"
-                    size="sm"
-                    @click="togglePin(item)"
-                  />
+              <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'" #left>
+                <div class="row items-center q-gutter-xs">
+                  <q-icon :name="currentTab === 'active' ? 'how_to_vote' : 'unarchive'" size="28px" />
                 </div>
-              </q-item-section>
+              </template>
+              <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master' && currentTab === 'active'" #right>
+                <div class="row items-center q-gutter-xs">
+                  <q-icon name="archive" size="28px" />
+                </div>
+              </template>
+
+              <q-item
+                class="q-pa-sm"
+                :class="{
+                  'border-dashed': item.type !== 'song' && item.type !== 'set' && item.type !== 'encore',
+                  'set-divider-item': item.type === 'set',
+                  'encore-divider-item': item.type === 'encore',
+                  'dragging-item': draggingIndex === index,
+                }"
+                :draggable="(!selectedGigId && selectedSetlistMode === 'master' ? currentTab === 'active' : true) && !searchQuery"
+                @dragstart="onDragStart(index, $event)"
+                @dragover.prevent
+                @drop="onDrop(index)"
+                @dragend="onDragEnd"
+              >
+                <!-- Reorder + Pin -->
+                <q-item-section side>
+                  <div class="column items-center q-gutter-xs">
+                    <q-icon
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
+                      name="drag_indicator"
+                      size="sm"
+                      color="grey-6"
+                      class="cursor-grab"
+                    />
+                    <q-btn
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
+                      flat
+                      round
+                      dense
+                      icon="keyboard_arrow_up"
+                      size="sm"
+                      @click="moveItem(index, -1)"
+                    />
+                    <q-btn
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
+                      flat
+                      round
+                      dense
+                      icon="keyboard_arrow_down"
+                      size="sm"
+                      @click="moveItem(index, 1)"
+                    />
+                    <span class="text-caption text-grey">{{ index + 1 }}</span>
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      :icon="isPinnedItem(item) ? 'lock' : 'lock_open'"
+                      :color="isPinnedItem(item) ? 'primary' : 'grey'"
+                      :class="{ 'pinned-lock-btn': isPinnedItem(item) }"
+                      size="sm"
+                      @click="togglePin(item)"
+                    />
+                  </div>
+                </q-item-section>
 
               <!-- Thumbnail (songs only) -->
               <q-item-section v-if="item.type === 'song'" side>
@@ -1512,18 +1701,6 @@ onMounted(() => {
                     <q-tooltip>{{ t('common.delete') }}</q-tooltip>
                   </q-btn>
                   <q-btn
-                    v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'"
-                    flat
-                    round
-                    dense
-                    icon="arrow_back"
-                    color="grey"
-                    size="sm"
-                    @click="removeFromSetlist(item)"
-                  >
-                    <q-tooltip>{{ t('setlist.moveToVoting') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
                     v-else-if="selectedGigId"
                     flat
                     round
@@ -1572,9 +1749,12 @@ onMounted(() => {
                 </div>
               </q-item-section>
             </q-item>
-          </q-list>
+          </q-slide-item>
+        </q-list>
 
-          <q-banner v-else rounded class="bg-widget-surface">{{ t('setlist.noItems') }}</q-banner>
+        <q-banner v-else rounded class="bg-widget-surface">
+          {{ !selectedGigId && selectedSetlistMode === 'master' && currentTab === 'archived' ? t('setlist.noArchivedSongs') : t('setlist.noItems') }}
+        </q-banner>
         </q-card-section>
       </q-card>
     </div>
@@ -2169,6 +2349,22 @@ onMounted(() => {
 :deep(.song-picker-options-popup) {
   max-height: 55vh;
   overflow-y: auto;
+}
+
+.setlist-slide-item {
+  border-bottom: 1px solid var(--q-separator-color, rgba(0, 0, 0, 0.12));
+
+  :deep(.q-slide-item__content) {
+    background: var(--surface);
+  }
+
+  &.set-divider-slide :deep(.q-slide-item__content) {
+    background: rgba(25, 118, 210, 0.08);
+  }
+
+  &.encore-divider-slide :deep(.q-slide-item__content) {
+    background: rgba(255, 87, 34, 0.08);
+  }
 }
 
 .set-divider-item {

@@ -46,6 +46,7 @@ export default {
     warning: 'Warning',
     undo: 'Undo',
     undone: 'Action undone',
+    error: 'Error',
   },
 
   // Login page
@@ -325,6 +326,12 @@ export default {
     failedPin: 'Failed to pin item.',
     failedSave: 'Failed to save changes.',
     moveToVoting: 'Move back to Voting',
+    activeTab: 'Active',
+    archiveTab: 'Archive',
+    noArchivedSongs: 'No archived songs in the setlist.',
+    songMovedToVotingNamed: '"{title}" moved to voting',
+    songArchivedNamed: '"{title}" moved to archive',
+    songReactivatedNamed: '"{title}" restored to active',
     personalNotes: 'Personal Notes',
     personalNotesHint: 'Only visible to you.',
     exportExcel: 'Export to Excel',

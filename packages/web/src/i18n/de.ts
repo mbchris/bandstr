@@ -46,6 +46,7 @@ export default {
     warning: 'Warnung',
     undo: 'Rückgängig',
     undone: 'Aktion rückgängig gemacht',
+    error: 'Fehler',
   },
 
   // Login page
@@ -326,6 +327,12 @@ export default {
     failedPin: 'Eintrag konnte nicht angeheftet werden.',
     failedSave: 'Änderungen konnten nicht gespeichert werden.',
     moveToVoting: 'Zur Abstimmung',
+    activeTab: 'Aktiv',
+    archiveTab: 'Archiv',
+    noArchivedSongs: 'Keine archivierten Songs in der Setlist.',
+    songMovedToVotingNamed: '"{title}" zum Voting verschoben',
+    songArchivedNamed: '"{title}" ins Archiv verschoben',
+    songReactivatedNamed: '"{title}" wiederhergestellt',
     personalNotes: 'Persönliche Notizen',
     personalNotesHint: 'Nur für dich sichtbar.',
     exportExcel: 'Als Excel exportieren',
