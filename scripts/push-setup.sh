@@ -159,7 +159,7 @@ if [[ "$ios_enabled" -eq 1 ]]; then
   if [[ -n "$(trim "${APNS_BUNDLE_ID:-}")" ]]; then
     echo "[OK] APNS_BUNDLE_ID=${APNS_BUNDLE_ID}"
   else
-    echo "[WARN] APNS_BUNDLE_ID is empty (default in app is org.capacitor.bandstr)"
+    echo "[WARN] APNS_BUNDLE_ID is empty (default in app is -ki.app.bandstr)"
   fi
 
   echo "[INFO] In Xcode, ensure Push Notifications capability + aps-environment entitlement are enabled."

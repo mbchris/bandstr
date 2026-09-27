@@ -1,4 +1,5 @@
 import { createSign, createPrivateKey } from 'node:crypto'
+import http2 from 'node:http2'
 import webpush from 'web-push'
 
 type PushPayload = {
@@ -294,7 +295,7 @@ async function sendFcmPush(payload: PushPayload): Promise<PushDeliveryResult> {
 }
 
 function createApnsJwt(): string | null {
-  const teamId = (process.env.APNS_TEAM_ID ?? '').trim()
+  const teamId = (process.env.APNS_TEAM_ID ?? process.env.APPLE_TEAM_ID ?? '').trim()
   const keyId = (process.env.APNS_KEY_ID ?? '').trim()
   const privateKeyRaw = (process.env.APNS_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
   if (!teamId || !keyId || !privateKeyRaw) return null
@@ -314,15 +315,116 @@ function createApnsJwt(): string | null {
   }
 }
 
+let cachedApnsSession: http2.ClientHttp2Session | null = null
+let cachedApnsHost: string | null = null
+
+function getApnsSession(host: string): http2.ClientHttp2Session {
+  if (cachedApnsSession && cachedApnsHost === host && !cachedApnsSession.closed && !cachedApnsSession.destroyed) {
+    return cachedApnsSession
+  }
+  if (cachedApnsSession && !cachedApnsSession.destroyed) {
+    cachedApnsSession.destroy()
+  }
+  cachedApnsHost = host
+  cachedApnsSession = http2.connect(`https://${host}`)
+  cachedApnsSession.on('error', () => {
+    cachedApnsSession?.destroy()
+    cachedApnsSession = null
+  })
+  cachedApnsSession.on('close', () => {
+    cachedApnsSession = null
+  })
+  return cachedApnsSession
+}
+
+function executeApnsRequest(
+  session: http2.ClientHttp2Session,
+  token: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = session.request({
+      ':method': 'POST',
+      ':path': `/3/device/${encodeURIComponent(token)}`,
+      ...headers,
+    })
+
+    let status = 0
+    let responseBody = ''
+
+    req.setTimeout(10000, () => {
+      req.close(http2.constants.NGHTTP2_CANCEL)
+      reject(new Error('APNs request timed out'))
+    })
+
+    req.on('response', (resHeaders) => {
+      status = Number(resHeaders[':status'] ?? 0)
+    })
+
+    req.on('data', (chunk) => {
+      responseBody += chunk
+    })
+
+    req.on('end', () => {
+      resolve({ status, body: responseBody })
+    })
+
+    req.on('error', (err) => {
+      reject(err)
+    })
+
+    req.end(body)
+  })
+}
+
+async function postApnsHttp2(
+  host: string,
+  token: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ status: number; body: string }> {
+  let session = getApnsSession(host)
+  try {
+    return await executeApnsRequest(session, token, headers, body)
+  } catch {
+    session.destroy()
+    cachedApnsSession = null
+    const freshSession = getApnsSession(host)
+    return await executeApnsRequest(freshSession, token, headers, body)
+  }
+}
+
 async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
-  const jwt = createApnsJwt()
-  const bundleId = (process.env.APNS_BUNDLE_ID ?? 'org.capacitor.bandstr').trim()
-  if (!jwt || !bundleId) {
+  const teamId = (process.env.APNS_TEAM_ID ?? process.env.APPLE_TEAM_ID ?? '').trim()
+  const keyId = (process.env.APNS_KEY_ID ?? '').trim()
+  const privateKeyRaw = (process.env.APNS_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
+  const bundleId = (process.env.APNS_BUNDLE_ID ?? process.env.APPLE_BUNDLE_ID ?? '-ki.app.bandstr').trim()
+
+  if (!teamId || !keyId || !privateKeyRaw || !bundleId) {
+    const missing = [
+      !teamId && 'APNS_TEAM_ID',
+      !keyId && 'APNS_KEY_ID',
+      !privateKeyRaw && 'APNS_PRIVATE_KEY',
+      !bundleId && 'APNS_BUNDLE_ID',
+    ].filter(Boolean).join(', ')
+
     return {
       provider: 'apns',
       ok: false,
       status: null,
-      error: 'Missing APNs JWT or bundle id',
+      error: `Missing APNs configuration (${missing})`,
+      responseBody: null,
+    }
+  }
+
+  const jwt = createApnsJwt()
+  if (!jwt) {
+    return {
+      provider: 'apns',
+      ok: false,
+      status: null,
+      error: 'Failed to create APNs JWT from private key',
       responseBody: null,
     }
   }
@@ -330,36 +432,35 @@ async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
   const useSandbox = /^(1|true|yes|on)$/i.test((process.env.APNS_USE_SANDBOX ?? '').trim())
   const host = useSandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com'
 
-  try {
-    const response = await fetch(`https://${host}/3/device/${encodeURIComponent(payload.token)}`, {
-      method: 'POST',
-      headers: {
-        authorization: `bearer ${jwt}`,
-        'apns-topic': bundleId,
-        'apns-push-type': 'alert',
-        'apns-priority': '10',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        aps: {
-          alert: {
-            title: payload.title,
-            body: payload.body,
-          },
-          sound: 'default',
-        },
-        path: payload.path,
-        query: payload.query,
-      }),
-    })
+  const apnsHeaders: Record<string, string> = {
+    authorization: `bearer ${jwt}`,
+    'apns-topic': bundleId,
+    'apns-push-type': 'alert',
+    'apns-priority': '10',
+    'content-type': 'application/json',
+  }
 
-    const responseBody = (await response.text().catch(() => '')) || null
+  const apnsBody = JSON.stringify({
+    aps: {
+      alert: {
+        title: payload.title,
+        body: payload.body,
+      },
+      sound: 'default',
+    },
+    path: payload.path,
+    query: payload.query,
+  })
+
+  try {
+    const { status, body: responseBody } = await postApnsHttp2(host, payload.token, apnsHeaders, apnsBody)
+    const ok = status >= 200 && status < 300
     return {
       provider: 'apns',
-      ok: response.ok,
-      status: response.status,
-      error: response.ok ? null : `APNs request failed with HTTP ${response.status}`,
-      responseBody,
+      ok,
+      status,
+      error: ok ? null : `APNs request failed with HTTP ${status}${responseBody ? `: ${responseBody}` : ''}`,
+      responseBody: responseBody || null,
     }
   } catch (error) {
     return {
