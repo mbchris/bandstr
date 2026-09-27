@@ -351,11 +351,15 @@ APP_CONTAINER="<your-app-container>"
 docker exec -it "$APP_CONTAINER" sh -lc 'node /app/packages/api/dist/db/seed.js'
 ```
 
-Admin CLI in deployed app container:
+Admin CLI in deployed app container (also shown automatically on `docker exec -it "$APP_CONTAINER" sh`):
 
 ```bash
 APP_CONTAINER="<your-app-container>"
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli help'
+
+# show full usage for any command
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli <command> --help'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli help <command>'
 
 # list
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli list-users'
@@ -369,6 +373,14 @@ docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli verify-user-email --us
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli delete-user --user-id "<user-id>"'
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli assign-user-to-band --user-id "<user-id>" --band-id 1 --role admin'
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli remove-user-from-band --user-id "<user-id>" --band-id 1'
+
+# reviewer / demo account seeding (Guideline 2.1)
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli seed-demo-account --password "<password>"'
+
+# push notifications
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli list-band-push-devices --band-id 1'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli send-band-push --band-id 1 --title "Alert" --body "Message text"'
+docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli push-test --band-id 1 --title "Alert" --body "Message text" --dry-run true'
 
 # imports from external SQL (Postgres) DB
 docker exec -it "$APP_CONTAINER" sh -lc '/app/bandstr-cli import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id 1 --target-band-id 1'

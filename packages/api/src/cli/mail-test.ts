@@ -13,6 +13,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   for (let i = 0; i < rest.length; i += 1) {
     const token = rest[i]
+    if (token === '-h') {
+      options.help = true
+      continue
+    }
     if (!token.startsWith('--')) continue
     const key = token.slice(2)
     const next = rest[i + 1]
@@ -54,8 +58,8 @@ function getConfiguredTransportName(): string {
 
 function printHelp(): void {
   console.log(`
-bandstr auth mail test CLI
-node /app/packages/api/dist/cli/mail-test.js send --to "user@example.com" [options]
+bandstr auth mail test CLI:
+/app/bandstr-mail-test send --to "user@example.com" [options]
 
 Command:
   send
@@ -68,8 +72,8 @@ Options:
   --name <text>           Optional display name in greeting (default: there)
 
 Examples:
-  node /app/packages/api/dist/cli/mail-test.js send --to "user@example.com"
-  node /app/packages/api/dist/cli/mail-test.js send --to "user@example.com" --kind reset-password --link "https://app.example/reset?token=abc"
+  /app/bandstr-mail-test send --to "user@example.com"
+  /app/bandstr-mail-test send --to "user@example.com" --kind reset-password --link "https://app.example/reset?token=abc"
 `)
 }
 
@@ -111,7 +115,7 @@ async function send(options: Record<string, string | boolean>): Promise<void> {
 async function main(): Promise<void> {
   const { command, options } = parseArgs(process.argv.slice(2))
 
-  if (!command || command === 'help' || command === '--help' || command === '-h') {
+  if (!command || command === 'help' || command === '--help' || command === '-h' || options.help || options.h) {
     printHelp()
     return
   }

@@ -86,6 +86,7 @@ COPY --from=build /app/packages/api/dist/ packages/api/dist/
 COPY --from=build /app/packages/api/src/db/migrations/ packages/api/dist/db/migrations/
 # Seed data used by dist/db/seed.js inside container shells
 COPY --from=build /app/scripts/seed_example.sql /app/scripts/seed_example.sql
+COPY --from=build /app/scripts/import-at-issue.sql /app/scripts/import-at-issue.sql
 COPY --from=build /app/scripts/bandstr-send-push.sh /app/scripts/bandstr-send-push.sh
 COPY --from=build /app/scripts/bandstr-cli.sh /app/bandstr-cli
 COPY --from=build /app/scripts/bandstr-mail-test.sh /app/bandstr-mail-test

@@ -23,15 +23,24 @@ type Role = 'owner' | 'admin' | 'member'
 type ParsedArgs = {
   command: string | null
   options: Record<string, string | boolean>
+  positionals: string[]
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   const [command, ...rest] = argv
   const options: Record<string, string | boolean> = {}
+  const positionals: string[] = []
 
   for (let i = 0; i < rest.length; i += 1) {
     const token = rest[i]
-    if (!token.startsWith('--')) continue
+    if (token === '-h') {
+      options.help = true
+      continue
+    }
+    if (!token.startsWith('--')) {
+      positionals.push(token)
+      continue
+    }
     const key = token.slice(2)
     const next = rest[i + 1]
     if (!next || next.startsWith('--')) {
@@ -42,7 +51,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     i += 1
   }
 
-  return { command: command ?? null, options }
+  return { command: command ?? null, options, positionals }
 }
 
 function requireStringOption(options: Record<string, string | boolean>, key: string): string {
@@ -1199,36 +1208,181 @@ export async function seedDemoAccount(
   return { userId, bandId, email }
 }
 
-function printHelp(): void {
+const COMMAND_HELP: Record<string, string> = {
+  'list-users': `Command: list-users
+Usage:
+  /app/bandstr-cli list-users
+Description:
+  List all registered users with ID, email, name, devProPlan status, and band count.
+Options:
+  None`,
+
+  'list-bands': `Command: list-bands
+Usage:
+  /app/bandstr-cli list-bands
+Description:
+  List all bands with ID, slug, name, plan, member count, and inherited admin Pro status.
+Options:
+  None`,
+
+  'add-user': `Command: add-user
+Usage:
+  /app/bandstr-cli add-user --name "<name>" --email "<email>" [options]
+Description:
+  Create a user record directly in the database.
+Options:
+  --name "<name>"             Required display name
+  --email "<email>"           Required user email
+  --id "<id>"                 Optional user ID (default: generated cli-<uuid>)
+  --email-verified true|false Optional email verification status (default: true)
+  --dev-pro-plan true|false   Optional developer Pro plan flag (default: false)`,
+
+  'verify-user-email': `Command: verify-user-email
+Usage:
+  /app/bandstr-cli verify-user-email [--user-id "<id>" | --email "<email>"] [options]
+Description:
+  Set or reset email verification status for a user.
+Options:
+  --email "<email>"           User email address (provide either --email or --user-id)
+  --user-id "<id>"            User ID (provide either --email or --user-id)
+  --verified true|false       Verification status (default: true)`,
+
+  'delete-user': `Command: delete-user
+Usage:
+  /app/bandstr-cli delete-user --user-id "<user-id>"
+Description:
+  Permanently delete a user account and associated memberships.
+Options:
+  --user-id "<id>"            Required user ID to delete`,
+
+  'assign-user-to-band': `Command: assign-user-to-band
+Usage:
+  /app/bandstr-cli assign-user-to-band --user-id "<user-id>" --band-id <id> [options]
+Description:
+  Assign a user to a band or update membership role and settings.
+Options:
+  --user-id "<id>"            Required user ID
+  --band-id <id>              Required band ID (integer)
+  --role owner|admin|member   Membership role (default: member)
+  --sort-order <n>            Optional integer display sort order
+  --is-hidden true|false      Optional flag to hide member from public list (default: false)
+  --beer-count <n>            Optional beer tally count (default: 0)`,
+
+  'remove-user-from-band': `Command: remove-user-from-band
+Usage:
+  /app/bandstr-cli remove-user-from-band --user-id "<user-id>" --band-id <id>
+Description:
+  Remove a user from a band.
+Options:
+  --user-id "<id>"            Required user ID
+  --band-id <id>              Required band ID (integer)`,
+
+  'import-songs-from-sql-db': `Command: import-songs-from-sql-db
+Usage:
+  /app/bandstr-cli import-songs-from-sql-db --source-db-url "<url>" --source-band-id <id> --target-band-id <id> [options]
+Description:
+  Import songs from another PostgreSQL database into a band repertoire.
+Options:
+  --source-db-url "<url>"     Required source PostgreSQL connection URL
+  --source-band-id <id>       Required source band ID (integer)
+  --target-band-id <id>       Required target band ID (integer)
+  --replace true|false        Replace existing songs in target band (default: false)`,
+
+  'import-votings-from-sql-db': `Command: import-votings-from-sql-db
+Usage:
+  /app/bandstr-cli import-votings-from-sql-db --source-db-url "<url>" --source-band-id <id> --target-band-id <id> [options]
+Description:
+  Import song proposals and member votes from another PostgreSQL database into a band.
+Options:
+  --source-db-url "<url>"     Required source PostgreSQL connection URL
+  --source-band-id <id>       Required source band ID (integer)
+  --target-band-id <id>       Required target band ID (integer)
+  --replace true|false        Replace existing votes in target band (default: false)`,
+
+  'change-subscription-for-user': `Command: change-subscription-for-user
+Usage:
+  /app/bandstr-cli change-subscription-for-user --user-id "<user-id>" --enabled true|false
+Description:
+  Toggle developer Pro subscription override for a user. Bands inherit Pro if owner/admin has Pro.
+Options:
+  --user-id "<id>"            Required user ID
+  --enabled true|false        Required subscription status (true = active Pro, false = disabled)`,
+
+  'list-band-push-devices': `Command: list-band-push-devices
+Usage:
+  /app/bandstr-cli list-band-push-devices --band-id <id> [options]
+Description:
+  List registered push notification tokens and device info for band members.
+Options:
+  --band-id <id>              Required band ID (integer)
+  --include-disabled true|false Include inactive/disabled push tokens (default: false)`,
+
+  'send-band-push': `Command: send-band-push
+Usage:
+  /app/bandstr-cli send-band-push --band-id <id> --title "<title>" --body "<body>" [options]
+Description:
+  Send an OS push notification to all active devices in a band.
+Options:
+  --band-id <id>              Required band ID (integer)
+  --title "<title>"           Required notification title
+  --body "<body>"             Required notification body text
+  --path "<path>"             Optional in-app navigation path (e.g. "/calendar")
+  --query "<query>"           Optional query parameters (e.g. "bandId=1")
+  --dry-run true|false        Validate and simulate push without delivery (default: false)`,
+
+  'seed-demo-account': `Command: seed-demo-account
+Usage:
+  /app/bandstr-cli seed-demo-account [options]
+Description:
+  Idempotently seed or reset the App Store / demo reviewer account with sample band and data.
+Options:
+  --email "<email>"           Demo account email (default: appcert@example.org)
+  --password "<password>"     Demo account password (default: random secure password)
+  --name "<name>"             Display name (default: App Reviewer)
+  --band-name "<band-name>"   Demo band name (default: The Bandstr Demo Band)`,
+}
+
+function printHelp(commandName?: string): void {
+  if (commandName && COMMAND_HELP[commandName]) {
+    console.log(`\n${COMMAND_HELP[commandName]}\n`)
+    return
+  }
+
   console.log(`
 bandstr admin CLI (run inside container):
-node /app/packages/api/dist/cli/admin.js <command> [options]
+/app/bandstr-cli <command> [options]
 
 Commands:
-  list-users
-  list-bands
-  add-user --name "<name>" --email "<email>" [--id "<id>"] [--email-verified true|false] [--dev-pro-plan true|false]
-  verify-user-email [--user-id "<user-id>" | --email "<email>"] [--verified true|false]
-  delete-user --user-id "<user-id>"
-  assign-user-to-band --user-id "<user-id>" --band-id <id> [--role owner|admin|member] [--sort-order <n>] [--is-hidden true|false] [--beer-count <n>]
-  remove-user-from-band --user-id "<user-id>" --band-id <id>
-  import-songs-from-sql-db --source-db-url "<postgres-url>" --source-band-id <id> --target-band-id <id> [--replace true|false]
-  import-votings-from-sql-db --source-db-url "<postgres-url>" --source-band-id <id> --target-band-id <id> [--replace true|false]
-  change-subscription-for-user --user-id "<user-id>" --enabled true|false
-  list-band-push-devices --band-id <id> [--include-disabled true|false]
-  send-band-push --band-id <id> --title "<title>" --body "<body>" [--path "/calendar"] [--query "bandId=1"] [--dry-run true|false]
-  seed-demo-account [--email "<email>"] [--password "<password>"] [--name "<name>"] [--band-name "<band-name>"]
+  list-users                   List all registered users
+  list-bands                   List all bands
+  add-user                     Create user in database
+  verify-user-email            Update email verification status
+  delete-user                  Permanently delete user
+  assign-user-to-band          Assign user to band / update role
+  remove-user-from-band        Remove user from band
+  change-subscription-for-user Toggle Pro subscription override for user
+  seed-demo-account            Seed reviewer/demo account with sample band
+  list-band-push-devices       List push notification devices for band
+  send-band-push               Send push notification to band devices
+  import-songs-from-sql-db     Import songs from another PostgreSQL database
+  import-votings-from-sql-db   Import votings from another PostgreSQL database
 
-Notes:
-  - "votings" maps source songs to target songs by song signature (title/artist/type/position/links).
-  - Band pro entitlement can be inherited from owner/admin users with devProPlan=true.
+Show full usage for a command:
+  /app/bandstr-cli help <command>
+  /app/bandstr-cli <command> --help
 `)
 }
 
 async function main(): Promise<void> {
-  const { command, options } = parseArgs(process.argv.slice(2))
+  const { command, options, positionals } = parseArgs(process.argv.slice(2))
   if (!command || command === 'help' || command === '--help' || command === '-h') {
-    printHelp()
+    const targetCommand = positionals[0] || (options.command as string | undefined)
+    printHelp(targetCommand)
+    return
+  }
+
+  if (options.help || options.h) {
+    printHelp(command)
     return
   }
 
@@ -1277,9 +1431,7 @@ async function main(): Promise<void> {
   }
 }
 
-const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)
 const isDirectRun =
-  !isTestEnv &&
   typeof process.argv[1] === 'string' &&
   (process.argv[1].endsWith('admin.ts') || process.argv[1].endsWith('admin.js'))
 
