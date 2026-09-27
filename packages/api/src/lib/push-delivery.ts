@@ -1,4 +1,4 @@
-import { createSign, createPrivateKey } from 'node:crypto'
+import { createSign, createPrivateKey, type KeyObject } from 'node:crypto'
 import http2 from 'node:http2'
 import webpush from 'web-push'
 
@@ -294,24 +294,104 @@ async function sendFcmPush(payload: PushPayload): Promise<PushDeliveryResult> {
   }
 }
 
-function createApnsJwt(): string | null {
+export function normalizeApnsPrivateKey(raw: string): string {
+  let s = (raw ?? '').trim()
+  if (!s) return ''
+
+  // 1. Strip enclosing single or double quotes
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim()
+  }
+
+  // 2. Decode base64 if the whole string was base64-encoded PEM
+  if (!s.includes('-----BEGIN') && s.length > 60) {
+    try {
+      const decoded = Buffer.from(s, 'base64').toString('utf8')
+      if (decoded.includes('-----BEGIN')) {
+        s = decoded.trim()
+      }
+    } catch {
+      // not base64-encoded PEM, continue
+    }
+  }
+
+  // 3. Replace escaped newlines: any sequence of backslashes followed by n (\n, \\n, \\\n) -> newline
+  s = s.replace(/\\+n/g, '\n')
+  // 4. Any line continuations (backslashes followed by carriage return or newline) -> newline
+  s = s.replace(/\\+[\r\n]+/g, '\n')
+  // 5. Normalize Windows line endings
+  s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  // 6. Any remaining trailing slashes or backslashes immediately after BEGIN or before END
+  s = s.replace(/(-----BEGIN [^-]+-----)[\\\/]+/g, '$1\n')
+  s = s.replace(/[\\\/]+(-----END [^-]+-----)/g, '\n$1')
+  // 7. Strip trailing slashes at end of string
+  s = s.replace(/[\\\/]+$/, '')
+
+  return s.trim()
+}
+
+export function getApnsPrivateKeyObject(rawKey: string): KeyObject {
+  const cleaned = normalizeApnsPrivateKey(rawKey)
+  try {
+    return createPrivateKey(cleaned)
+  } catch (pemErr) {
+    try {
+      const derBuf = Buffer.from(cleaned.replace(/[^A-Za-z0-9+/=]/g, ''), 'base64')
+      if (derBuf.length > 30) {
+        return createPrivateKey({ key: derBuf, format: 'der', type: 'pkcs8' })
+      }
+    } catch {
+      // Fall through to throw original pemErr
+    }
+    throw pemErr
+  }
+}
+
+let cachedApnsJwt: { token: string; expiresAt: number; cacheKey: string } | null = null
+
+export function clearApnsJwtCache(): void {
+  cachedApnsJwt = null
+}
+
+export function createApnsJwt(): { jwt: string | null; error: string | null } {
   const teamId = (process.env.APNS_TEAM_ID ?? process.env.APPLE_TEAM_ID ?? '').trim()
   const keyId = (process.env.APNS_KEY_ID ?? '').trim()
-  const privateKeyRaw = (process.env.APNS_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
-  if (!teamId || !keyId || !privateKeyRaw) return null
+  const privateKeyRaw = normalizeApnsPrivateKey(process.env.APNS_PRIVATE_KEY ?? '')
+  if (!teamId || !keyId || !privateKeyRaw) {
+    return { jwt: null, error: 'Missing APNS_TEAM_ID, APNS_KEY_ID, or APNS_PRIVATE_KEY' }
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000)
+  const cacheKey = `${teamId}:${keyId}:${privateKeyRaw}`
+  if (cachedApnsJwt && cachedApnsJwt.cacheKey === cacheKey && cachedApnsJwt.expiresAt > nowSec + 300) {
+    return { jwt: cachedApnsJwt.token, error: null }
+  }
 
   try {
-    const key = createPrivateKey(privateKeyRaw)
+    const key = getApnsPrivateKeyObject(privateKeyRaw)
     const header = encodeBase64Url(JSON.stringify({ alg: 'ES256', kid: keyId }))
-    const claims = encodeBase64Url(JSON.stringify({ iss: teamId, iat: Math.floor(Date.now() / 1000) }))
+    const claims = encodeBase64Url(JSON.stringify({ iss: teamId, iat: nowSec }))
     const unsigned = `${header}.${claims}`
     const signer = createSign('sha256')
     signer.update(unsigned)
     signer.end()
-    const signature = signer.sign(key).toString('base64url')
-    return `${unsigned}.${signature}`
-  } catch {
-    return null
+    const signature = signer.sign({ key, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+    const token = `${unsigned}.${signature}`
+
+    cachedApnsJwt = {
+      token,
+      expiresAt: nowSec + 3000,
+      cacheKey,
+    }
+
+    return { jwt: token, error: null }
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error('[push-delivery] Failed to generate APNs JWT:', errorMsg)
+    return { jwt: null, error: errorMsg }
   }
 }
 
@@ -398,7 +478,7 @@ async function postApnsHttp2(
 async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
   const teamId = (process.env.APNS_TEAM_ID ?? process.env.APPLE_TEAM_ID ?? '').trim()
   const keyId = (process.env.APNS_KEY_ID ?? '').trim()
-  const privateKeyRaw = (process.env.APNS_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
+  const privateKeyRaw = normalizeApnsPrivateKey(process.env.APNS_PRIVATE_KEY ?? '')
   const bundleId = (process.env.APNS_BUNDLE_ID ?? process.env.APPLE_BUNDLE_ID ?? '-ki.app.bandstr').trim()
 
   if (!teamId || !keyId || !privateKeyRaw || !bundleId) {
@@ -418,13 +498,13 @@ async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
     }
   }
 
-  const jwt = createApnsJwt()
+  const { jwt, error: jwtError } = createApnsJwt()
   if (!jwt) {
     return {
       provider: 'apns',
       ok: false,
       status: null,
-      error: 'Failed to create APNs JWT from private key',
+      error: `Failed to create APNs JWT from private key${jwtError ? `: ${jwtError}` : ''}`,
       responseBody: null,
     }
   }
