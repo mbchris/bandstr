@@ -221,7 +221,8 @@ export const auth = betterAuth({
     // Default to effectively non-expiring sessions (100y) unless overridden by env.
     // Session/token invalidation is handled explicitly via logout/revocation.
     expiresIn: sessionExpiresInSeconds,
-    disableSessionRefresh: true,
+    disableSessionRefresh: false,
+    updateAge: 60 * 60 * 24 * 14,  // 14 days 
     // Support both cookie (web) and bearer token (mobile/Capacitor)
     // Keep session state authoritative in DB; this avoids stale cookie-cache
     // behavior where users appear logged in after explicit token/session revocation.
