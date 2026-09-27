@@ -389,7 +389,19 @@ onMounted(async () => {
         <div class="col-12 col-md">
           <div class="text-h4 text-weight-bold">{{ t('dashboard.title') }}</div>
           <div class="text-body2 text-grey-7">{{ t('dashboard.subtitle') }}</div>
-          <div class="text-caption text-grey-8 q-mt-xs">{{ t('dashboard.loggedInAs', { identity: userIdentity }) }}</div>
+          <div class="row items-center q-gutter-sm q-mt-xs">
+            <span class="text-caption text-grey-8">{{ t('dashboard.loggedInAs', { identity: userIdentity }) }}</span>
+            <q-btn
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="negative"
+              icon="delete_forever"
+              :label="t('nav.deleteAccount')"
+              @click="router.push('/delete-account')"
+            />
+          </div>
         </div>
       </div>
 

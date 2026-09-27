@@ -19,7 +19,7 @@ export default {
     support: 'Support',
     impress: 'Impress',
     accountSecurity: 'Account security',
-    deleteAccount: 'Delete account',
+    deleteAccount: 'Account Security & Deletion',
     billing: 'Subscription',
     manageBands: 'Manage bands',
     notifications: 'Notifications',

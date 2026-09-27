@@ -404,6 +404,12 @@ onBeforeUnmount(() => {
                 <q-item clickable v-close-popup @click="router.push('/impress')">
                   <q-item-section>{{ t('nav.impress') }}</q-item-section>
                 </q-item>
+                <q-item clickable v-close-popup @click="router.push('/delete-account')">
+                  <q-item-section avatar>
+                    <q-icon name="delete_forever" />
+                  </q-item-section>
+                  <q-item-section>{{ t('nav.deleteAccount') }}</q-item-section>
+                </q-item>
                 <q-item clickable v-close-popup @click="handleLogout">
                   <q-item-section>{{ t('nav.signOut') }}</q-item-section>
                 </q-item>
