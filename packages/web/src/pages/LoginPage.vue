@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import { useRoute, useRouter } from 'vue-router'
 import { authClient } from '../boot/auth'
@@ -338,6 +339,11 @@ async function startNativeSocialLogin(provider: 'google' | 'github') {
     `&callbackURL=${encodeURIComponent(nativeBridgeCallbackUrl)}` +
     `&errorCallbackURL=${encodeURIComponent(socialCallbackUrl)}`
 
+  if (isNative) {
+    await Browser.open({ url: startUrl, presentationStyle: 'popover' })
+    return
+  }
+
   const popup = window.open(startUrl, '_blank', 'noopener,noreferrer')
   if (!popup) {
     window.location.href = startUrl
@@ -513,6 +519,7 @@ onMounted(async () => {
   try {
     authStore.setToken(routeTokenRaw)
     await authStore.loadSession()
+    await Browser.close().catch(() => undefined)
 
     const query = { ...route.query }
     delete query.token
@@ -533,6 +540,7 @@ watch(
 
     authStore.setToken(newToken)
     await authStore.loadSession()
+    await Browser.close().catch(() => undefined)
 
     const query = { ...route.query }
     delete query.token
