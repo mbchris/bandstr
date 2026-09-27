@@ -81,4 +81,12 @@
   - [x] Background video and dark overlay remain fixed without clipping page content.
   - [x] Mobile safe-area insets are respected for top and bottom footer.
 
-
+## TASK-9007: App crashes on startup on iOS 27
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+  - [x] Migrate from legacy UIApplicationDelegate lifecycle to UIScene-based lifecycle (mandatory in iOS 27).
+  - [x] Add `SceneDelegate.swift` with window setup and Capacitor URL/Universal Link forwarding.
+  - [x] Add `UIApplicationSceneManifest` to `Info.plist` with scene configuration.
+  - [x] Update `AppDelegate.swift` with `configurationForConnecting` and remove legacy lifecycle methods.
+  - [x] Register `SceneDelegate.swift` in Xcode project (`project.pbxproj`).
