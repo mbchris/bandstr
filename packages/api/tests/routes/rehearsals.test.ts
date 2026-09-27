@@ -79,4 +79,30 @@ describe('Rehearsal Attendance API (/api/rehearsals)', () => {
     const data2 = await listRes2.json()
     expect(data2.rehearsals[0].summary).toBe('all_present')
   })
+
+  it('includes gigSetlistTitle in upcomingGigs for /rehearsals/next', async () => {
+    const ctx = await createTestContext()
+    const futureDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+    const futureEndDate = new Date(futureDate.getTime() + 3 * 60 * 60 * 1000)
+
+    const createRes = await app.request('/api/calendar', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Summer Festival Gig',
+        type: 'gig',
+        startTime: futureDate.toISOString(),
+        endTime: futureEndDate.toISOString(),
+      }),
+    })
+    expect(createRes.status).toBe(201)
+
+    const nextRes = await app.request('/api/rehearsals/next', {
+      headers: ctx.headers,
+    })
+    expect(nextRes.status).toBe(200)
+    const nextData = await nextRes.json()
+    expect(nextData.upcomingGigs.length).toBeGreaterThan(0)
+    expect(nextData.upcomingGigs[0].gigSetlistTitle).toBe('Summer Festival Gig')
+  })
 })

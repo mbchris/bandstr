@@ -56,7 +56,7 @@ export const votes = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    score: integer('score').notNull().default(0), // 0=veto, 1=ok, 2=good, 3=great
+    score: integer('score').notNull().default(0), // 0=veto to 9=great
     comment: text('comment'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

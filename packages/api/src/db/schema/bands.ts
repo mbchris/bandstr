@@ -29,6 +29,10 @@ export const bands = pgTable('bands', {
   subscriptionInterval: text('subscription_interval'), // 'monthly' | 'yearly'
   subscriptionCurrentPeriodEnd: timestamp('subscription_current_period_end'),
   subscriptionCancelAtPeriodEnd: boolean('subscription_cancel_at_period_end').notNull().default(false),
+  defaultRehearsalStartTime: text('default_rehearsal_start_time').notNull().default('20:00'),
+  defaultRehearsalEndTime: text('default_rehearsal_end_time').notNull().default('23:00'),
+  defaultGigStartTime: text('default_gig_start_time').notNull().default('20:00'),
+  defaultGigEndTime: text('default_gig_end_time').notNull().default('23:00'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

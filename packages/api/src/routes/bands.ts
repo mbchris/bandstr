@@ -23,6 +23,10 @@ const createBandSchema = z.object({
 
 const updateBandSchema = z.object({
   name: z.string().min(1).max(100).optional(),
+  defaultRehearsalStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  defaultRehearsalEndTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  defaultGigStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  defaultGigEndTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 })
 
 const joinBandSchema = z.object({

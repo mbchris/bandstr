@@ -113,6 +113,13 @@
       "when": 1778920000000,
       "tag": "0016_gig_setlists_calendar_consistency",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779000000000,
+      "tag": "0017_vote_scale_and_event_defaults",
+      "breakpoints": true
     }
   ]
 }

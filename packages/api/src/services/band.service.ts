@@ -154,7 +154,16 @@ export const bandService = {
     }
   },
 
-  async updateBand(bandId: number, data: { name?: string }) {
+  async updateBand(
+    bandId: number,
+    data: {
+      name?: string
+      defaultRehearsalStartTime?: string
+      defaultRehearsalEndTime?: string
+      defaultGigStartTime?: string
+      defaultGigEndTime?: string
+    },
+  ) {
     const [updated] = await db
       .update(bandsTable)
       .set(data)

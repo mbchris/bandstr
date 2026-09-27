@@ -13,7 +13,7 @@ votes.use('*', requireAuth, requireTenant)
 
 const voteSchema = z.object({
   songId: z.number(),
-  score: z.number().int().min(0).max(3).optional(),
+  score: z.number().int().min(0).max(9).optional(),
   comment: z.string().optional(),
   remove: z.boolean().optional(),
 })

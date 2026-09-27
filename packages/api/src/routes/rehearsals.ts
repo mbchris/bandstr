@@ -99,6 +99,7 @@ rehearsals.get('/next', async (c) => {
       isTentative: calendarEvents.isTentative,
       createdAt: calendarEvents.createdAt,
       gigSetlistId: gigSetlists.id,
+      gigSetlistTitle: gigSetlists.title,
     })
     .from(calendarEvents)
     .leftJoin(

@@ -242,6 +242,18 @@ async function ensureGigSetlistsCalendarConsistency() {
   `)
 }
 
+async function ensureEventTimeDefaultsColumns() {
+  if (!(await publicTableExists('bands'))) return
+
+  await pool.query(`
+    ALTER TABLE "bands"
+      ADD COLUMN IF NOT EXISTS "default_rehearsal_start_time" text DEFAULT '20:00' NOT NULL,
+      ADD COLUMN IF NOT EXISTS "default_rehearsal_end_time" text DEFAULT '23:00' NOT NULL,
+      ADD COLUMN IF NOT EXISTS "default_gig_start_time" text DEFAULT '20:00' NOT NULL,
+      ADD COLUMN IF NOT EXISTS "default_gig_end_time" text DEFAULT '23:00' NOT NULL;
+  `)
+}
+
 async function waitForDatabase(maxRetries = 10, delayMs = 2000): Promise<void> {
   let attempt = 0
   while (attempt < maxRetries) {
@@ -274,6 +286,7 @@ export async function runMigrations(options: { closePoolOnDone?: boolean; maxRet
     await ensureSongArchiveColumn()
     await ensureGigSetlistDetailsColumns()
     await ensureGigSetlistsCalendarConsistency()
+    await ensureEventTimeDefaultsColumns()
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
     const ms = Date.now() - started
     console.log(`DB migrations applied in ${ms}ms`)
