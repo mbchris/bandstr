@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSongsStore, type Song } from '../stores/songs'
 import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
@@ -11,9 +11,14 @@ import { exportXlsx, exportPdf, exportDocx, type SetlistExportColumn, type Setli
 
 const $q = useQuasar()
 const route = useRoute()
+const router = useRouter()
 const songsStore = useSongsStore()
 const authStore = useAuthStore()
 const { t } = useI18n()
+
+function goToHome() {
+  router.push({ path: '/' })
+}
 
 const searchQuery = ref('')
 const selectedTagFilters = ref<string[]>([])
@@ -1270,6 +1275,15 @@ onMounted(() => {
                 Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
               </div>
               <div class="row q-gutter-xs">
+                <q-btn
+                  v-if="selectedGigMeta.calendarEventId"
+                  outline
+                  dense
+                  color="primary"
+                  icon="home"
+                  :label="t('setlist.viewGigOnHome')"
+                  @click="goToHome"
+                />
                 <q-btn outline dense color="secondary" icon="content_copy" :label="t('setlist.duplicateGig')" @click="duplicateGigSetlist" />
                 <q-btn color="primary" dense icon="print" :label="t('setlist.printExport')" @click="openPrintExportModal" />
                 <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />

@@ -354,6 +354,7 @@ export default {
     presetGuitar: 'Gitarre (Titel, Tuning, Pitch)',
     presetAll: 'Alle Spalten',
     duplicateGig: 'Setliste duplizieren',
+    viewGigOnHome: 'Gig anzeigen',
     duplicatedSuccess: 'Setliste erfolgreich dupliziert',
     location: 'Ort / Location',
     gigDate: 'Datum',
