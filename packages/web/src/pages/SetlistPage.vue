@@ -560,7 +560,7 @@ async function togglePin(item: Song) {
         body: JSON.stringify({ isPinned: !isPinnedItem(item) }),
       })
     } else {
-      await songsStore.updateSong(item.id, { isPinned: !item.isPinned } as any)
+      await songsStore.updateSong(item.id, { isPinned: !item.isPinned })
     }
     await refreshAll()
   } catch {}
@@ -583,7 +583,7 @@ async function onSwipeRight(item: Song, reset: () => void) {
     }
 
     try {
-      await songsStore.updateSong(item.id, { isArchived: false } as any)
+      await songsStore.updateSong(item.id, { isArchived: false })
       await songsStore.fetchSongs()
       $q.notify({
         message: t('setlist.songReactivatedNamed', { title: item.title }),
@@ -595,7 +595,7 @@ async function onSwipeRight(item: Song, reset: () => void) {
             color: 'white',
             handler: async () => {
               try {
-                await songsStore.updateSong(item.id, { isArchived: true } as any)
+                await songsStore.updateSong(item.id, { isArchived: true })
                 await songsStore.fetchSongs()
                 $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
               } catch {
@@ -615,7 +615,7 @@ async function onSwipeRight(item: Song, reset: () => void) {
 
   // Active tab: move to voting (isSetlist: false)
   try {
-    await songsStore.updateSong(item.id, { isSetlist: false } as any)
+    await songsStore.updateSong(item.id, { isSetlist: false })
     await songsStore.fetchSongs()
     $q.notify({
       message: t('setlist.songMovedToVotingNamed', { title: item.title }),
@@ -627,7 +627,7 @@ async function onSwipeRight(item: Song, reset: () => void) {
           color: 'white',
           handler: async () => {
             try {
-              await songsStore.updateSong(item.id, { isSetlist: true } as any)
+              await songsStore.updateSong(item.id, { isSetlist: true })
               await songsStore.fetchSongs()
               $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
             } catch {
@@ -652,7 +652,7 @@ async function onSwipeLeft(item: Song, reset: () => void) {
 
   // Active tab: archive song (isArchived: true)
   try {
-    await songsStore.updateSong(item.id, { isArchived: true } as any)
+    await songsStore.updateSong(item.id, { isArchived: true })
     await songsStore.fetchSongs()
     $q.notify({
       message: t('setlist.songArchivedNamed', { title: item.title }),
@@ -664,7 +664,7 @@ async function onSwipeLeft(item: Song, reset: () => void) {
           color: 'white',
           handler: async () => {
             try {
-              await songsStore.updateSong(item.id, { isArchived: false } as any)
+              await songsStore.updateSong(item.id, { isArchived: false })
               await songsStore.fetchSongs()
               $q.notify({ message: t('common.undone'), color: 'info', timeout: 2000 })
             } catch {
@@ -697,7 +697,7 @@ async function removeFromSetlist(item: Song) {
         await apiJson(`/songs/user-setlist/${item.id}`, { method: 'DELETE' })
         await fetchUserSetlistSongs()
       } else {
-        await songsStore.updateSong(item.id, { isSetlist: false } as any)
+        await songsStore.updateSong(item.id, { isSetlist: false })
       }
       await refreshAll()
     } catch {
@@ -1386,10 +1386,10 @@ onMounted(() => {
             active-color="primary"
             indicator-color="primary"
           >
-            <q-tab name="active" :label="t('voting.activeTab')">
+            <q-tab name="active" :label="t('setlist.activeTab')">
               <q-badge color="primary" floating rounded>{{ activeSetlistSongsCount }}</q-badge>
             </q-tab>
-            <q-tab name="archived" :label="t('voting.archiveTab')">
+            <q-tab name="archived" :label="t('setlist.archiveTab')">
               <q-badge color="grey-7" floating rounded>{{ archivedSetlistSongsCount }}</q-badge>
             </q-tab>
           </q-tabs>
@@ -1568,6 +1568,7 @@ onMounted(() => {
                     />
                     <span class="text-caption text-grey">{{ index + 1 }}</span>
                     <q-btn
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
                       flat
                       round
                       dense

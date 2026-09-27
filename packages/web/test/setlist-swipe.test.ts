@@ -41,6 +41,8 @@ describe('Setlist Active/Archive Tabs & Swipe Logic (#28 Task 4)', () => {
     expect(content).toMatch(/v-model="currentTab"/)
     expect(content).toContain('<q-tab name="active"')
     expect(content).toContain('<q-tab name="archived"')
+    expect(content).toContain(":label=\"t('setlist.activeTab')\"")
+    expect(content).toContain(":label=\"t('setlist.archiveTab')\"")
     expect(content).toContain('activeSetlistSongsCount')
     expect(content).toContain('archivedSetlistSongsCount')
   })
@@ -71,6 +73,16 @@ describe('Setlist Active/Archive Tabs & Swipe Logic (#28 Task 4)', () => {
 
     expect(songActionsContent).not.toContain('arrow_back')
     expect(songActionsContent).not.toContain('moveToVoting')
+  })
+
+  it('guards togglePin lock button on master setlist archived tab', () => {
+    expect(content).toMatch(/v-if="selectedGigId \|\| selectedSetlistMode !== 'master' \|\| currentTab === 'active'"[\s\S]*?@click="togglePin\(item\)"/)
+  })
+
+  it('calls updateSong without as any type assertions in swipe and pin functions', () => {
+    // onSwipeRight, onSwipeLeft, and togglePin should not use 'as any' on updateSong
+    const swipeSection = content.slice(content.indexOf('async function togglePin'), content.indexOf('async function removeFromSetlist'))
+    expect(swipeSection).not.toContain('as any')
   })
 
   it('notifies with undo actions and timeout on swipe operations', () => {
