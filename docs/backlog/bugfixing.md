@@ -72,3 +72,13 @@
   - [x] Adding a new gig from the home page popup and saving works, even if there are already 3+ upcoming gigs.
   - [x] Editing existing gigs in the popup doesn't fail due to null descriptions.
 
+## TASK-9006: Login page is not scrollable on Android and iOS
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+  - [x] Login page can be scrolled vertically on mobile devices (Android and iOS).
+  - [x] Card is vertically centered on larger screens and scrolls gracefully when content overflows.
+  - [x] Background video and dark overlay remain fixed without clipping page content.
+  - [x] Mobile safe-area insets are respected for top and bottom footer.
+
+
