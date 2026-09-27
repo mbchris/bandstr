@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
+import { Notify } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { authClient } from '../boot/auth'
 import { useAuthStore } from '../stores/auth'
@@ -18,6 +19,8 @@ const appleIcon =
 const loadingEmailSignIn = ref(false)
 const loadingEmailSignUp = ref(false)
 const loadingPasswordReset = ref(false)
+const loadingResendVerification = ref(false)
+const lastRegisteredEmail = ref('')
 const error = ref<string | null>(null)
 const info = ref<string | null>(null)
 const testingAuth = ref(false)
@@ -265,12 +268,43 @@ async function signUpWithEmail() {
     }
 
     rememberPendingSignupName(desiredEmail, desiredName)
+    lastRegisteredEmail.value = desiredEmail
+    signinEmail.value = desiredEmail
     info.value = t('login.accountCreatedVerify')
     authMode.value = 'signin'
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t('login.signupFailed')
   } finally {
     loadingEmailSignUp.value = false
+  }
+}
+
+async function resendVerificationEmail() {
+  const emailToVerify = lastRegisteredEmail.value.trim() || signinEmail.value.trim()
+  if (!emailToVerify) return
+  error.value = null
+  loadingResendVerification.value = true
+  try {
+    await postAuth('/send-verification-email', {
+      email: emailToVerify,
+      callbackURL: `${window.location.origin}/login?verified=1`,
+    })
+    info.value = t('login.verificationResent')
+    try {
+      Notify.create({ type: 'positive', message: t('login.verificationResent') })
+    } catch {
+      // Ignore if Notify plugin is not installed
+    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : t('login.resendFailed')
+    error.value = msg
+    try {
+      Notify.create({ type: 'negative', message: msg })
+    } catch {
+      // Ignore if Notify plugin is not installed
+    }
+  } finally {
+    loadingResendVerification.value = false
   }
 }
 
@@ -688,8 +722,30 @@ watch(
       <div v-if="error" class="q-mt-md text-negative text-center text-body2">
         {{ error }}
       </div>
-      <div v-if="info" class="q-mt-md text-positive text-center text-body2">
-        {{ info }}
+      <div v-if="info" class="q-mt-md text-positive text-center text-body2 auth-info-banner">
+        <div>{{ info }}</div>
+        <div v-if="lastRegisteredEmail" class="q-mt-sm">
+          <q-btn
+            flat
+            dense
+            color="primary"
+            class="auth-resend-verification-btn"
+            :label="t('login.resendVerification')"
+            :loading="loadingResendVerification"
+            @click="resendVerificationEmail"
+          />
+        </div>
+      </div>
+      <div v-else-if="lastRegisteredEmail" class="q-mt-md text-center">
+        <q-btn
+          flat
+          dense
+          color="primary"
+          class="auth-resend-verification-btn"
+          :label="t('login.resendVerification')"
+          :loading="loadingResendVerification"
+          @click="resendVerificationEmail"
+        />
       </div>
       <div v-if="copyStatus" class="q-mt-sm text-center text-caption">
         {{ copyStatus }}
@@ -839,6 +895,23 @@ watch(
 
 .auth-link-btn:hover {
   color: #fff;
+}
+
+.auth-resend-verification-btn {
+  color: rgba(129, 140, 248, 0.95);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-resend-verification-btn:hover {
+  color: #fff;
+}
+
+.auth-info-banner {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
 }
 
 .debug-icon-btn {
