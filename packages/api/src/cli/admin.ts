@@ -726,6 +726,14 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
   const path = optionalStringOption(options, 'path') ?? '/calendar'
   const query = optionalStringOption(options, 'query') ?? `bandId=${encodeURIComponent(String(bandId))}`
   const dryRun = readBooleanOption(options, 'dry-run', false)
+  const pushToIos = readBooleanOption(options, 'push-to-ios', false)
+  const pushToAndroid = readBooleanOption(options, 'push-to-android', false)
+
+  if (pushToIos && pushToAndroid) {
+    throw new Error('--push-to-ios and --push-to-android are mutually exclusive. Omit both to send to all platforms.')
+  }
+
+  const platformFilter = pushToIos ? 'ios' : pushToAndroid ? 'android' : null
 
   const [band] = await db
     .select({ id: bands.id, name: bands.name })
@@ -734,24 +742,30 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
     .limit(1)
   if (!band) throw new Error(`Band not found: ${bandId}`)
 
+  const platformClause = platformFilter ? `AND upd.platform = '${platformFilter}'` : ''
+
   const devices = await pool.query<{
     user_id: string
     token_type: string
     token: string
+    platform: string
   }>(
     `
-      select distinct upd.user_id, upd.token_type, upd.token
+      select distinct upd.user_id, upd.token_type, upd.token, upd.platform
       from user_push_devices upd
       inner join band_members bm on bm.user_id = upd.user_id
       where bm.band_id = $1
         and upd.is_enabled = true
+        ${platformClause}
       order by upd.user_id asc
     `,
     [bandId],
   )
 
+  const platformLabel = platformFilter ? ` (${platformFilter} only)` : ''
+
   if (devices.rows.length === 0) {
-    console.log(`No enabled push devices found for band ${bandId} (${band.name}).`)
+    console.log(`No enabled push devices found for band ${bandId} (${band.name})${platformLabel}.`)
     return
   }
 
@@ -782,7 +796,7 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
   }
 
   console.log(
-    `Push ${dryRun ? 'simulated' : 'completed'}: bandId=${bandId} bandName="${band.name}" attempted=${attempted} delivered=${delivered} failed=${failed} path=${path} query="${query}"`,
+    `Push ${dryRun ? 'simulated' : 'completed'}: bandId=${bandId} bandName="${band.name}" attempted=${attempted} delivered=${delivered} failed=${failed} path=${path} query="${query}"${platformLabel}`,
   )
 }
 
@@ -1328,6 +1342,8 @@ Options:
   --body "<body>"             Required notification body text
   --path "<path>"             Optional in-app navigation path (e.g. "/calendar")
   --query "<query>"           Optional query parameters (e.g. "bandId=1")
+  --push-to-ios               Only deliver to iOS devices (APNs). Mutually exclusive with --push-to-android
+  --push-to-android           Only deliver to Android devices (FCM). Mutually exclusive with --push-to-ios
   --dry-run true|false        Validate and simulate push without delivery (default: false)`,
 
   'seed-demo-account': `Command: seed-demo-account
