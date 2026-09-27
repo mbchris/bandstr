@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
 import { useI18n } from '../composables/useI18n'
-import { exportXlsx, exportPdf, exportDocx, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
+import { exportXlsx, exportPdf, exportDocx, isShareCancellation, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -1098,8 +1098,10 @@ function handleExport() {
     utils.book_append_sheet(wb, ws, 'Setlist')
     try {
       await exportXlsx(wb, `bandstr_setlist_${new Date().toISOString().split('T')[0]}.xlsx`)
-    } catch {
-      $q.notify({ message: 'Failed to export Excel file.', color: 'negative' })
+    } catch (e: any) {
+      if (!isShareCancellation(e)) {
+        $q.notify({ message: 'Failed to export Excel file.', color: 'negative' })
+      }
     }
   })
 }
@@ -1113,13 +1115,13 @@ const selectedExportColumns = ref({
   tuning: false,
   pitch: false,
   notes: false,
-  length: false,
+  length: true,
 })
 
 function applyExportPreset(preset: 'standard' | 'drummer' | 'guitar' | 'all') {
   exportPreset.value = preset
   if (preset === 'standard') {
-    selectedExportColumns.value = { artist: true, bpm: true, tuning: false, pitch: false, notes: false, length: false }
+    selectedExportColumns.value = { artist: true, bpm: true, tuning: false, pitch: false, notes: false, length: true }
   } else if (preset === 'drummer') {
     selectedExportColumns.value = { artist: false, bpm: true, tuning: false, pitch: false, notes: true, length: false }
   } else if (preset === 'guitar') {
@@ -1214,6 +1216,7 @@ function buildExportData(): SetlistExportData {
     gigTime,
     gigLocation,
     gigNotes,
+    totalDurationMs: totalDurationMs.value,
     columns: exportColumnsList.value,
     items,
   }
@@ -1234,10 +1237,14 @@ async function handleDownloadPdf() {
   exportingPdf.value = true
   try {
     const data = buildExportData()
-    await exportPdf(data, getExportFilename('pdf'))
-    $q.notify({ message: 'PDF exportiert', color: 'positive' })
+    const success = await exportPdf(data, getExportFilename('pdf'))
+    if (success) {
+      $q.notify({ message: 'PDF exportiert', color: 'positive' })
+    }
   } catch (e: any) {
-    $q.notify({ message: e.message || 'PDF Export fehlgeschlagen', color: 'negative' })
+    if (!isShareCancellation(e)) {
+      $q.notify({ message: e.message || 'PDF Export fehlgeschlagen', color: 'negative' })
+    }
   } finally {
     exportingPdf.value = false
   }
@@ -1247,10 +1254,14 @@ async function handleDownloadDocx() {
   exportingDocx.value = true
   try {
     const data = buildExportData()
-    await exportDocx(data, getExportFilename('docx'))
-    $q.notify({ message: 'Word (.docx) exportiert', color: 'positive' })
+    const success = await exportDocx(data, getExportFilename('docx'))
+    if (success) {
+      $q.notify({ message: 'Word (.docx) exportiert', color: 'positive' })
+    }
   } catch (e: any) {
-    $q.notify({ message: e.message || 'DOCX Export fehlgeschlagen', color: 'negative' })
+    if (!isShareCancellation(e)) {
+      $q.notify({ message: e.message || 'DOCX Export fehlgeschlagen', color: 'negative' })
+    }
   } finally {
     exportingDocx.value = false
   }
@@ -2072,7 +2083,7 @@ onMounted(() => {
 
     <!-- Print & Export Dialog -->
     <q-dialog v-model="showPrintExportModal" maximized transition-show="slide-up" transition-hide="slide-down">
-      <q-card class="bg-grey-1 column full-height">
+      <q-card class="bg-surface column full-height">
         <q-toolbar class="bg-primary text-white no-print">
           <q-toolbar-title class="row items-center q-gutter-sm">
             <q-icon name="print" />
@@ -2083,11 +2094,11 @@ onMounted(() => {
         </q-toolbar>
 
         <!-- Top Controls / Toolbar -->
-        <q-card-section class="bg-white q-py-sm shadow-1 no-print">
+        <q-card-section class="bg-surface q-py-sm shadow-1 no-print border-bottom-subtle">
           <div class="row items-center justify-between q-col-gutter-md">
             <!-- Presets -->
             <div class="col-12 col-lg-auto row items-center q-gutter-sm">
-              <span class="text-caption text-weight-bold text-grey-8">Presets:</span>
+              <span class="text-caption text-weight-bold">Presets:</span>
               <q-btn-toggle
                 v-model="exportPreset"
                 toggle-color="primary"
@@ -2101,7 +2112,7 @@ onMounted(() => {
 
             <!-- Column Checkboxes -->
             <div class="col-12 col-lg-auto row items-center q-gutter-sm">
-              <span class="text-caption text-weight-bold text-grey-8">{{ t('setlist.columns') }}:</span>
+              <span class="text-caption text-weight-bold">{{ t('setlist.columns') }}:</span>
               <q-checkbox v-model="selectedExportColumns.artist" :label="t('voting.artist')" dense size="sm" />
               <q-checkbox v-model="selectedExportColumns.bpm" label="BPM" dense size="sm" />
               <q-checkbox v-model="selectedExportColumns.tuning" :label="t('setlist.tuning')" dense size="sm" />
@@ -2143,7 +2154,7 @@ onMounted(() => {
         </q-card-section>
 
         <!-- Preview / Printable Area -->
-        <q-card-section class="col overflow-auto q-pa-md flex justify-center bg-grey-3">
+        <q-card-section class="col overflow-auto q-pa-md flex justify-center bg-widget-surface">
           <div class="print-sheet-area bg-white text-black shadow-3 q-pa-lg">
             <!-- Header -->
             <div class="row items-center justify-between q-pb-md border-bottom-dark">
@@ -2153,6 +2164,7 @@ onMounted(() => {
                 </div>
                 <div class="text-subtitle2 text-grey-8">
                   {{ authStore.activeBand?.name || 'bandstr' }}
+                  <span class="q-ml-sm text-caption">· {{ filteredSongs.filter((s) => s.type === 'song').length }} Songs ({{ formatDuration(totalDurationMs) }})</span>
                 </div>
               </div>
               <div v-if="selectedGigId && selectedGigMeta" class="text-right text-caption">
@@ -2243,7 +2255,7 @@ onMounted(() => {
 
             <!-- Footer summary -->
             <div class="row justify-between items-center q-mt-lg text-caption text-grey-7 border-top-dark q-pt-sm">
-              <div>Total Songs: {{ filteredSongs.filter((s) => s.type === 'song').length }}</div>
+              <div>Total Songs: {{ filteredSongs.filter((s) => s.type === 'song').length }} · Total Duration: {{ formatDuration(totalDurationMs) }}</div>
               <div>Generated with bandstr</div>
             </div>
           </div>
@@ -2394,6 +2406,16 @@ onMounted(() => {
   border-top: 1px solid #ddd;
 }
 
+:deep(.bg-surface),
+.bg-surface {
+  background: var(--surface) !important;
+  color: var(--text);
+}
+
+.border-bottom-subtle {
+  border-bottom: 1px solid var(--border);
+}
+
 .print-table {
   border-collapse: collapse;
   width: 100%;
@@ -2402,11 +2424,13 @@ onMounted(() => {
     border-bottom: 1px solid #e0e0e0;
     padding: 6px 8px;
     font-size: 13px;
+    color: #000000;
   }
 
   th {
     border-bottom: 2px solid #333;
     font-weight: 700;
+    color: #000000;
   }
 
   .divider-row td {
@@ -2449,6 +2473,11 @@ onMounted(() => {
 }
 
 @media print {
+  body,
+  body.body--dark {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
   body * {
     visibility: hidden;
   }
@@ -2463,6 +2492,8 @@ onMounted(() => {
     margin: 0;
     padding: 10mm;
     box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
   .no-print {
     display: none !important;

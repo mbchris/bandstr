@@ -7,7 +7,7 @@ import { useSongsStore, type Song } from '../stores/songs'
 import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
-import { exportXlsx } from '../utils/export'
+import { exportXlsx, isShareCancellation } from '../utils/export'
 import { getInitials } from '../utils/initials'
 
 const $q = useQuasar()
@@ -536,8 +536,10 @@ function handleExport() {
     utils.book_append_sheet(wb, ws, 'Voting')
     try {
       await exportXlsx(wb, `bandstr_voting_${new Date().toISOString().split('T')[0]}.xlsx`)
-    } catch {
-      $q.notify({ message: 'Failed to export Excel file.', color: 'negative' })
+    } catch (e: any) {
+      if (!isShareCancellation(e)) {
+        $q.notify({ message: 'Failed to export Excel file.', color: 'negative' })
+      }
     }
   })
 }

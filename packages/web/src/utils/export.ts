@@ -25,11 +25,18 @@ export interface SetlistExportData {
   gigTime?: string | null
   gigLocation?: string | null
   gigNotes?: string | null
+  totalDurationMs?: number | null
   columns: SetlistExportColumn[]
   items: SetlistExportItem[]
 }
 
-async function saveOrShareFile(filename: string, base64Data: string, blob: Blob) {
+export function isShareCancellation(error: any): boolean {
+  if (!error) return false
+  const msg = (error.message || error.toString() || '').toLowerCase()
+  return error.name === 'AbortError' || msg.includes('cancel') || msg.includes('abort')
+}
+
+async function saveOrShareFile(filename: string, base64Data: string, blob: Blob): Promise<boolean> {
   if (Capacitor.isNativePlatform()) {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
     const { Share } = await import('@capacitor/share')
@@ -47,7 +54,11 @@ async function saveOrShareFile(filename: string, base64Data: string, blob: Blob)
         url: fileResult.uri,
         dialogTitle: `Export ${filename}`,
       })
+      return true
     } catch (error) {
+      if (isShareCancellation(error)) {
+        return false
+      }
       console.error(`Failed to export and share ${filename}:`, error)
       throw error
     }
@@ -60,33 +71,45 @@ async function saveOrShareFile(filename: string, base64Data: string, blob: Blob)
     a.click()
     document.body.removeChild(a)
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return true
   }
 }
 
-export async function exportXlsx(wb: any, filename: string) {
+export async function exportXlsx(wb: any, filename: string): Promise<boolean> {
   const { write, writeFile } = await import('xlsx')
 
   if (Capacitor.isNativePlatform()) {
     const b64 = write(wb, { type: 'base64', bookType: 'xlsx' })
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
     const { Share } = await import('@capacitor/share')
-    const fileResult = await Filesystem.writeFile({
-      path: filename,
-      data: b64,
-      directory: Directory.Cache,
-    })
-    await Share.share({
-      title: filename,
-      text: filename,
-      url: fileResult.uri,
-      dialogTitle: `Export ${filename}`,
-    })
+    try {
+      const fileResult = await Filesystem.writeFile({
+        path: filename,
+        data: b64,
+        directory: Directory.Cache,
+      })
+      await Share.share({
+        title: filename,
+        text: filename,
+        url: fileResult.uri,
+        dialogTitle: `Export ${filename}`,
+      })
+      return true
+    } catch (error) {
+      if (isShareCancellation(error)) {
+        return false
+      }
+      console.error(`Failed to export and share ${filename}:`, error)
+      throw error
+    }
   } else {
     writeFile(wb, filename)
+    return true
   }
 }
 
-function formatDuration(ms: number): string {
+export function formatDuration(ms: number): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return '0:00'
   const minutes = Math.floor(ms / 60000)
   const seconds = Math.floor((ms % 60000) / 1000)
   return `${minutes}:${String(seconds).padStart(2, '0')}`
@@ -97,7 +120,7 @@ function formatPitch(pitch: number | null | undefined): string {
   return (pitch > 0 ? '+' : '') + pitch
 }
 
-export async function exportPdf(data: SetlistExportData, filename: string) {
+export async function exportPdf(data: SetlistExportData, filename: string): Promise<boolean> {
   const { default: jsPDF } = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
 
@@ -106,6 +129,14 @@ export async function exportPdf(data: SetlistExportData, filename: string) {
     unit: 'mm',
     format: 'a4',
   })
+
+  const totalSongs = data.items.filter((i) => i.type === 'song').length
+  const totalDurationMs = typeof data.totalDurationMs === 'number'
+    ? data.totalDurationMs
+    : data.items
+        .filter((i) => i.type === 'song' && typeof i.lengthMs === 'number')
+        .reduce((sum, i) => sum + (i.lengthMs ?? 0), 0)
+  const totalDurationStr = formatDuration(totalDurationMs)
 
   // Header
   let currentY = 18
@@ -124,11 +155,13 @@ export async function exportPdf(data: SetlistExportData, filename: string) {
   doc.text(data.gigTitle, 14, currentY)
   currentY += 6
 
-  // Details row (Date, Time, Location)
+  // Details row (Date, Time, Location, Songs, Duration)
   const metaParts: string[] = []
   if (data.gigDate) metaParts.push(`Datum: ${data.gigDate}`)
   if (data.gigTime) metaParts.push(`Uhrzeit: ${data.gigTime}`)
   if (data.gigLocation) metaParts.push(`Ort: ${data.gigLocation}`)
+  metaParts.push(`Songs: ${totalSongs}`)
+  if (totalDurationMs > 0) metaParts.push(`Gesamtdauer: ${totalDurationStr}`)
 
   if (metaParts.length) {
     doc.setFont('helvetica', 'normal')
@@ -227,10 +260,13 @@ export async function exportPdf(data: SetlistExportData, filename: string) {
     },
     margin: { left: 14, right: 14, bottom: 16 },
     didDrawPage: (hookData) => {
-      // Page number in footer
-      const str = `Seite ${hookData.pageNumber}`
+      // Left side: Total Songs & Duration
       doc.setFontSize(8)
       doc.setTextColor(150)
+      doc.text(`Total Songs: ${totalSongs}   |   Total Duration: ${totalDurationStr}`, 14, doc.internal.pageSize.getHeight() - 8)
+
+      // Right side: Page number in footer
+      const str = `Seite ${hookData.pageNumber}`
       doc.text(str, doc.internal.pageSize.getWidth() - 25, doc.internal.pageSize.getHeight() - 8)
     },
   })
@@ -238,10 +274,10 @@ export async function exportPdf(data: SetlistExportData, filename: string) {
   const pdfArrayBuffer = doc.output('arraybuffer')
   const blob = new Blob([pdfArrayBuffer], { type: 'application/pdf' })
   const base64 = doc.output('datauristring').split(',')[1] || ''
-  await saveOrShareFile(filename, base64, blob)
+  return await saveOrShareFile(filename, base64, blob)
 }
 
-export async function exportDocx(data: SetlistExportData, filename: string) {
+export async function exportDocx(data: SetlistExportData, filename: string): Promise<boolean> {
   const {
     Document,
     Packer,
@@ -256,6 +292,14 @@ export async function exportDocx(data: SetlistExportData, filename: string) {
     ShadingType,
     BorderStyle,
   } = await import('docx')
+
+  const totalSongs = data.items.filter((i) => i.type === 'song').length
+  const totalDurationMs = typeof data.totalDurationMs === 'number'
+    ? data.totalDurationMs
+    : data.items
+        .filter((i) => i.type === 'song' && typeof i.lengthMs === 'number')
+        .reduce((sum, i) => sum + (i.lengthMs ?? 0), 0)
+  const totalDurationStr = formatDuration(totalDurationMs)
 
   const children: any[] = []
 
@@ -279,11 +323,13 @@ export async function exportDocx(data: SetlistExportData, filename: string) {
     }),
   )
 
-  // Gig Details Subtitle
+  // Gig Details Subtitle (Date, Time, Location, Songs, Duration)
   const metaParts: string[] = []
   if (data.gigDate) metaParts.push(`Datum: ${data.gigDate}`)
   if (data.gigTime) metaParts.push(`Uhrzeit: ${data.gigTime}`)
   if (data.gigLocation) metaParts.push(`Ort: ${data.gigLocation}`)
+  metaParts.push(`Songs: ${totalSongs}`)
+  if (totalDurationMs > 0) metaParts.push(`Gesamtdauer: ${totalDurationStr}`)
 
   if (metaParts.length) {
     children.push(
@@ -413,6 +459,21 @@ export async function exportDocx(data: SetlistExportData, filename: string) {
 
   children.push(table)
 
+  // Footer summary paragraph
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Total Songs: ${totalSongs}   |   Total Duration: ${totalDurationStr}`,
+          color: '666666',
+          size: 18,
+        }),
+      ],
+      alignment: AlignmentType.LEFT,
+      spacing: { before: 200, after: 100 },
+    }),
+  )
+
   const doc = new Document({
     sections: [
       {
@@ -424,5 +485,5 @@ export async function exportDocx(data: SetlistExportData, filename: string) {
 
   const blob = await Packer.toBlob(doc)
   const base64 = await Packer.toBase64String(doc)
-  await saveOrShareFile(filename, base64, blob)
+  return await saveOrShareFile(filename, base64, blob)
 }
