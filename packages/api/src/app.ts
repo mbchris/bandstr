@@ -176,11 +176,10 @@ function deepLinkRedirectPage(target: string, label: string): string {
 </html>`
 }
 
-export function formatMobileRedirectTarget(rawTarget: string, isAndroid: boolean): string {
-  if (isAndroid && rawTarget.startsWith('org.capacitor.bandstr://')) {
-    const remaining = rawTarget.substring('org.capacitor.bandstr://'.length)
-    return `intent://${remaining}#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end;`
-  }
+export function formatMobileRedirectTarget(rawTarget: string, _isAndroid?: boolean): string {
+  // Always use the app's native custom scheme URL (e.g. org.capacitor.bandstr://localhost/#/login...).
+  // Constructing intent:// with a package causes Chrome on Android to fail parsing hash routes
+  // and trigger its automatic Play Store search fallback (pname:org.capacitor.bandstr).
   return rawTarget
 }
 

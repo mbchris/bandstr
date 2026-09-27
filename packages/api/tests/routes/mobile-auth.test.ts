@@ -2,13 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { app, formatMobileRedirectTarget } from '../../src/app.js'
 
 describe('Mobile Auth Redirect Format', () => {
-  it('formats Android intent URI with action.VIEW, category.BROWSABLE, and package', () => {
+  it('preserves native custom scheme URL on Android without converting to intent://', () => {
     const rawTarget = 'org.capacitor.bandstr://localhost/#/login?redirect=%2F&token=test-token&mobileAuth=ok'
     const formatted = formatMobileRedirectTarget(rawTarget, true)
 
-    expect(formatted).toBe(
-      'intent://localhost/#/login?redirect=%2F&token=test-token&mobileAuth=ok#Intent;scheme=org.capacitor.bandstr;package=org.capacitor.bandstr;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end;',
-    )
+    expect(formatted).toBe(rawTarget)
+    expect(formatted).not.toContain('intent://')
   })
 
   it('leaves custom scheme untouched for iOS / non-Android platforms', () => {
@@ -16,16 +15,17 @@ describe('Mobile Auth Redirect Format', () => {
     const formatted = formatMobileRedirectTarget(rawTarget, false)
 
     expect(formatted).toBe(rawTarget)
+    expect(formatted).not.toContain('intent://')
   })
 
-  it('leaves standard https URLs untouched even on Android', () => {
+  it('leaves standard https URLs untouched', () => {
     const rawTarget = 'https://bandstr.apps.4ki.app/login?redirect=%2F'
     const formatted = formatMobileRedirectTarget(rawTarget, true)
 
     expect(formatted).toBe(rawTarget)
   })
 
-  it('handles /api/mobile-auth/complete on Android by delivering the intent URL', async () => {
+  it('handles /api/mobile-auth/complete on Android by delivering the native scheme URL', async () => {
     const appCallbackURL = 'org.capacitor.bandstr://localhost/#/login?redirect=%2F'
     const res = await app.request(
       `/api/mobile-auth/complete?appCallbackURL=${encodeURIComponent(appCallbackURL)}`,
@@ -37,11 +37,11 @@ describe('Mobile Auth Redirect Format', () => {
     )
     expect(res.status).toBe(200)
     const html = await res.text()
-    expect(html).toContain('intent://localhost/#/login?redirect=%2F')
-    expect(html).toContain('package=org.capacitor.bandstr;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end;')
+    expect(html).toContain('org.capacitor.bandstr://localhost/#/login?redirect=%2F')
+    expect(html).not.toContain('intent://')
   })
 
-  it('handles /api/mobile-auth/complete on iOS by delivering the raw custom scheme URL', async () => {
+  it('handles /api/mobile-auth/complete on iOS by delivering the native scheme URL', async () => {
     const appCallbackURL = 'org.capacitor.bandstr://localhost/#/login?redirect=%2F'
     const res = await app.request(
       `/api/mobile-auth/complete?appCallbackURL=${encodeURIComponent(appCallbackURL)}`,
@@ -57,7 +57,7 @@ describe('Mobile Auth Redirect Format', () => {
     expect(html).not.toContain('intent://')
   })
 
-  it('handles /api/mobile-auth/error on Android by delivering the intent URL', async () => {
+  it('handles /api/mobile-auth/error on Android by delivering the native scheme URL', async () => {
     const appErrorURL = 'org.capacitor.bandstr://localhost/#/login?redirect=%2F'
     const res = await app.request(
       `/api/mobile-auth/error?appErrorURL=${encodeURIComponent(appErrorURL)}&error=access_denied`,
@@ -69,7 +69,7 @@ describe('Mobile Auth Redirect Format', () => {
     )
     expect(res.status).toBe(200)
     const html = await res.text()
-    expect(html).toContain('intent://localhost/#/login?redirect=%2F')
-    expect(html).toContain('package=org.capacitor.bandstr;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end;')
+    expect(html).toContain('org.capacitor.bandstr://localhost/#/login?redirect=%2F')
+    expect(html).not.toContain('intent://')
   })
 })
