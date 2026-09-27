@@ -53,9 +53,22 @@ Ensure the production environment contains valid SMTP credentials for transactio
 | `AUTH_EMAIL_SMTP_FROM_EMAIL` | Sender address shown to users | `support@4ki.app` / `noreply@bandstr.com` |
 | `AUTH_EMAIL_SMTP_STARTTLS` | Force STARTTLS encryption | `true` |
 
-**Verification Command:**
+**Verification Commands:**
 ```bash
-pnpm --filter @bandstr/api mail-test send --to "appcert@example.org" --kind verify-email
+# Option A: Inside running Docker API container
+docker compose exec api node /app/packages/api/dist/cli/mail-test.js send \
+  --to "appcert@example.org" \
+  --kind verify-email
+
+# Option B: Direct shell execution in deployed container
+node /app/packages/api/dist/cli/mail-test.js send \
+  --to "appcert@example.org" \
+  --kind verify-email
+
+# Option C: Locally via pnpm
+pnpm --filter @bandstr/api mail-test send \
+  --to "appcert@example.org" \
+  --kind verify-email
 ```
 
 ---

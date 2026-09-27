@@ -11,6 +11,7 @@
     "cli:admin:dev": "tsx src/cli/admin.ts",
     "cli:mail-test": "node dist/cli/mail-test.js",
     "cli:mail-test:dev": "tsx src/cli/mail-test.ts",
+    "mail-test": "tsx src/cli/mail-test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
