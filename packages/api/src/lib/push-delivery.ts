@@ -395,26 +395,26 @@ export function createApnsJwt(): { jwt: string | null; error: string | null } {
   }
 }
 
-let cachedApnsSession: http2.ClientHttp2Session | null = null
-let cachedApnsHost: string | null = null
+const cachedApnsSessions = new Map<string, http2.ClientHttp2Session>()
 
 function getApnsSession(host: string): http2.ClientHttp2Session {
-  if (cachedApnsSession && cachedApnsHost === host && !cachedApnsSession.closed && !cachedApnsSession.destroyed) {
-    return cachedApnsSession
+  const existing = cachedApnsSessions.get(host)
+  if (existing && !existing.closed && !existing.destroyed) {
+    return existing
   }
-  if (cachedApnsSession && !cachedApnsSession.destroyed) {
-    cachedApnsSession.destroy()
+  if (existing && !existing.destroyed) {
+    existing.destroy()
   }
-  cachedApnsHost = host
-  cachedApnsSession = http2.connect(`https://${host}`)
-  cachedApnsSession.on('error', () => {
-    cachedApnsSession?.destroy()
-    cachedApnsSession = null
+  const session = http2.connect(`https://${host}`)
+  session.on('error', () => {
+    session.destroy()
+    cachedApnsSessions.delete(host)
   })
-  cachedApnsSession.on('close', () => {
-    cachedApnsSession = null
+  session.on('close', () => {
+    cachedApnsSessions.delete(host)
   })
-  return cachedApnsSession
+  cachedApnsSessions.set(host, session)
+  return session
 }
 
 function executeApnsRequest(
@@ -469,7 +469,7 @@ async function postApnsHttp2(
     return await executeApnsRequest(session, token, headers, body)
   } catch {
     session.destroy()
-    cachedApnsSession = null
+    cachedApnsSessions.delete(host)
     const freshSession = getApnsSession(host)
     return await executeApnsRequest(freshSession, token, headers, body)
   }
@@ -533,7 +533,17 @@ async function sendApnsPush(payload: PushPayload): Promise<PushDeliveryResult> {
   })
 
   try {
-    const { status, body: responseBody } = await postApnsHttp2(host, payload.token, apnsHeaders, apnsBody)
+    let { status, body: responseBody } = await postApnsHttp2(host, payload.token, apnsHeaders, apnsBody)
+
+    // If Apple rejects due to environment mismatch (e.g. debug/xcode build vs production build),
+    // automatically fallback to the alternate APNs gateway (sandbox <-> production)
+    if (status === 403 && responseBody?.includes('BadEnvironmentKeyInToken')) {
+      const alternateHost = useSandbox ? 'api.push.apple.com' : 'api.sandbox.push.apple.com'
+      const retryResult = await postApnsHttp2(alternateHost, payload.token, apnsHeaders, apnsBody)
+      status = retryResult.status
+      responseBody = retryResult.body
+    }
+
     const ok = status >= 200 && status < 300
     return {
       provider: 'apns',
