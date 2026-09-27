@@ -10,7 +10,7 @@ export type User = {
   image?: string | null
 }
 
-export type BandMembership = {
+export interface Band {
   id: number
   name: string
   slug: string
@@ -27,7 +27,13 @@ export type BandMembership = {
   logo?: string | null
   logoDark?: string | null
   logoBright?: string | null
+  defaultRehearsalStartTime?: string
+  defaultRehearsalEndTime?: string
+  defaultGigStartTime?: string
+  defaultGigEndTime?: string
 }
+
+export type BandMembership = Band
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -86,6 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const memberships = (await res.json()) as BandMembership[]
     setBands(memberships)
+    void fetchActiveBandDetails()
     return memberships
   }
 
@@ -135,6 +142,7 @@ export const useAuthStore = defineStore('auth', () => {
     activeBandId.value = id
     if (id) {
       localStorage.setItem('bandstr-band-id', String(id))
+      void fetchActiveBandDetails()
     } else {
       localStorage.removeItem('bandstr-band-id')
     }
@@ -176,6 +184,41 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function updateActiveBandDefaults(payload: {
+    defaultRehearsalStartTime?: string
+    defaultRehearsalEndTime?: string
+    defaultGigStartTime?: string
+    defaultGigEndTime?: string
+  }) {
+    const currentBand = bands.value.find((b) => b.id === activeBandId.value)
+    if (currentBand) {
+      if (payload.defaultRehearsalStartTime !== undefined) currentBand.defaultRehearsalStartTime = payload.defaultRehearsalStartTime
+      if (payload.defaultRehearsalEndTime !== undefined) currentBand.defaultRehearsalEndTime = payload.defaultRehearsalEndTime
+      if (payload.defaultGigStartTime !== undefined) currentBand.defaultGigStartTime = payload.defaultGigStartTime
+      if (payload.defaultGigEndTime !== undefined) currentBand.defaultGigEndTime = payload.defaultGigEndTime
+    }
+  }
+
+  async function fetchActiveBandDetails() {
+    if (!activeBandId.value) return null
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    if (token.value) headers.Authorization = `Bearer ${token.value}`
+    headers['X-Band-Id'] = String(activeBandId.value)
+    try {
+      const res = await fetch(`${apiBase}/api/bands/${activeBandId.value}`, {
+        method: 'GET',
+        headers,
+        credentials: token.value ? 'omit' : 'include',
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      updateActiveBandDefaults(data)
+      return data
+    } catch {
+      return null
+    }
+  }
+
   function clearSession() {
     user.value = null
     token.value = null
@@ -200,6 +243,8 @@ export const useAuthStore = defineStore('auth', () => {
     setActiveBand,
     setBands,
     setActiveBandLogos,
+    updateActiveBandDefaults,
+    fetchActiveBandDetails,
     clearSession,
   }
 })

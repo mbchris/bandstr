@@ -445,6 +445,15 @@ export default {
     pending: 'Ausstehend',
     removeMember: 'Mitglied entfernen',
     removeLogoConfirm: 'Das Band-Logo entfernen?',
+    eventTimeDefaults: 'Standard-Eventzeiten',
+    eventTimeDefaultsHint: 'Standard-Start- und Endzeiten für neu erstellte Proben und Auftritte.',
+    defaultRehearsalStart: 'Standard-Probenbeginn',
+    defaultRehearsalEnd: 'Standard-Probenende',
+    defaultGigStart: 'Standard-Auftrittsbeginn',
+    defaultGigEnd: 'Standard-Auftrittsende',
+    saveDefaults: 'Standardzeiten speichern',
+    defaultsSaved: 'Standardzeiten erfolgreich gespeichert',
+    failedSaveDefaults: 'Standardzeiten konnten nicht gespeichert werden',
   },
 
   // Dashboard page

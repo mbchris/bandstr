@@ -444,6 +444,15 @@ export default {
     pending: 'Pending',
     removeMember: 'Remove Member',
     removeLogoConfirm: 'Remove the custom band logo?',
+    eventTimeDefaults: 'Event Time Defaults',
+    eventTimeDefaultsHint: 'Default start and end times applied when creating new calendar rehearsals and gigs.',
+    defaultRehearsalStart: 'Default Rehearsal Start',
+    defaultRehearsalEnd: 'Default Rehearsal End',
+    defaultGigStart: 'Default Gig Start',
+    defaultGigEnd: 'Default Gig End',
+    saveDefaults: 'Save Defaults',
+    defaultsSaved: 'Event time defaults saved successfully',
+    failedSaveDefaults: 'Failed to save event defaults',
   },
 
   // Dashboard page

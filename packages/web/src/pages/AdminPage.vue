@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useQuasar, type QTableColumn } from 'quasar'
 import { Capacitor } from '@capacitor/core'
 import { useBandStore } from '../stores/band'
@@ -386,9 +386,62 @@ async function handleCalendarImport(event: Event) {
   }
 }
 
-onMounted(() => {
+// Event time defaults
+const isSavingDefaults = ref(false)
+const defaultRehearsalStartTime = ref(authStore.activeBand?.defaultRehearsalStartTime || '20:00')
+const defaultRehearsalEndTime = ref(authStore.activeBand?.defaultRehearsalEndTime || '23:00')
+const defaultGigStartTime = ref(authStore.activeBand?.defaultGigStartTime || '20:00')
+const defaultGigEndTime = ref(authStore.activeBand?.defaultGigEndTime || '23:00')
+
+watch(
+  () => authStore.activeBand,
+  (band) => {
+    if (band) {
+      if (band.defaultRehearsalStartTime) defaultRehearsalStartTime.value = band.defaultRehearsalStartTime
+      if (band.defaultRehearsalEndTime) defaultRehearsalEndTime.value = band.defaultRehearsalEndTime
+      if (band.defaultGigStartTime) defaultGigStartTime.value = band.defaultGigStartTime
+      if (band.defaultGigEndTime) defaultGigEndTime.value = band.defaultGigEndTime
+    }
+  },
+  { immediate: true },
+)
+
+async function saveEventTimeDefaults() {
+  if (!authStore.activeBandId) return
+  isSavingDefaults.value = true
+  try {
+    const updated = await apiJson<{
+      defaultRehearsalStartTime?: string
+      defaultRehearsalEndTime?: string
+      defaultGigStartTime?: string
+      defaultGigEndTime?: string
+    }>(`/bands/${authStore.activeBandId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        defaultRehearsalStartTime: defaultRehearsalStartTime.value,
+        defaultRehearsalEndTime: defaultRehearsalEndTime.value,
+        defaultGigStartTime: defaultGigStartTime.value,
+        defaultGigEndTime: defaultGigEndTime.value,
+      }),
+    })
+    authStore.updateActiveBandDefaults({
+      defaultRehearsalStartTime: updated.defaultRehearsalStartTime ?? defaultRehearsalStartTime.value,
+      defaultRehearsalEndTime: updated.defaultRehearsalEndTime ?? defaultRehearsalEndTime.value,
+      defaultGigStartTime: updated.defaultGigStartTime ?? defaultGigStartTime.value,
+      defaultGigEndTime: updated.defaultGigEndTime ?? defaultGigEndTime.value,
+    })
+    $q.notify({ message: t('admin.defaultsSaved'), color: 'positive' })
+  } catch (e: any) {
+    $q.notify({ message: e.message || t('admin.failedSaveDefaults'), color: 'negative' })
+  } finally {
+    isSavingDefaults.value = false
+  }
+}
+
+onMounted(async () => {
   bandStore.fetchMembers()
   fetchStatus()
+  await authStore.fetchActiveBandDetails()
 })
 </script>
 
@@ -438,6 +491,63 @@ onMounted(() => {
                 </q-td>
               </template>
             </q-table>
+          </q-card>
+
+          <!-- Event Time Defaults -->
+          <q-card flat bordered class="q-mt-lg">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold">{{ t('admin.eventTimeDefaults') }}</div>
+              <div class="text-caption text-grey">{{ t('admin.eventTimeDefaultsHint') }}</div>
+            </q-card-section>
+            <q-card-section class="q-gutter-md">
+              <div class="row q-col-gutter-md">
+                <div class="col-12 col-sm-6">
+                  <q-input
+                    v-model="defaultRehearsalStartTime"
+                    type="time"
+                    outlined
+                    dense
+                    :label="t('admin.defaultRehearsalStart')"
+                  />
+                </div>
+                <div class="col-12 col-sm-6">
+                  <q-input
+                    v-model="defaultRehearsalEndTime"
+                    type="time"
+                    outlined
+                    dense
+                    :label="t('admin.defaultRehearsalEnd')"
+                  />
+                </div>
+                <div class="col-12 col-sm-6">
+                  <q-input
+                    v-model="defaultGigStartTime"
+                    type="time"
+                    outlined
+                    dense
+                    :label="t('admin.defaultGigStart')"
+                  />
+                </div>
+                <div class="col-12 col-sm-6">
+                  <q-input
+                    v-model="defaultGigEndTime"
+                    type="time"
+                    outlined
+                    dense
+                    :label="t('admin.defaultGigEnd')"
+                  />
+                </div>
+              </div>
+              <div class="row justify-end q-mt-md">
+                <q-btn
+                  color="primary"
+                  icon="save"
+                  :label="t('admin.saveDefaults')"
+                  :loading="isSavingDefaults"
+                  @click="saveEventTimeDefaults"
+                />
+              </div>
+            </q-card-section>
           </q-card>
         </div>
 

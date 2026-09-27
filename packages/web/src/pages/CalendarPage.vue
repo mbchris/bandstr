@@ -32,15 +32,32 @@ async function fetchGigSetlists() {
   }
 }
 
-const gigSetlistOptions = computed(() => [
-  { label: `➕ ${t('calendar.newGigSetlist')}`, value: null },
+type GigSetlistSelectOption = {
+  id: number | null
+  title: string
+  label: string
+  value: number | null
+}
+
+const gigSetlistOptions = computed<GigSetlistSelectOption[]>(() => [
+  { id: null, title: `➕ ${t('calendar.newGigSetlist')}`, label: `➕ ${t('calendar.newGigSetlist')}`, value: null },
   ...availableGigSetlists.value.map((g) => ({
+    id: g.id,
+    title: g.title,
     label: g.title,
     value: g.id,
   })),
 ])
 
-const filteredGigSetlistOptions = ref<Array<{ label: string; value: number | null }>>([])
+const filteredGigSetlistOptions = ref<GigSetlistSelectOption[]>([])
+
+watch(
+  gigSetlistOptions,
+  (options) => {
+    filteredGigSetlistOptions.value = options
+  },
+  { immediate: true },
+)
 
 function filterGigSetlists(val: string, update: (callback: () => void) => void) {
   update(() => {
@@ -49,10 +66,23 @@ function filterGigSetlists(val: string, update: (callback: () => void) => void) 
     } else {
       const needle = val.toLowerCase()
       filteredGigSetlistOptions.value = gigSetlistOptions.value.filter((opt) =>
-        opt.label.toLowerCase().includes(needle),
+        opt.title.toLowerCase().includes(needle) || opt.label.toLowerCase().includes(needle),
       )
     }
   })
+}
+
+function resolveGigSetlistTitle(event: CalendarEvent): string {
+  if (event.gigSetlistTitle) return event.gigSetlistTitle
+  if (event.gigSetlistId) {
+    const match = gigSetlistOptions.value.find(
+      (opt) => opt.id === event.gigSetlistId || opt.value === event.gigSetlistId,
+    )
+    if (match && match.title && match.id !== null) {
+      return match.title
+    }
+  }
+  return ''
 }
 
 function goToGigSetlist(gigSetlistId: number) {
@@ -162,10 +192,33 @@ const form = ref({
   gigSetlistId: null as number | null,
 })
 
+function applyTimeDefaults(startTimeStr: string, endTimeStr: string) {
+  const [startH, startM] = startTimeStr.split(':').map(Number)
+  const [endH, endM] = endTimeStr.split(':').map(Number)
+  const currentDate = form.value.startTime ? new Date(form.value.startTime) : new Date()
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+  const day = currentDate.getDate()
+  const start = new Date(year, month, day, startH, startM)
+  const end = new Date(year, month, day, endH, endM)
+  if (end.getTime() <= start.getTime()) {
+    end.setDate(end.getDate() + 1)
+  }
+  form.value.startTime = toDatetimeLocal(start)
+  form.value.endTime = toDatetimeLocal(end)
+}
+
 function openModal(year: number, month: number, day: number) {
   editingEvent.value = null
-  const start = new Date(year, month, day, 18, 0)
-  const end = new Date(year, month, day, 20, 0)
+  const rStart = authStore.activeBand?.defaultRehearsalStartTime || '20:00'
+  const rEnd = authStore.activeBand?.defaultRehearsalEndTime || '23:00'
+  const [startH, startM] = rStart.split(':').map(Number)
+  const [endH, endM] = rEnd.split(':').map(Number)
+  const start = new Date(year, month, day, startH, startM)
+  const end = new Date(year, month, day, endH, endM)
+  if (end.getTime() <= start.getTime()) {
+    end.setDate(end.getDate() + 1)
+  }
   form.value = {
     title: '',
     description: '',
@@ -180,8 +233,9 @@ function openModal(year: number, month: number, day: number) {
   showEventModal.value = true
 }
 
-function editEvent(event: CalendarEvent) {
+async function editEvent(event: CalendarEvent) {
   editingEvent.value = event
+  await fetchGigSetlists()
   form.value = {
     title: event.title,
     description: event.description || '',
@@ -192,7 +246,6 @@ function editEvent(event: CalendarEvent) {
     isTentative: event.isTentative || false,
     gigSetlistId: event.gigSetlistId ?? null,
   }
-  void fetchGigSetlists()
   showEventModal.value = true
 }
 
@@ -206,6 +259,17 @@ watch(
       void fetchGigSetlists()
       if (editingEvent.value?.type === 'gig' && editingEvent.value.gigSetlistId) {
         form.value.gigSetlistId = editingEvent.value.gigSetlistId
+      }
+    }
+    if (!editingEvent.value) {
+      if (type === 'gig') {
+        const gStart = authStore.activeBand?.defaultGigStartTime || '20:00'
+        const gEnd = authStore.activeBand?.defaultGigEndTime || '23:00'
+        applyTimeDefaults(gStart, gEnd)
+      } else if (type === 'rehearsal') {
+        const rStart = authStore.activeBand?.defaultRehearsalStartTime || '20:00'
+        const rEnd = authStore.activeBand?.defaultRehearsalEndTime || '23:00'
+        applyTimeDefaults(rStart, rEnd)
       }
     }
   },
@@ -283,9 +347,9 @@ function openCreateFromDayView() {
   if (selectedDayData.value) openModal(selectedDayData.value.year, selectedDayData.value.month, selectedDayData.value.day)
 }
 
-function openEditFromDayView(event: CalendarEvent) {
+async function openEditFromDayView(event: CalendarEvent) {
   showDayViewModal.value = false
-  editEvent(event)
+  await editEvent(event)
 }
 
 function openEventFromQuery() {
@@ -378,6 +442,7 @@ onMounted(() => {
     calendarStore.fetchRehearsalAttendance(),
     bandStore.fetchMembers(),
     fetchGigSetlists(),
+    authStore.fetchActiveBandDetails(),
   ]).then(() => {
     openEventFromQuery()
   })
@@ -467,7 +532,7 @@ watch(
 
     <!-- Event Create/Edit Dialog -->
     <q-dialog v-model="showEventModal">
-      <q-card style="min-width: 450px">
+      <q-card style="width: 90vw; max-width: 380px; margin-top: 60px; max-height: calc(100vh - 80px)">
         <q-card-section class="row items-center">
           <div class="text-h6">{{ editingEvent ? t('calendar.editEvent') : t('calendar.createEvent') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -502,6 +567,8 @@ watch(
             <q-select
               v-model="form.gigSetlistId"
               :options="filteredGigSetlistOptions"
+              option-value="id"
+              option-label="title"
               use-input
               input-debounce="0"
               @filter="filterGigSetlists"
@@ -657,6 +724,14 @@ watch(
                 <q-icon name="schedule" size="xs" class="q-mr-xs" />
                 {{ formatTime(event.startTime) }}
                 <template v-if="event.endTime"> — {{ formatTime(event.endTime) }}</template>
+              </q-item-label>
+              <q-item-label
+                v-if="event.type === 'gig' && (event.gigSetlistTitle || event.gigSetlistId)"
+                caption
+                class="text-primary row items-center q-mt-xs"
+              >
+                <q-icon name="queue_music" size="xs" class="q-mr-xs" />
+                <span>{{ resolveGigSetlistTitle(event) }}</span>
               </q-item-label>
             </q-item-section>
             <q-item-section side class="row items-center q-gutter-xs">
