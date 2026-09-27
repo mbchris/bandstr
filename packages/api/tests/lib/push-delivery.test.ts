@@ -5,6 +5,7 @@ import {
   normalizeApnsPrivateKey,
   createApnsJwt,
   clearApnsJwtCache,
+  isStalePushToken,
 } from '../../src/lib/push-delivery.js'
 
 describe('Push Delivery - APNs', () => {
@@ -160,6 +161,68 @@ describe('Push Delivery - APNs', () => {
       const { jwt, error } = createApnsJwt()
       expect(jwt).toBeNull()
       expect(error).toBeTruthy()
+    })
+  })
+
+  describe('isStalePushToken', () => {
+    it('identifies FCM 404 NotRegistered as stale', () => {
+      expect(
+        isStalePushToken({
+          provider: 'fcm',
+          ok: false,
+          status: 404,
+          error: 'FCM request failed with HTTP 404',
+          responseBody: JSON.stringify({ error: { errorCode: 'UNREGISTERED' } }),
+        }),
+      ).toBe(true)
+    })
+
+    it('identifies APNs 400 BadDeviceToken as stale', () => {
+      expect(
+        isStalePushToken({
+          provider: 'apns',
+          ok: false,
+          status: 400,
+          error: 'APNs request failed with HTTP 400',
+          responseBody: JSON.stringify({ reason: 'BadDeviceToken' }),
+        }),
+      ).toBe(true)
+    })
+
+    it('identifies APNs 410 Unregistered as stale', () => {
+      expect(
+        isStalePushToken({
+          provider: 'apns',
+          ok: false,
+          status: 410,
+          error: 'APNs request failed with HTTP 410',
+          responseBody: JSON.stringify({ reason: 'Unregistered' }),
+        }),
+      ).toBe(true)
+    })
+
+    it('does NOT mark APNs BadEnvironmentKeyInToken as stale', () => {
+      expect(
+        isStalePushToken({
+          provider: 'apns',
+          ok: false,
+          status: 403,
+          error: 'APNs request failed with HTTP 403',
+          responseBody: JSON.stringify({ reason: 'BadEnvironmentKeyInToken' }),
+        }),
+      ).toBe(false)
+    })
+
+    it('does NOT mark successful deliveries as stale', () => {
+      expect(
+        isStalePushToken({
+          provider: 'fcm',
+          ok: true,
+          status: 200,
+          error: null,
+          responseBody: '{}',
+        }),
+      ).toBe(false)
     })
   })
 })

@@ -1,6 +1,9 @@
 import { createSign, createPrivateKey, type KeyObject } from 'node:crypto'
 import http2 from 'node:http2'
+import { eq } from 'drizzle-orm'
 import webpush from 'web-push'
+import { db } from '../db/index.js'
+import { userPushDevices } from '../db/schema/notifications.js'
 
 type PushPayload = {
   token: string
@@ -35,7 +38,12 @@ function normalizeError(error: unknown): string {
   return String(error)
 }
 
-function logPushDelivery(result: PushDeliveryResult, payload: PushPayload, context?: PushLogContext): void {
+function logPushDelivery(
+  result: PushDeliveryResult,
+  payload: PushPayload,
+  context?: PushLogContext,
+  stalePruned?: boolean,
+): void {
   const prefix = result.ok ? '[push-delivery] delivered' : '[push-delivery] failed'
   const parts = [
     `provider=${result.provider}`,
@@ -47,6 +55,7 @@ function logPushDelivery(result: PushDeliveryResult, payload: PushPayload, conte
   if (context?.bandId !== undefined) parts.push(`bandId=${context.bandId}`)
   if (context?.userId) parts.push(`userId=${context.userId}`)
   if (context?.notificationId !== undefined) parts.push(`notificationId=${context.notificationId}`)
+  if (stalePruned) parts.push('stalePruned=true')
   if (result.error) parts.push(`error=${JSON.stringify(result.error)}`)
   if (result.responseBody) parts.push(`response=${JSON.stringify(result.responseBody)}`)
 
@@ -623,6 +632,53 @@ async function sendWebPush(payload: PushPayload): Promise<PushDeliveryResult> {
   }
 }
 
+export function isStalePushToken(result: PushDeliveryResult): boolean {
+  if (result.ok) return false
+
+  if (result.provider === 'fcm') {
+    if (result.status === 404) return true
+    if (
+      result.responseBody &&
+      (result.responseBody.includes('UNREGISTERED') || result.responseBody.includes('NotRegistered'))
+    ) {
+      return true
+    }
+  }
+
+  if (result.provider === 'apns') {
+    if (result.status === 410) return true
+    if (
+      result.status === 400 &&
+      result.responseBody &&
+      (result.responseBody.includes('BadDeviceToken') ||
+        result.responseBody.includes('Unregistered') ||
+        result.responseBody.includes('DeviceTokenNotForTopic'))
+    ) {
+      return true
+    }
+  }
+
+  if (result.provider === 'web_push') {
+    if (result.status === 404 || result.status === 410) return true
+  }
+
+  return false
+}
+
+export async function pruneStalePushToken(token: string): Promise<boolean> {
+  try {
+    const deleted = await db
+      .delete(userPushDevices)
+      .where(eq(userPushDevices.token, token))
+      .returning({ id: userPushDevices.id })
+
+    return deleted.length > 0
+  } catch (error) {
+    console.error(`[push-delivery] Failed to prune stale token "${previewToken(token)}":`, error)
+    return false
+  }
+}
+
 export async function sendPushToDevice(args: {
   tokenType: 'fcm' | 'apns' | 'web_push'
   token: string
@@ -631,7 +687,8 @@ export async function sendPushToDevice(args: {
   path: string
   query: string
   context?: PushLogContext
-}) {
+  pruneStale?: boolean
+}): Promise<PushDeliveryResult & { stalePruned?: boolean }> {
   const payload: PushPayload = {
     token: args.token,
     title: args.title,
@@ -640,19 +697,20 @@ export async function sendPushToDevice(args: {
     query: args.query,
   }
 
+  let result: PushDeliveryResult
   if (args.tokenType === 'fcm') {
-    const result = await sendFcmPush(payload)
-    logPushDelivery(result, payload, args.context)
-    return result
+    result = await sendFcmPush(payload)
+  } else if (args.tokenType === 'apns') {
+    result = await sendApnsPush(payload)
+  } else {
+    result = await sendWebPush(payload)
   }
 
-  if (args.tokenType === 'apns') {
-    const result = await sendApnsPush(payload)
-    logPushDelivery(result, payload, args.context)
-    return result
+  let stalePruned = false
+  if (!result.ok && args.pruneStale !== false && isStalePushToken(result)) {
+    stalePruned = await pruneStalePushToken(payload.token)
   }
 
-  const result = await sendWebPush(payload)
-  logPushDelivery(result, payload, args.context)
-  return result
+  logPushDelivery(result, payload, args.context, stalePruned)
+  return { ...result, stalePruned }
 }

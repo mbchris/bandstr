@@ -772,6 +772,7 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
   let attempted = 0
   let delivered = 0
   let failed = 0
+  let pruned = 0
   for (const row of devices.rows) {
     const tokenType = row.token_type === 'apns' ? 'apns' : 'fcm'
     if (!dryRun) {
@@ -787,16 +788,21 @@ async function sendBandPush(options: Record<string, string | boolean>): Promise<
           userId: row.user_id,
         },
       })
-      if (result.ok) delivered += 1
-      else failed += 1
+      if (result.ok) {
+        delivered += 1
+      } else {
+        failed += 1
+        if (result.stalePruned) pruned += 1
+      }
     } else {
       delivered += 1
     }
     attempted += 1
   }
 
+  const prunedLabel = pruned > 0 ? ` (pruned ${pruned} stale)` : ''
   console.log(
-    `Push ${dryRun ? 'simulated' : 'completed'}: bandId=${bandId} bandName="${band.name}" attempted=${attempted} delivered=${delivered} failed=${failed} path=${path} query="${query}"${platformLabel}`,
+    `Push ${dryRun ? 'simulated' : 'completed'}: bandId=${bandId} bandName="${band.name}" attempted=${attempted} delivered=${delivered} failed=${failed}${prunedLabel} path=${path} query="${query}"${platformLabel}`,
   )
 }
 
