@@ -20,19 +20,31 @@ const dateInputSchema = z
   ])
   .transform((value) => new Date(value).toISOString())
 
+const eventTypeSchema = z.enum(['rehearsal', 'gig', 'event', 'unavailability'])
+
 const eventBodySchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
   startTime: dateInputSchema,
   endTime: dateInputSchema,
-  type: z.enum(['rehearsal', 'gig', 'event', 'unavailability']).default('rehearsal'),
+  type: eventTypeSchema.default('rehearsal'),
   userId: z.string().optional().nullable(),
   bierwartOverrideId: z.string().optional().nullable(),
   isTentative: z.boolean().default(false),
+  gigSetlistId: z.number().int().positive().optional().nullable(),
 })
 
-const updateEventBodySchema = eventBodySchema.partial().extend({
+const updateEventBodySchema = z.object({
   id: z.number().optional(),
+  title: z.string().min(1).optional(),
+  description: z.string().optional().nullable(),
+  startTime: dateInputSchema.optional(),
+  endTime: dateInputSchema.optional(),
+  type: eventTypeSchema.optional(),
+  userId: z.string().optional().nullable(),
+  bierwartOverrideId: z.string().optional().nullable(),
+  isTentative: z.boolean().optional(),
+  gigSetlistId: z.number().int().positive().optional().nullable(),
 })
 
 // GET /calendar

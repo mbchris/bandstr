@@ -14,6 +14,7 @@
 - **UI**: Make band logo clickable to return to home page.
 - **Calendar**: Show unavailabilities on start page and rehearsal detail page.
 - **Voting**: Swipe to accept song (send to setlist, green edge) or archive (red edge) (#25).
+- **Calendar/Setlist**: Calendar to Setlist link and selection: Gig entries always have a Gig Setlist, autocomplete selection in calendar and setlist views, invalid links removed (#26).
 # Acceptance criteria for new requirements
 
 ## TASK-0201: Foundation - Editable User List in Admin
@@ -229,6 +230,16 @@
   - [x] Swiping song left moves the song to archive with toast notification.
   - [x] In the Archive tab, swiping right reactivates the song to active voting with `unarchive` icon.
   - [x] Limits on the free tier for master setlist are respected when swiping to accept.
+
+## TASK-0225: Calendar to Setlist Link & Autocomplete Selection (#26)
+- **Status:** done
+- **Labels:** feature, frontend, backend, calendar, setlist
+- **Acceptance Criteria:**
+  - [x] Calendar entry of type "Gig" shall always have a Gig Setlist (automatic creation by default unless existing selected).
+  - [x] Selecting a gig setlist in the calendar entry dialog shall be from an autocomplete text box instead of a simple drop-down menu.
+  - [x] Setlist can be changed or switched when editing a calendar entry.
+  - [x] In the "Gig Setlist" view, invalid links pointing to calendar entries that no longer exist or are not gigs are removed.
+  - [x] Selecting a calendar entry in the "Gig Setlist" view shall be from an autocomplete text box instead of a simple drop-down menu.
 
 # Sample Acceptance Criteria (use this for reference)
 

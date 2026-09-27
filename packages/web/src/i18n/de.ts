@@ -204,6 +204,9 @@ export default {
     tableDate: 'Datum',
     tableRehearsal: 'Probe',
     tableStatus: 'Status',
+    gigSetlistLabel: 'Gig-Setliste',
+    newGigSetlist: 'Neue Gig-Setliste (Standard)',
+    openSetlist: 'Setliste öffnen',
   },
 
   // Voting page

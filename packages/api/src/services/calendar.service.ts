@@ -1,6 +1,6 @@
 import { and, eq, gte, lte } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { calendarEvents, rehearsalAttendance, users } from '../db/schema/index.js'
+import { calendarEvents, rehearsalAttendance, users, gigSetlists } from '../db/schema/index.js'
 import { queueBandNotification } from '../lib/notifications.js'
 
 export async function syncAbsenceAttendance(params: {
@@ -63,6 +63,7 @@ export type CreateCalendarEventInput = {
   userId?: string | null
   bierwartOverrideId?: string | null
   isTentative?: boolean
+  gigSetlistId?: number | null
 }
 
 export type UpdateCalendarEventInput = Partial<CreateCalendarEventInput> & { id?: number }
@@ -81,9 +82,18 @@ export const calendarService = {
         bierwartOverrideId: calendarEvents.bierwartOverrideId,
         isTentative: calendarEvents.isTentative,
         ownerName: users.name,
+        gigSetlistId: gigSetlists.id,
+        gigSetlistTitle: gigSetlists.title,
       })
       .from(calendarEvents)
       .leftJoin(users, eq(calendarEvents.userId, users.id))
+      .leftJoin(
+        gigSetlists,
+        and(
+          eq(calendarEvents.id, gigSetlists.calendarEventId),
+          eq(calendarEvents.bandId, gigSetlists.bandId),
+        ),
+      )
       .where(eq(calendarEvents.bandId, bandId))
   },
 
@@ -100,9 +110,18 @@ export const calendarService = {
         bierwartOverrideId: calendarEvents.bierwartOverrideId,
         isTentative: calendarEvents.isTentative,
         ownerName: users.name,
+        gigSetlistId: gigSetlists.id,
+        gigSetlistTitle: gigSetlists.title,
       })
       .from(calendarEvents)
       .leftJoin(users, eq(calendarEvents.userId, users.id))
+      .leftJoin(
+        gigSetlists,
+        and(
+          eq(calendarEvents.id, gigSetlists.calendarEventId),
+          eq(calendarEvents.bandId, gigSetlists.bandId),
+        ),
+      )
       .where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
       .limit(1)
 
@@ -139,6 +158,62 @@ export const calendarService = {
     }
 
     if (data.type === 'gig') {
+      if (typeof data.gigSetlistId === 'number' && data.gigSetlistId > 0) {
+        // Link to existing gig setlist
+        const [targetGig] = await db
+          .select()
+          .from(gigSetlists)
+          .where(and(eq(gigSetlists.id, data.gigSetlistId), eq(gigSetlists.bandId, bandId)))
+          .limit(1)
+
+        if (targetGig) {
+          // If target gig setlist was linked to another calendar event, ensure that other event still has a gig setlist
+          const otherEventId = targetGig.calendarEventId
+          if (otherEventId && otherEventId !== created.id) {
+            const [otherEvent] = await db
+              .select()
+              .from(calendarEvents)
+              .where(and(eq(calendarEvents.id, otherEventId), eq(calendarEvents.bandId, bandId), eq(calendarEvents.type, 'gig')))
+              .limit(1)
+            if (otherEvent) {
+              await db.insert(gigSetlists).values({
+                bandId,
+                title: otherEvent.title,
+                calendarEventId: otherEvent.id,
+                gigDate: otherEvent.startTime ? new Date(otherEvent.startTime).toISOString().slice(0, 10) : null,
+                gigTime: otherEvent.startTime ? new Date(otherEvent.startTime).toISOString().slice(11, 16) : null,
+                notes: otherEvent.description ?? null,
+              })
+            }
+          }
+
+          await db
+            .update(gigSetlists)
+            .set({ calendarEventId: created.id })
+            .where(and(eq(gigSetlists.id, targetGig.id), eq(gigSetlists.bandId, bandId)))
+        } else {
+          // Target setlist not found, create new one
+          await db.insert(gigSetlists).values({
+            bandId,
+            title: created.title,
+            calendarEventId: created.id,
+            gigDate: data.startTime ? new Date(data.startTime).toISOString().slice(0, 10) : null,
+            gigTime: data.startTime ? new Date(data.startTime).toISOString().slice(11, 16) : null,
+            notes: created.description ?? null,
+          })
+        }
+      } else {
+        // By default, create a new gig setlist for the "Gig" entry
+        await db.insert(gigSetlists).values({
+          bandId,
+          title: created.title,
+          calendarEventId: created.id,
+          gigDate: data.startTime ? new Date(data.startTime).toISOString().slice(0, 10) : null,
+          gigTime: data.startTime ? new Date(data.startTime).toISOString().slice(11, 16) : null,
+          notes: created.description ?? null,
+        })
+      }
+
       await queueBandNotification({
         bandId,
         actorUserId: actor.id,
@@ -211,6 +286,98 @@ export const calendarService = {
       await syncAbsenceAttendance({ bandId, userId: nextUserId, startTime, endTime })
     }
 
+    // Gig setlist link handling
+    if (existing.type === 'gig' && eventType !== 'gig') {
+      // Type changed away from gig: unlink any gig setlist
+      await db
+        .update(gigSetlists)
+        .set({ calendarEventId: null })
+        .where(and(eq(gigSetlists.calendarEventId, id), eq(gigSetlists.bandId, bandId)))
+    } else if (eventType === 'gig') {
+      const eventTitle = updated?.title ?? existing.title
+      const currentlyLinked = await db
+        .select()
+        .from(gigSetlists)
+        .where(and(eq(gigSetlists.calendarEventId, id), eq(gigSetlists.bandId, bandId)))
+
+      if (data.gigSetlistId !== undefined) {
+        if (typeof data.gigSetlistId === 'number' && data.gigSetlistId > 0) {
+          const targetGigId = data.gigSetlistId
+          // Unlink previously linked gig setlists if different
+          for (const cur of currentlyLinked) {
+            if (cur.id !== targetGigId) {
+              await db
+                .update(gigSetlists)
+                .set({ calendarEventId: null })
+                .where(and(eq(gigSetlists.id, cur.id), eq(gigSetlists.bandId, bandId)))
+            }
+          }
+
+          // Link target gig setlist
+          const [targetGig] = await db
+            .select()
+            .from(gigSetlists)
+            .where(and(eq(gigSetlists.id, targetGigId), eq(gigSetlists.bandId, bandId)))
+            .limit(1)
+
+          if (targetGig) {
+            // If target gig setlist was linked to another gig event, give that other event a new setlist
+            const otherEventId = targetGig.calendarEventId
+            if (otherEventId && otherEventId !== id) {
+              const [otherEvent] = await db
+                .select()
+                .from(calendarEvents)
+                .where(and(eq(calendarEvents.id, otherEventId), eq(calendarEvents.bandId, bandId), eq(calendarEvents.type, 'gig')))
+                .limit(1)
+              if (otherEvent) {
+                await db.insert(gigSetlists).values({
+                  bandId,
+                  title: otherEvent.title,
+                  calendarEventId: otherEvent.id,
+                  gigDate: otherEvent.startTime ? new Date(otherEvent.startTime).toISOString().slice(0, 10) : null,
+                  gigTime: otherEvent.startTime ? new Date(otherEvent.startTime).toISOString().slice(11, 16) : null,
+                  notes: otherEvent.description ?? null,
+                })
+              }
+            }
+
+            await db
+              .update(gigSetlists)
+              .set({ calendarEventId: id })
+              .where(and(eq(gigSetlists.id, targetGig.id), eq(gigSetlists.bandId, bandId)))
+          }
+        } else {
+          // Explicitly null / 0: user requested new gig setlist
+          for (const cur of currentlyLinked) {
+            await db
+              .update(gigSetlists)
+              .set({ calendarEventId: null })
+              .where(and(eq(gigSetlists.id, cur.id), eq(gigSetlists.bandId, bandId)))
+          }
+          await db.insert(gigSetlists).values({
+            bandId,
+            title: eventTitle,
+            calendarEventId: id,
+            gigDate: startTime ? new Date(startTime).toISOString().slice(0, 10) : null,
+            gigTime: startTime ? new Date(startTime).toISOString().slice(11, 16) : null,
+            notes: data.description !== undefined ? data.description : existing.description ?? null,
+          })
+        }
+      } else {
+        // gigSetlistId not specified: ensure event has at least one gig setlist
+        if (currentlyLinked.length === 0) {
+          await db.insert(gigSetlists).values({
+            bandId,
+            title: eventTitle,
+            calendarEventId: id,
+            gigDate: startTime ? new Date(startTime).toISOString().slice(0, 10) : null,
+            gigTime: startTime ? new Date(startTime).toISOString().slice(11, 16) : null,
+            notes: data.description !== undefined ? data.description : existing.description ?? null,
+          })
+        }
+      }
+    }
+
     const eventTitle = updated?.title ?? existing.title
     if (eventType === 'gig') {
       await queueBandNotification({
@@ -276,6 +443,12 @@ export const calendarService = {
       .limit(1)
 
     if (!existing) return null
+
+    // Unlink any gig setlists before deleting
+    await db
+      .update(gigSetlists)
+      .set({ calendarEventId: null })
+      .where(and(eq(gigSetlists.calendarEventId, id), eq(gigSetlists.bandId, bandId)))
 
     await db.delete(calendarEvents).where(and(eq(calendarEvents.id, id), eq(calendarEvents.bandId, bandId)))
     return { success: true }

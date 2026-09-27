@@ -88,6 +88,21 @@ const calendarGigLinkOptions = computed(() => [
   }),
 ])
 
+const filteredCalendarGigLinkOptions = ref<Array<{ label: string; value: number | null }>>([])
+
+function filterCalendarGigOptions(val: string, update: (callback: () => void) => void) {
+  update(() => {
+    if (!val) {
+      filteredCalendarGigLinkOptions.value = calendarGigLinkOptions.value
+    } else {
+      const needle = val.toLowerCase()
+      filteredCalendarGigLinkOptions.value = calendarGigLinkOptions.value.filter((opt) =>
+        opt.label.toLowerCase().includes(needle),
+      )
+    }
+  })
+}
+
 // Active song list depends on gig selection
 const activeSongs = computed(() => {
   if (selectedGigId.value) return gigSongs.value
@@ -214,7 +229,24 @@ function getYouTubeId(url: string | null | undefined) {
 
 // Data fetching
 async function fetchGigs() {
-  try { gigs.value = await apiJson<GigSetlist[]>('/gigs') } catch { gigs.value = [] }
+  try {
+    const list = await apiJson<GigSetlist[]>('/gigs')
+    const validCalendarIds = new Set(calendarGigs.value.map((g) => g.id))
+    gigs.value = list.map((g) => {
+      if (g.calendarEventId && calendarGigs.value.length > 0 && !validCalendarIds.has(g.calendarEventId)) {
+        return {
+          ...g,
+          calendarEventId: null,
+          calendarEventTitle: null,
+          startTime: null,
+          endTime: null,
+        }
+      }
+      return g
+    })
+  } catch {
+    gigs.value = []
+  }
 }
 
 async function fetchCalendarGigs() {
@@ -228,6 +260,20 @@ async function fetchCalendarGigs() {
         const right = new Date(b.startTime).getTime()
         return left - right
       })
+
+    // Remove invalid calendar links if any remain
+    const validCalendarIds = new Set(calendarGigs.value.map((g) => g.id))
+    for (const g of gigs.value) {
+      if (g.calendarEventId && !validCalendarIds.has(g.calendarEventId)) {
+        g.calendarEventId = null
+        g.calendarEventTitle = null
+        g.startTime = null
+        g.endTime = null
+      }
+    }
+    if (selectedGigMeta.value?.calendarEventId && !validCalendarIds.has(selectedGigMeta.value.calendarEventId)) {
+      selectedGigMeta.value.calendarEventId = null
+    }
   } catch {
     calendarGigs.value = []
   }
@@ -1247,13 +1293,25 @@ onMounted(() => {
               <div class="col-12 col-md-4">
                 <q-select
                   v-model="selectedGigMeta.calendarEventId"
-                  :options="calendarGigLinkOptions"
+                  :options="filteredCalendarGigLinkOptions"
+                  use-input
+                  input-debounce="0"
+                  @filter="filterCalendarGigOptions"
                   emit-value
                   map-options
                   outlined
                   dense
+                  clearable
                   :label="t('setlist.linkCalendarGig')"
-                />
+                >
+                  <template #no-option>
+                    <q-item>
+                      <q-item-section class="text-grey">
+                        {{ t('common.noResults') }}
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
               </div>
               <div class="col-12 col-md-4">
                 <q-input v-model="selectedGigMeta.location" :label="t('setlist.location')" outlined dense />

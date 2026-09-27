@@ -6,6 +6,7 @@ import { useCalendarStore, type CalendarEvent } from '../stores/calendar'
 import { useBandStore } from '../stores/band'
 import { useAuthStore } from '../stores/auth'
 import { useI18n } from '../composables/useI18n'
+import { apiJson } from '../boot/api'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -14,6 +15,50 @@ const calendarStore = useCalendarStore()
 const bandStore = useBandStore()
 const authStore = useAuthStore()
 const { t, tv } = useI18n()
+
+type GigSetlistOption = {
+  id: number
+  title: string
+  calendarEventId?: number | null
+}
+
+const availableGigSetlists = ref<GigSetlistOption[]>([])
+
+async function fetchGigSetlists() {
+  try {
+    availableGigSetlists.value = await apiJson<GigSetlistOption[]>('/gigs')
+  } catch {
+    availableGigSetlists.value = []
+  }
+}
+
+const gigSetlistOptions = computed(() => [
+  { label: `➕ ${t('calendar.newGigSetlist')}`, value: null },
+  ...availableGigSetlists.value.map((g) => ({
+    label: g.title,
+    value: g.id,
+  })),
+])
+
+const filteredGigSetlistOptions = ref<Array<{ label: string; value: number | null }>>([])
+
+function filterGigSetlists(val: string, update: (callback: () => void) => void) {
+  update(() => {
+    if (!val) {
+      filteredGigSetlistOptions.value = gigSetlistOptions.value
+    } else {
+      const needle = val.toLowerCase()
+      filteredGigSetlistOptions.value = gigSetlistOptions.value.filter((opt) =>
+        opt.label.toLowerCase().includes(needle),
+      )
+    }
+  })
+}
+
+function goToGigSetlist(gigSetlistId: number) {
+  showEventModal.value = false
+  void router.push({ path: '/setlist', query: { list: `gig:${gigSetlistId}` } })
+}
 
 const dayHeaders = computed(() => (tv('calendar.days') as string[]) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 const typeOptions = computed(() => [
@@ -114,13 +159,24 @@ const form = ref({
   startTime: '',
   endTime: '',
   isTentative: false,
+  gigSetlistId: null as number | null,
 })
 
 function openModal(year: number, month: number, day: number) {
   editingEvent.value = null
   const start = new Date(year, month, day, 18, 0)
   const end = new Date(year, month, day, 20, 0)
-  form.value = { title: '', description: '', type: 'rehearsal', userId: null, startTime: toDatetimeLocal(start), endTime: toDatetimeLocal(end), isTentative: false }
+  form.value = {
+    title: '',
+    description: '',
+    type: 'rehearsal',
+    userId: null,
+    startTime: toDatetimeLocal(start),
+    endTime: toDatetimeLocal(end),
+    isTentative: false,
+    gigSetlistId: null,
+  }
+  void fetchGigSetlists()
   showEventModal.value = true
 }
 
@@ -134,7 +190,9 @@ function editEvent(event: CalendarEvent) {
     startTime: toDatetimeLocal(new Date(event.startTime)),
     endTime: toDatetimeLocal(new Date(event.endTime)),
     isTentative: event.isTentative || false,
+    gigSetlistId: event.gigSetlistId ?? null,
   }
+  void fetchGigSetlists()
   showEventModal.value = true
 }
 
@@ -143,6 +201,12 @@ watch(
   (type) => {
     if (type === 'unavailability' && !form.value.userId) {
       form.value.userId = authStore.user?.id ?? null
+    }
+    if (type === 'gig') {
+      void fetchGigSetlists()
+      if (editingEvent.value?.type === 'gig' && editingEvent.value.gigSetlistId) {
+        form.value.gigSetlistId = editingEvent.value.gigSetlistId
+      }
     }
   },
 )
@@ -154,12 +218,14 @@ async function saveEvent() {
       ...form.value,
       startTime: new Date(form.value.startTime).toISOString(),
       endTime: new Date(form.value.endTime).toISOString(),
+      gigSetlistId: form.value.type === 'gig' ? form.value.gigSetlistId : null,
     }
     if (editingEvent.value) {
       await calendarStore.updateEvent(editingEvent.value.id, payload as any)
     } else {
       await calendarStore.createEvent(payload as any)
     }
+    void fetchGigSetlists()
     showEventModal.value = false
   } catch { $q.notify({ message: t('calendar.failedSave'), color: 'negative' }) }
   finally { isSaving.value = false }
@@ -311,6 +377,7 @@ onMounted(() => {
     calendarStore.fetchEvents(),
     calendarStore.fetchRehearsalAttendance(),
     bandStore.fetchMembers(),
+    fetchGigSetlists(),
   ]).then(() => {
     openEventFromQuery()
   })
@@ -429,6 +496,41 @@ watch(
               :label="t('calendar.ownerLabel')"
               class="col"
             />
+          </div>
+
+          <div v-if="form.type === 'gig'" class="q-mt-sm">
+            <q-select
+              v-model="form.gigSetlistId"
+              :options="filteredGigSetlistOptions"
+              use-input
+              input-debounce="0"
+              @filter="filterGigSetlists"
+              emit-value
+              map-options
+              outlined
+              dense
+              clearable
+              :label="t('calendar.gigSetlistLabel')"
+            >
+              <template #no-option>
+                <q-item>
+                  <q-item-section class="text-grey">
+                    {{ t('common.noResults') }}
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
+            <div v-if="editingEvent && editingEvent.type === 'gig' && editingEvent.gigSetlistId" class="row justify-end q-mt-xs">
+              <q-btn
+                flat
+                dense
+                size="sm"
+                color="primary"
+                icon="queue_music"
+                :label="t('calendar.openSetlist')"
+                @click="goToGigSetlist(editingEvent.gigSetlistId)"
+              />
+            </div>
           </div>
 
           <div class="row q-gutter-sm">

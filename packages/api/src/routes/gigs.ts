@@ -65,6 +65,21 @@ async function getCalendarGigForBandOrNull(bandId: number, calendarEventId: numb
 // GET /gigs
 gigs.get('/', async (c) => {
   const bandId = c.get('bandId')
+
+  // Clean up invalid links where calendar event no longer exists or is not of type 'gig'
+  await db.execute(sql`
+    UPDATE "gig_setlists"
+    SET "calendar_event_id" = NULL
+    WHERE "band_id" = ${bandId}
+      AND "calendar_event_id" IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "calendar_events" ce
+        WHERE ce."id" = "gig_setlists"."calendar_event_id"
+          AND ce."band_id" = ${bandId}
+          AND ce."type" = 'gig'
+      )
+  `)
+
   const rows = await db
     .select({
       id: gigSetlists.id,
@@ -87,6 +102,7 @@ gigs.get('/', async (c) => {
       and(
         eq(gigSetlists.calendarEventId, calendarEvents.id),
         eq(calendarEvents.bandId, bandId),
+        eq(calendarEvents.type, 'gig'),
       ),
     )
     .where(eq(gigSetlists.bandId, bandId))

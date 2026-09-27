@@ -16,6 +16,8 @@ export type CalendarEvent = {
   bierwartOverrideId?: string | null
   isTentative: boolean
   ownerName?: string | null
+  gigSetlistId?: number | null
+  gigSetlistTitle?: string | null
 }
 
 export type RehearsalMemberAttendance = {
