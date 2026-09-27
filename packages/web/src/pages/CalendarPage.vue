@@ -726,7 +726,7 @@ watch(
                 <template v-if="event.endTime"> — {{ formatTime(event.endTime) }}</template>
               </q-item-label>
               <q-item-label
-                v-if="event.type === 'gig' && (event.gigSetlistTitle || event.gigSetlistId)"
+                v-if="event.type === 'gig' && resolveGigSetlistTitle(event)"
                 caption
                 class="text-primary row items-center q-mt-xs"
               >

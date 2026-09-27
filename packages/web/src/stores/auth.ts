@@ -190,12 +190,12 @@ export const useAuthStore = defineStore('auth', () => {
     defaultGigStartTime?: string
     defaultGigEndTime?: string
   }) {
-    const currentBand = bands.value.find((b) => b.id === activeBandId.value)
-    if (currentBand) {
-      if (payload.defaultRehearsalStartTime !== undefined) currentBand.defaultRehearsalStartTime = payload.defaultRehearsalStartTime
-      if (payload.defaultRehearsalEndTime !== undefined) currentBand.defaultRehearsalEndTime = payload.defaultRehearsalEndTime
-      if (payload.defaultGigStartTime !== undefined) currentBand.defaultGigStartTime = payload.defaultGigStartTime
-      if (payload.defaultGigEndTime !== undefined) currentBand.defaultGigEndTime = payload.defaultGigEndTime
+    const idx = bands.value.findIndex((b) => b.id === activeBandId.value)
+    if (idx !== -1) {
+      bands.value[idx] = {
+        ...bands.value[idx],
+        ...payload,
+      }
     }
   }
 

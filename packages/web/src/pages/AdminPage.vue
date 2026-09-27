@@ -403,7 +403,7 @@ watch(
       if (band.defaultGigEndTime) defaultGigEndTime.value = band.defaultGigEndTime
     }
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
 
 async function saveEventTimeDefaults() {
@@ -431,8 +431,9 @@ async function saveEventTimeDefaults() {
       defaultGigEndTime: updated.defaultGigEndTime ?? defaultGigEndTime.value,
     })
     $q.notify({ message: t('admin.defaultsSaved'), color: 'positive' })
-  } catch (e: any) {
-    $q.notify({ message: e.message || t('admin.failedSaveDefaults'), color: 'negative' })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : (typeof e === 'string' ? e : t('admin.failedSaveDefaults'))
+    $q.notify({ message: message || t('admin.failedSaveDefaults'), color: 'negative' })
   } finally {
     isSavingDefaults.value = false
   }
@@ -441,7 +442,13 @@ async function saveEventTimeDefaults() {
 onMounted(async () => {
   bandStore.fetchMembers()
   fetchStatus()
-  await authStore.fetchActiveBandDetails()
+  const freshBand = await authStore.fetchActiveBandDetails()
+  if (freshBand) {
+    if (freshBand.defaultRehearsalStartTime) defaultRehearsalStartTime.value = freshBand.defaultRehearsalStartTime
+    if (freshBand.defaultRehearsalEndTime) defaultRehearsalEndTime.value = freshBand.defaultRehearsalEndTime
+    if (freshBand.defaultGigStartTime) defaultGigStartTime.value = freshBand.defaultGigStartTime
+    if (freshBand.defaultGigEndTime) defaultGigEndTime.value = freshBand.defaultGigEndTime
+  }
 })
 </script>
 
