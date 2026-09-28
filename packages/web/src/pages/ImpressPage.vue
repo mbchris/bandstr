@@ -42,11 +42,11 @@ E-Mail: contact@4ki.app
 
 **Umsatzsteuer-ID**
 Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:
-beantragt
+DE461308447
 
 **Wirtschafts-ID**
 Wirtschaftsidentifikationsnummer gemäß § 139 c Abgabenordnung:
-beantragt
+DE445986113
 
 **Redaktionell Verantwortlicher**
 Christian Schneider und Christian Müllerschön
