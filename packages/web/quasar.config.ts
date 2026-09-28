@@ -107,11 +107,11 @@ export default configure(function (/* ctx */) {
       fix: true,
     },
 
-    boot: ['pinia', 'deeplink', 'auth', 'api', 'push', 'i18n'],
+    boot: ['pinia', 'deeplink', 'auth', 'api', 'push', 'i18n', 'platform'],
 
     css: ['app.scss'],
 
-    extras: ['material-icons'],
+    extras: ['material-icons', 'ionicons-v4'],
 
     build: {
       target: {
