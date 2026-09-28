@@ -1503,37 +1503,30 @@ onMounted(() => {
               />
             </div>
             <div :class="{ 'col-12 col-sm-auto': !selectedGigId && selectedSetlistMode === 'master', 'col-12': selectedGigId || selectedSetlistMode !== 'master' }">
-              <q-select
-                v-model="selectedListOption"
-                :options="filteredListOptions"
-                use-input
-                input-debounce="0"
-                @filter="filterListOptions"
-                emit-value
-                map-options
-                dense
-                outlined
-                class="setlist-select"
-                style="min-width: 220px"
-              >
-                <template #option="scope">
-                  <q-item v-bind="scope.itemProps" :class="{ 'text-primary text-weight-medium': scope.opt.value === 'new_gig' }">
-                    <q-item-section v-if="scope.opt.value === 'new_gig'" avatar style="min-width: 28px; padding-right: 8px">
-                      <q-icon name="add" color="primary" size="xs" />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label>{{ scope.opt.label }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </template>
-                <template #no-option>
-                  <q-item>
-                    <q-item-section class="text-grey">
-                      {{ t('common.noResults') }}
-                    </q-item-section>
-                  </q-item>
-                </template>
-              </q-select>
+              <div class="gig-chip-bar">
+                <q-chip
+                  v-for="opt in listOptions.filter((o) => o.value !== 'new_gig')"
+                  :key="opt.value"
+                  :selected="selectedListOption === opt.value"
+                  clickable
+                  color="primary"
+                  text-color="white"
+                  :outline="selectedListOption !== opt.value"
+                  @click="selectedListOption = opt.value"
+                >
+                  {{ opt.label }}
+                </q-chip>
+                <q-chip
+                  clickable
+                  icon="add"
+                  color="positive"
+                  text-color="white"
+                  outline
+                  @click="selectedListOption = 'new_gig'"
+                >
+                  {{ t('setlist.newGigSetlist') }}
+                </q-chip>
+              </div>
             </div>
           </div>
 
@@ -2665,6 +2658,19 @@ onMounted(() => {
   }
   .no-print {
     display: none !important;
+  }
+}
+
+.gig-chip-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 4px;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 

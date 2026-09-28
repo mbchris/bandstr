@@ -7,8 +7,8 @@ describe('Setlist Filter Layout & Sizing', () => {
   const content = fs.readFileSync(pagePath, 'utf-8')
 
   it('places search filter on the line below next to filter tags', () => {
-    // Top row contains SegmentedControl and setlist-select
-    expect(content).toMatch(/<div class="row q-col-gutter-sm q-mb-md items-center justify-between">[\s\S]*?<SegmentedControl[\s\S]*?<q-select[\s\S]*?class="setlist-select"/)
+    // Top row contains SegmentedControl and gig-chip-bar
+    expect(content).toMatch(/<div class="row q-col-gutter-sm q-mb-md items-center justify-between">[\s\S]*?<SegmentedControl[\s\S]*?<div class="gig-chip-bar"/)
 
     // Lower row contains search query and filter tags side by side
     const lowerRowMatch = content.match(/<div class="row q-col-gutter-sm q-mb-md items-center">([\s\S]*?)<\/div>\s*<div v-if="selectedGigId && selectedGigMeta"/)
