@@ -26,6 +26,7 @@ function goToHome() {
 const searchQuery = ref('')
 const selectedTagFilters = ref<string[]>([])
 const draggingIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
 const selectedSetlistMode = ref<'master' | 'user'>('master')
 const selectedListOption = ref<string>('master')
 
@@ -561,22 +562,75 @@ function onDragStart(index: number, event: DragEvent) {
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.dropEffect = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
   }
 }
 
-async function onDrop(index: number) {
+function onDragOver(index: number, event: DragEvent) {
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  event.preventDefault()
+  if (draggingIndex.value !== null && draggingIndex.value !== index) {
+    dragOverIndex.value = index
+  }
+}
+
+function onDragLeave(index: number) {
+  if (dragOverIndex.value === index) {
+    dragOverIndex.value = null
+  }
+}
+
+async function onDrop(index: number, event?: DragEvent) {
+  if (event) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  dragOverIndex.value = null
   if (searchQuery.value) return
   if (!selectedGigId.value && selectedSetlistMode.value === 'master' && currentTab.value === 'archived') return
-  if (draggingIndex.value === null || draggingIndex.value === index) return
-  const items = [...filteredSongs.value]
-  const [moved] = items.splice(draggingIndex.value, 1)
-  items.splice(index, 0, moved)
+  const fromIndex = draggingIndex.value ?? (event?.dataTransfer ? Number(event.dataTransfer.getData('text/plain')) : null)
   draggingIndex.value = null
+  if (fromIndex === null || isNaN(fromIndex) || fromIndex === index) return
+  const items = [...filteredSongs.value]
+  const [moved] = items.splice(fromIndex, 1)
+  if (!moved) return
+  items.splice(index, 0, moved)
   await reorderItems(items)
 }
 
 function onDragEnd() {
   draggingIndex.value = null
+  dragOverIndex.value = null
+}
+
+function onTouchHandleStart(index: number, _event: TouchEvent) {
+  if (searchQuery.value) return
+  if (!selectedGigId.value && selectedSetlistMode.value === 'master' && currentTab.value === 'archived') return
+  draggingIndex.value = index
+}
+
+function onTouchHandleMove(event: TouchEvent) {
+  if (draggingIndex.value === null) return
+  const touch = event.touches[0]
+  if (!touch) return
+  const element = document.elementFromPoint(touch.clientX, touch.clientY)
+  const slideItem = element?.closest('[data-song-index]') as HTMLElement | null
+  if (slideItem && slideItem.dataset.songIndex !== undefined) {
+    const targetIdx = Number(slideItem.dataset.songIndex)
+    if (!isNaN(targetIdx) && targetIdx !== draggingIndex.value) {
+      dragOverIndex.value = targetIdx
+    }
+  }
+}
+
+async function onTouchHandleEnd() {
+  if (draggingIndex.value !== null && dragOverIndex.value !== null && draggingIndex.value !== dragOverIndex.value) {
+    await onDrop(dragOverIndex.value)
+  }
+  draggingIndex.value = null
+  dragOverIndex.value = null
 }
 
 async function moveItem(index: number, direction: -1 | 1) {
@@ -1581,15 +1635,21 @@ onMounted(() => {
             <q-slide-item
               v-for="(item, index) in filteredSongs"
               :key="getItemKey(item)"
+              :data-song-index="index"
               class="setlist-slide-item"
               :class="{
                 'set-divider-slide': item.type === 'set',
                 'encore-divider-slide': item.type === 'encore',
+                'dragging-item': draggingIndex === index,
+                'drag-over-item': dragOverIndex === index && draggingIndex !== index,
               }"
               :left-color="currentTab === 'archived' ? 'positive' : 'primary'"
               right-color="negative"
               @left="({ reset }) => onSwipeRight(item, reset)"
               @right="({ reset }) => onSwipeLeft(item, reset)"
+              @dragover.prevent="onDragOver(index, $event)"
+              @dragleave="onDragLeave(index)"
+              @drop.prevent="onDrop(index, $event)"
             >
               <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'" #left>
                 <div class="row items-center q-gutter-xs">
@@ -1612,8 +1672,9 @@ onMounted(() => {
                 }"
                 :draggable="(!selectedGigId && selectedSetlistMode === 'master' ? currentTab === 'active' : true) && !searchQuery"
                 @dragstart="onDragStart(index, $event)"
-                @dragover.prevent
-                @drop="onDrop(index)"
+                @dragover.prevent="onDragOver(index, $event)"
+                @dragleave="onDragLeave(index)"
+                @drop.prevent="onDrop(index, $event)"
                 @dragend="onDragEnd"
               >
                 <!-- Reorder + Pin -->
@@ -1624,7 +1685,12 @@ onMounted(() => {
                       :name="pIcon('drag_handle')"
                       size="sm"
                       color="grey-6"
-                      class="cursor-grab"
+                      class="cursor-grab drag-handle"
+                      draggable="true"
+                      @dragstart.stop="onDragStart(index, $event)"
+                      @touchstart.passive="onTouchHandleStart(index, $event)"
+                      @touchmove="onTouchHandleMove($event)"
+                      @touchend="onTouchHandleEnd"
                     />
                     <q-btn
                       v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
@@ -2378,9 +2444,24 @@ onMounted(() => {
 }
 
 .dragging-item {
-  opacity: 0.92;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35) inset;
-  background: rgba(59, 130, 246, 0.08);
+  opacity: 0.6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45) inset;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.drag-over-item {
+  border-top: 3px solid var(--q-primary) !important;
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.drag-handle {
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .pinned-lock-btn {
