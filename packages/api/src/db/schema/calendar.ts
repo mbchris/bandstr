@@ -98,6 +98,7 @@ export const gigSetlists = pgTable(
     gigTime: text('gig_time'),
     notes: text('notes'),
     calendarEventId: integer('calendar_event_id').references(() => calendarEvents.id, { onDelete: 'set null' }),
+    isArchived: boolean('is_archived').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [

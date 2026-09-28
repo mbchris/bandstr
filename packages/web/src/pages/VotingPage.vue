@@ -60,7 +60,7 @@ const atPoolLimit = computed(() => authStore.isFreePlan && poolSongCount.value >
 const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
 const currentUserId = computed(() => authStore.user?.id || '')
 
-const currentTab = ref<'active' | 'archived'>('active')
+const currentTab = ref<'active' | 'archived' | 'all'>('active')
 
 const activeSongsCount = computed(() =>
   songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && !s.isArchived).length,
@@ -70,9 +70,14 @@ const archivedSongsCount = computed(() =>
   songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && s.isArchived).length,
 )
 
+const allSongsCount = computed(() =>
+  songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist).length,
+)
+
 const votingTabOptions = computed(() => [
   { label: t('voting.activeTab'), value: 'active', badge: activeSongsCount.value, badgeColor: 'primary' },
   { label: t('voting.archiveTab'), value: 'archived', badge: archivedSongsCount.value, badgeColor: 'grey-7' },
+  { label: t('setlist.statusAll'), value: 'all', badge: allSongsCount.value, badgeColor: 'grey-5' },
 ])
 
 const totalMembersCount = computed(() => visibleMembers.value.length)
@@ -103,7 +108,9 @@ const rankMap = computed(() => {
 const filteredSongs = computed(() => {
   let list = songsStore.songs.filter((s) => {
     if (s.type === 'pause' || s.type === 'tuning' || s.isSetlist) return false
-    return currentTab.value === 'archived' ? !!s.isArchived : !s.isArchived
+    if (currentTab.value === 'archived') return !!s.isArchived
+    if (currentTab.value === 'active') return !s.isArchived
+    return true
   })
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
@@ -295,7 +302,7 @@ function onDragEnd() {
 }
 
 async function onSwipeRight(song: Song, reset: () => void) {
-  if (currentTab.value === 'archived') {
+  if (song.isArchived) {
     try {
       await songsStore.updateSong(song.id, { isArchived: false } as any)
       await songsStore.fetchSongs()
@@ -367,7 +374,7 @@ async function onSwipeRight(song: Song, reset: () => void) {
 }
 
 async function onSwipeLeft(song: Song, reset: () => void) {
-  if (currentTab.value !== 'active') {
+  if (song.isArchived) {
     reset()
     return
   }
@@ -661,11 +668,11 @@ watch(
             >
               <template #left>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon :name="currentTab === 'active' ? pIcon('done') : pIcon('replay')" size="28px" />
+                  <q-icon :name="song.isArchived ? pIcon('replay') : pIcon('done')" size="28px" />
                 </div>
               </template>
               <template #right>
-                <div v-if="currentTab === 'active'" class="row items-center q-gutter-xs">
+                <div v-if="!song.isArchived" class="row items-center q-gutter-xs">
                   <q-icon :name="pIcon('inventory_2')" size="28px" />
                 </div>
               </template>

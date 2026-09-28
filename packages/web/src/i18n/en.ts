@@ -404,6 +404,17 @@ export default {
     selectNone: 'Select None',
     addToGig: 'Add to Gig',
     emptyNote: 'Empty note',
+    tabRepertoire: 'Repertoire',
+    tabGigSetlists: 'Gig Setlists',
+    tabUserSetlist: 'My Setlist',
+    statusAll: 'All',
+    archiveGig: 'Archive gig',
+    unarchiveGig: 'Restore gig',
+    noGigs: 'No gig setlists',
+    gigArchivedNamed: '"{title}" archived',
+    gigRestoredNamed: '"{title}" restored',
+    untitledGig: 'Untitled gig',
+    backToGigs: 'Back to Gigs',
   },
 
   // Admin page

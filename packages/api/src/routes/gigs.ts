@@ -27,6 +27,7 @@ const gigSetlistBodySchema = z.object({
   gigDate: z.string().trim().max(50).nullable().optional(),
   gigTime: z.string().trim().max(50).nullable().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+  isArchived: z.boolean().optional(),
 })
 
 const addSongBodySchema = z.object({
@@ -90,6 +91,7 @@ gigs.get('/', async (c) => {
       gigTime: gigSetlists.gigTime,
       notes: gigSetlists.notes,
       calendarEventId: gigSetlists.calendarEventId,
+      isArchived: gigSetlists.isArchived,
       createdAt: gigSetlists.createdAt,
       calendarEventTitle: calendarEvents.title,
       startTime: calendarEvents.startTime,
@@ -141,15 +143,15 @@ gigs.post('/', zValidator('json', gigSetlistBodySchema), async (c) => {
   return c.json(row, 201)
 })
 
-// PUT /gigs/:id
-gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetlistBodySchema), async (c) => {
+// PUT /gigs/:id & PATCH /gigs/:id
+async function handleUpdateGig(c: any) {
   const bandId = c.get('bandId')
   const { id: gigId } = c.req.valid('param')
 
   const gig = await getGigSetlistForBandOrNull(bandId, gigId)
   if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
 
-  const { title, calendarEventId, location, gigDate, gigTime, notes } = c.req.valid('json')
+  const { title, calendarEventId, location, gigDate, gigTime, notes, isArchived } = c.req.valid('json')
 
   if (typeof calendarEventId === 'number') {
     const event = await getCalendarGigForBandOrNull(bandId, calendarEventId)
@@ -174,6 +176,7 @@ gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetli
   if (gigDate !== undefined) updatePayload.gigDate = gigDate
   if (gigTime !== undefined) updatePayload.gigTime = gigTime
   if (notes !== undefined) updatePayload.notes = notes
+  if (isArchived !== undefined) updatePayload.isArchived = isArchived
 
   const [updated] = await db
     .update(gigSetlists)
@@ -182,7 +185,10 @@ gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetli
     .returning()
 
   return c.json(updated)
-})
+}
+
+gigs.put('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetlistBodySchema), handleUpdateGig)
+gigs.patch('/:id', zValidator('param', idParamSchema), zValidator('json', gigSetlistBodySchema), handleUpdateGig)
 
 // POST /gigs/:id/duplicate
 gigs.post('/:id/duplicate', zValidator('param', idParamSchema), async (c) => {

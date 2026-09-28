@@ -6,12 +6,13 @@ describe('Setlist Filter Layout & Sizing', () => {
   const pagePath = path.resolve(__dirname, '../src/pages/SetlistPage.vue')
   const content = fs.readFileSync(pagePath, 'utf-8')
 
-  it('places search filter on the line below next to filter tags', () => {
-    // Top row contains SegmentedControl and gig-chip-bar
-    expect(content).toMatch(/<div class="row q-col-gutter-sm q-mb-md items-center justify-between">[\s\S]*?<SegmentedControl[\s\S]*?<div class="gig-chip-bar"/)
+  it('places three fixed tabs and universal status filter above search query and filter tags', () => {
+    // Top layout contains q-tabs with activeTab and universal SegmentedControl
+    expect(content).toContain('v-model="activeTab"')
+    expect(content).toContain('v-model="statusFilter"')
 
     // Lower row contains search query and filter tags side by side
-    const lowerRowMatch = content.match(/<div class="row q-col-gutter-sm q-mb-md items-center">([\s\S]*?)<\/div>\s*<div v-if="selectedGigId && selectedGigMeta"/)
+    const lowerRowMatch = content.match(/<div class="row q-col-gutter-sm q-mb-md items-center">([\s\S]*?)<\/div>\s*<!-- Vertical Gig List/)
     expect(lowerRowMatch).not.toBeNull()
     const lowerRowContent = lowerRowMatch![1]
 

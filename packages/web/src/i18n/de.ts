@@ -405,6 +405,17 @@ export default {
     selectNone: 'Keine auswählen',
     addToGig: 'Zum Gig hinzufügen',
     emptyNote: 'Leere Notiz',
+    tabRepertoire: 'Repertoire',
+    tabGigSetlists: 'Auftritts-Setlists',
+    tabUserSetlist: 'Meine Setlist',
+    statusAll: 'Alle',
+    archiveGig: 'Auftritt archivieren',
+    unarchiveGig: 'Auftritt wiederherstellen',
+    noGigs: 'Keine Auftritts-Setlists',
+    gigArchivedNamed: '"{title}" archiviert',
+    gigRestoredNamed: '"{title}" wiederhergestellt',
+    untitledGig: 'Unbenannter Auftritt',
+    backToGigs: 'Zurück zu Auftritten',
   },
 
   // Admin page

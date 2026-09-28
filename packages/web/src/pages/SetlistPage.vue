@@ -43,6 +43,7 @@ type GigSetlist = {
   startTime?: string | null
   endTime?: string | null
   isTentative?: boolean | null
+  isArchived?: boolean
 }
 
 type CalendarGigOption = {
@@ -61,6 +62,11 @@ type EditableGigMeta = {
   notes: string
 }
 
+// Top-level Navigation & Filtering
+const activeTab = ref<'repertoire' | 'gig' | 'user'>('repertoire')
+const statusFilter = ref<'active' | 'archived' | 'all'>('active')
+const currentTab = statusFilter
+
 // Gig selection
 const selectedGigId = ref<number | null>(null)
 const gigs = ref<GigSetlist[]>([])
@@ -70,6 +76,21 @@ const gigMetaExpanded = ref(false)
 const gigSongs = ref<Song[]>([])
 const userSetlistSongs = ref<Song[]>([])
 const personalNotes = ref<any[]>([])
+
+watch(activeTab, (tab) => {
+  if (tab === 'repertoire') {
+    selectedListOption.value = 'master'
+    selectedGigId.value = null
+    selectedSetlistMode.value = 'master'
+  } else if (tab === 'user') {
+    selectedListOption.value = 'user'
+    selectedGigId.value = null
+    selectedSetlistMode.value = 'user'
+  } else if (tab === 'gig') {
+    selectedGigId.value = null
+    selectedSetlistMode.value = 'master'
+  }
+})
 
 const listOptions = computed(() => [
   { label: t('setlist.masterSetlist'), value: 'master' },
@@ -132,28 +153,124 @@ function filterCalendarGigOptions(val: string, update: (callback: () => void) =>
   })
 }
 
-const currentTab = ref<'active' | 'archived'>('active')
+const activeCount = computed(() => {
+  if (activeTab.value === 'gig') {
+    return gigs.value.filter((g) => !g.isArchived).length
+  }
+  if (activeTab.value === 'user') {
+    return userSetlistSongs.value.filter((s) => !s.isArchived).length
+  }
+  return songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && !s.isArchived).length
+})
 
-const activeSetlistSongsCount = computed(() =>
-  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && !s.isArchived).length,
-)
-const archivedSetlistSongsCount = computed(() =>
-  songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && s.isArchived).length,
-)
+const archivedCount = computed(() => {
+  if (activeTab.value === 'gig') {
+    return gigs.value.filter((g) => !!g.isArchived).length
+  }
+  if (activeTab.value === 'user') {
+    return userSetlistSongs.value.filter((s) => !!s.isArchived).length
+  }
+  return songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && s.isArchived).length
+})
+
+const allCount = computed(() => {
+  if (activeTab.value === 'gig') {
+    return gigs.value.length
+  }
+  if (activeTab.value === 'user') {
+    return userSetlistSongs.value.length
+  }
+  return songsStore.songs.filter((s) => s.isSetlist && s.type === 'song').length
+})
+
+const activeSetlistSongsCount = activeCount
+const archivedSetlistSongsCount = archivedCount
 
 const setlistTabOptions = computed(() => [
-  { label: t('setlist.activeTab'), value: 'active', badge: activeSetlistSongsCount.value, badgeColor: 'primary' },
-  { label: t('setlist.archiveTab'), value: 'archived', badge: archivedSetlistSongsCount.value, badgeColor: 'grey-7' },
+  { label: t('setlist.activeTab'), value: 'active', badge: activeCount.value, badgeColor: 'primary' },
+  { label: t('setlist.archiveTab'), value: 'archived', badge: archivedCount.value, badgeColor: 'grey-7' },
+  { label: t('setlist.statusAll'), value: 'all', badge: allCount.value, badgeColor: 'grey-5' },
 ])
 
-// Active song list depends on gig selection
+const filteredGigs = computed(() => {
+  let list = gigs.value
+  if (statusFilter.value === 'archived') {
+    list = list.filter((g) => !!g.isArchived)
+  } else if (statusFilter.value === 'active') {
+    list = list.filter((g) => !g.isArchived)
+  }
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(
+      (g) =>
+        (g.title || '').toLowerCase().includes(q) ||
+        (g.location || '').toLowerCase().includes(q) ||
+        (g.calendarEventTitle || '').toLowerCase().includes(q),
+    )
+  }
+  return list
+})
+
+function formatGigDate(gig: GigSetlist) {
+  if (gig.gigDate) return gig.gigDate
+  if (gig.startTime) {
+    try {
+      return new Date(gig.startTime).toISOString().split('T')[0]
+    } catch {}
+  }
+  return ''
+}
+
+async function toggleGigArchive(gig: GigSetlist, reset: () => void) {
+  try {
+    await apiJson(`/gigs/${gig.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isArchived: !gig.isArchived }),
+    })
+    await fetchGigs()
+    $q.notify({
+      message: gig.isArchived
+        ? t('setlist.gigRestoredNamed', { title: gig.title })
+        : t('setlist.gigArchivedNamed', { title: gig.title }),
+      color: 'positive',
+      timeout: 3000,
+    })
+  } catch {
+    $q.notify({ message: t('common.error'), color: 'negative' })
+  } finally {
+    reset()
+  }
+}
+
+function selectGig(gigId: number) {
+  selectedGigId.value = gigId
+  selectedListOption.value = `gig:${gigId}`
+}
+
+function backToGigList() {
+  selectedGigId.value = null
+  selectedListOption.value = 'master'
+}
+
+// Active song list depends on gig selection and activeTab
 const activeSongs = computed(() => {
-  if (selectedGigId.value) return gigSongs.value
-  if (selectedSetlistMode.value === 'user') return userSetlistSongs.value
+  if (activeTab.value === 'gig' && selectedGigId.value) return gigSongs.value
+  if (activeTab.value === 'user') {
+    let songs = userSetlistSongs.value
+    if (statusFilter.value === 'archived') {
+      return songs.filter((s) => !!s.isArchived)
+    } else if (statusFilter.value === 'active') {
+      return songs.filter((s) => !s.isArchived)
+    }
+    return songs
+  }
+  // Repertoire
   if (currentTab.value === 'archived') {
     return songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && s.isArchived)
+  } else if (currentTab.value === 'active') {
+    return songsStore.songs.filter((s) => s.isSetlist && (s.type !== 'song' || !s.isArchived))
   }
-  return songsStore.songs.filter((s) => s.isSetlist && (s.type !== 'song' || !s.isArchived))
+  return songsStore.songs.filter((s) => s.isSetlist)
 })
 
 const filteredSongs = computed(() => {
@@ -347,15 +464,16 @@ watch(selectedListOption, async (newVal, oldVal) => {
     return
   }
   selectedTagFilters.value = []
-  currentTab.value = 'active'
   if (newVal === 'user') {
     selectedSetlistMode.value = 'user'
     selectedGigId.value = null
+    activeTab.value = 'user'
     return
   }
   if (newVal === 'master') {
     selectedSetlistMode.value = 'master'
     selectedGigId.value = null
+    activeTab.value = 'repertoire'
     return
   }
 
@@ -363,6 +481,7 @@ watch(selectedListOption, async (newVal, oldVal) => {
     selectedSetlistMode.value = 'master'
     const id = Number(newVal.slice(4))
     selectedGigId.value = Number.isFinite(id) && id > 0 ? id : null
+    activeTab.value = 'gig'
     if (selectedGigId.value) fetchGigSongs(selectedGigId.value)
   }
 })
@@ -1459,14 +1578,28 @@ onMounted(() => {
     <div style="max-width: 1200px; margin: 0 auto">
       <q-card flat bordered>
         <q-card-section>
-          <div class="row items-center justify-between">
+          <div class="row items-center justify-between no-wrap">
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
-            <div class="row q-gutter-sm items-center">
-              <q-btn v-if="selectedSetlistMode === 'master' || selectedGigId" flat round icon="note_add" @click="openSpecialModal">
+            <div class="row q-gutter-sm items-center no-wrap">
+              <!-- Always present: -->
+              <q-btn flat round icon="print" @click="openPrintExportModal">
+                <q-tooltip>{{ t('setlist.printExport') }}</q-tooltip>
+              </q-btn>
+              <q-btn flat round icon="download" @click="handleExport">
+                <q-tooltip>{{ t('setlist.exportExcel') }}</q-tooltip>
+              </q-btn>
+              <!-- Conditional, appended: -->
+              <q-btn
+                v-if="activeTab === 'repertoire' || (activeTab === 'gig' && selectedGigId)"
+                flat
+                round
+                icon="note_add"
+                @click="openSpecialModal"
+              >
                 <q-tooltip>{{ t('setlist.addSetlistNote') }}</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="selectedSetlistMode === 'user' && !selectedGigId"
+                v-if="activeTab === 'user'"
                 flat
                 round
                 icon="add"
@@ -1474,37 +1607,51 @@ onMounted(() => {
               >
                 <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
               </q-btn>
-              <q-btn flat round icon="print" @click="openPrintExportModal">
-                <q-tooltip>{{ t('setlist.printExport') }}</q-tooltip>
-              </q-btn>
-              <q-btn flat round icon="download" @click="handleExport">
-                <q-tooltip>{{ t('setlist.exportExcel') }}</q-tooltip>
+              <q-btn
+                v-if="activeTab === 'gig' && selectedGigId"
+                flat
+                no-caps
+                color="primary"
+                icon="build"
+                :label="t('setlist.buildSetlist')"
+                class="q-px-sm text-weight-medium"
+                @click="openGigBuilder"
+              />
+              <q-btn
+                v-if="activeTab === 'gig' && !selectedGigId"
+                flat
+                round
+                color="primary"
+                icon="add"
+                @click="createGigSetlist()"
+              >
+                <q-tooltip>{{ t('setlist.newGigSetlist') }}</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="isIos && (selectedSetlistMode === 'master' || selectedGigId)"
+                v-if="isIos && activeTab === 'repertoire'"
                 flat
                 no-caps
                 color="primary"
                 :icon="pIcon('add')"
-                :label="selectedGigId ? t('setlist.buildSetlist') : t('common.add')"
+                :label="t('common.add')"
                 class="q-px-sm text-weight-medium"
-                :disable="!selectedGigId && atSetlistLimit"
+                :disable="atSetlistLimit"
                 @click="openAddSongModal"
               >
-                <q-tooltip v-if="!selectedGigId && atSetlistLimit">
+                <q-tooltip v-if="atSetlistLimit">
                   PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the repertoire
                 </q-tooltip>
               </q-btn>
               <q-btn
-                v-else-if="!isAndroid && (selectedSetlistMode === 'master' || selectedGigId)"
+                v-else-if="!isAndroid && activeTab === 'repertoire'"
                 round
-                :color="!selectedGigId && atSetlistLimit ? 'grey' : 'primary'"
+                :color="atSetlistLimit ? 'grey' : 'primary'"
                 icon="add"
                 class="round-add-btn"
-                :disable="!selectedGigId && atSetlistLimit"
+                :disable="atSetlistLimit"
                 @click="openAddSongModal"
               >
-                <q-tooltip v-if="!selectedGigId && atSetlistLimit">
+                <q-tooltip v-if="atSetlistLimit">
                   PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the repertoire
                 </q-tooltip>
               </q-btn>
@@ -1512,45 +1659,30 @@ onMounted(() => {
           </div>
         </q-card-section>
 
-        <q-card-section>
-          <div class="row q-col-gutter-sm q-mb-md items-center justify-between">
-            <div v-if="!selectedGigId && selectedSetlistMode === 'master'" class="col-12 col-sm-auto">
-              <SegmentedControl
-                v-if="!selectedGigId && selectedSetlistMode === 'master'"
-                v-model="currentTab"
-                :options="setlistTabOptions"
-              />
-            </div>
-            <div :class="{ 'col-12 col-sm-auto': !selectedGigId && selectedSetlistMode === 'master', 'col-12': selectedGigId || selectedSetlistMode !== 'master' }">
-              <div class="gig-chip-bar">
-                <q-chip
-                  v-for="opt in listOptions.filter((o) => o.value !== 'new_gig')"
-                  :key="opt.value"
-                  :selected="selectedListOption === opt.value"
-                  clickable
-                  color="primary"
-                  text-color="white"
-                  :outline="selectedListOption !== opt.value"
-                  @click="selectedListOption = opt.value"
-                >
-                  {{ opt.label }}
-                </q-chip>
-                <q-chip
-                  clickable
-                  icon="add"
-                  color="positive"
-                  text-color="white"
-                  outline
-                  @click="selectedListOption = 'new_gig'"
-                >
-                  {{ t('setlist.newGigSetlist') }}
-                </q-chip>
-              </div>
-            </div>
+        <q-card-section class="q-pt-none">
+          <q-tabs
+            v-model="activeTab"
+            dense
+            class="text-grey q-mb-md"
+            active-color="primary"
+            indicator-color="primary"
+            align="justify"
+            narrow-indicator
+          >
+            <q-tab name="repertoire" :label="t('setlist.tabRepertoire')" />
+            <q-tab name="gig" :label="t('setlist.tabGigSetlists')" />
+            <q-tab name="user" :label="t('setlist.tabUserSetlist')" />
+          </q-tabs>
+
+          <div class="row q-mb-md items-center">
+            <SegmentedControl
+              v-model="statusFilter"
+              :options="setlistTabOptions"
+            />
           </div>
 
           <div class="row q-col-gutter-sm q-mb-md items-center">
-            <div :class="(!selectedGigId && selectedSetlistMode === 'master') ? 'col-12 col-sm-6' : 'col-12'">
+            <div :class="activeTab === 'repertoire' ? 'col-12 col-sm-6' : 'col-12'">
               <q-input
                 v-model="searchQuery"
                 outlined
@@ -1561,7 +1693,7 @@ onMounted(() => {
                 <template #prepend><q-icon name="search" size="sm" /></template>
               </q-input>
             </div>
-            <div v-if="!selectedGigId && selectedSetlistMode === 'master'" class="col-12 col-sm-6">
+            <div v-if="activeTab === 'repertoire'" class="col-12 col-sm-6">
               <q-select
                 v-model="selectedTagFilters"
                 :options="availableTagOptions"
@@ -1576,6 +1708,62 @@ onMounted(() => {
               />
             </div>
           </div>
+
+          <!-- Vertical Gig List when in Gig tab and no gig is selected -->
+          <div v-if="activeTab === 'gig' && !selectedGigId">
+            <q-list v-if="filteredGigs.length" separator>
+              <q-slide-item
+                v-for="gig in filteredGigs"
+                :key="gig.id"
+                :left-color="gig.isArchived ? 'positive' : 'primary'"
+                @left="({ reset }) => toggleGigArchive(gig, reset)"
+              >
+                <template #left>
+                  <div class="row items-center q-gutter-xs">
+                    <q-icon :name="gig.isArchived ? pIcon('replay') : pIcon('inventory_2')" size="28px" />
+                  </div>
+                </template>
+                <q-item clickable @click="selectGig(gig.id)">
+                  <q-item-section>
+                    <q-item-label class="text-weight-bold">{{ gig.title || t('setlist.untitledGig') }}</q-item-label>
+                    <q-item-label caption>
+                      <span v-if="formatGigDate(gig)">{{ formatGigDate(gig) }}</span>
+                      <span v-if="gig.location"> · {{ gig.location }}</span>
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-icon name="chevron_right" />
+                  </q-item-section>
+                </q-item>
+              </q-slide-item>
+            </q-list>
+            <div v-else class="text-grey text-italic text-center q-pa-lg">
+              {{ t('setlist.noGigs') }}
+            </div>
+            <div class="row justify-center q-mt-md">
+              <q-btn
+                outline
+                color="primary"
+                icon="add"
+                :label="t('setlist.newGigSetlist')"
+                @click="createGigSetlist()"
+              />
+            </div>
+          </div>
+
+          <!-- Song list view (Repertoire, User Setlist, or Gig Setlist details) -->
+          <div v-else>
+            <!-- Back to gigs button if viewing a gig setlist -->
+            <div v-if="activeTab === 'gig' && selectedGigId" class="row items-center q-mb-sm">
+              <q-btn
+                flat
+                dense
+                icon="arrow_back"
+                color="primary"
+                :label="t('setlist.backToGigs')"
+                @click="backToGigList"
+              />
+            </div>
           <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md">
             <div class="row items-center q-gutter-xs cursor-pointer q-py-xs" @click="gigMetaExpanded = !gigMetaExpanded">
               <span class="text-weight-bold text-subtitle2">{{ selectedGigMeta.title }}</span>
@@ -1674,7 +1862,7 @@ onMounted(() => {
                 'dragging-item': draggingIndex === index,
                 'drag-over-item': dragOverIndex === index && draggingIndex !== index,
               }"
-              :left-color="currentTab === 'archived' ? 'positive' : 'primary'"
+              :left-color="item.isArchived ? 'positive' : 'primary'"
               right-color="negative"
               @left="({ reset }) => onSwipeRight(item, reset)"
               @right="({ reset }) => onSwipeLeft(item, reset)"
@@ -1684,10 +1872,10 @@ onMounted(() => {
             >
               <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'" #left>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon :name="currentTab === 'active' ? pIcon('thumb_up') : pIcon('replay')" size="28px" />
+                  <q-icon :name="item.isArchived ? pIcon('replay') : pIcon('thumb_up')" size="28px" />
                 </div>
               </template>
-              <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master' && currentTab === 'active'" #right>
+              <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master' && !item.isArchived" #right>
                 <div class="row items-center q-gutter-xs">
                   <q-icon :name="pIcon('inventory_2')" size="28px" />
                 </div>
@@ -1701,7 +1889,7 @@ onMounted(() => {
                   'encore-divider-item': item.type === 'encore',
                   'dragging-item': draggingIndex === index,
                 }"
-                :draggable="(!selectedGigId && selectedSetlistMode === 'master' ? currentTab === 'active' : true) && !searchQuery"
+                :draggable="(!selectedGigId && selectedSetlistMode === 'master' ? !item.isArchived : true) && !searchQuery"
                 @dragstart="onDragStart(index, $event)"
                 @dragover.prevent="onDragOver(index, $event)"
                 @dragleave="onDragLeave(index)"
@@ -1712,7 +1900,7 @@ onMounted(() => {
                 <q-item-section side>
                   <div class="column items-center q-gutter-xs">
                     <q-icon
-                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || !item.isArchived"
                       :name="pIcon('drag_handle')"
                       size="sm"
                       color="grey-6"
@@ -1724,7 +1912,7 @@ onMounted(() => {
                       @touchend="onTouchHandleEnd"
                     />
                     <q-btn
-                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || !item.isArchived"
                       flat
                       round
                       dense
@@ -1733,7 +1921,7 @@ onMounted(() => {
                       @click="moveItem(index, -1)"
                     />
                     <q-btn
-                      v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
+                      v-if="selectedGigId || selectedSetlistMode !== 'master' || !item.isArchived"
                       flat
                       round
                       dense
@@ -1967,6 +2155,7 @@ onMounted(() => {
             </q-card-section>
           </q-card>
         </q-expansion-item>
+          </div>
         </q-card-section>
       </q-card>
     </div>

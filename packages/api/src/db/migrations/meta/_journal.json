@@ -120,6 +120,13 @@
       "when": 1779000000000,
       "tag": "0017_vote_scale_and_event_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779100000000,
+      "tag": "0018_gig_archive",
+      "breakpoints": true
     }
   ]
 }
