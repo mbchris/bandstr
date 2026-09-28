@@ -7,6 +7,7 @@ import { useSongsStore, type Song } from '../stores/songs'
 import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { exportXlsx, isShareCancellation } from '../utils/export'
 import { getInitials } from '../utils/initials'
@@ -18,6 +19,7 @@ const bandStore = useBandStore()
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const { isIos, isAndroid, pIcon } = usePlatform()
 
 const searchQuery = ref('')
 const draggingIndex = ref<number | null>(null)
@@ -577,6 +579,22 @@ watch(
                 {{ poolSongCount }}/{{ FREE_POOL_LIMIT }}
               </span>
               <q-btn
+                v-if="isIos"
+                flat
+                no-caps
+                color="primary"
+                :icon="pIcon('add')"
+                :label="t('voting.suggestNew')"
+                class="q-px-sm text-weight-medium"
+                :disable="atPoolLimit"
+                @click="openAddModal"
+              >
+                <q-tooltip v-if="atPoolLimit">
+                  {{ t('voting.proPoolLimitTooltip', { limit: FREE_POOL_LIMIT }) }}
+                </q-tooltip>
+              </q-btn>
+              <q-btn
+                v-else-if="!isAndroid"
                 round
                 :color="atPoolLimit ? 'grey' : 'primary'"
                 icon="add"
@@ -890,6 +908,22 @@ watch(
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Android Floating Action Button (FAB) -->
+    <q-page-sticky
+      v-if="isAndroid"
+      position="bottom-right"
+      :offset="[18, 76]"
+      style="z-index: 1000"
+    >
+      <q-btn
+        fab
+        icon="add"
+        color="primary"
+        :disable="atPoolLimit"
+        @click="openAddModal"
+      />
+    </q-page-sticky>
   </q-page>
 </template>
 

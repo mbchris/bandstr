@@ -6,6 +6,7 @@ import { useCalendarStore, type CalendarEvent } from '../stores/calendar'
 import { useBandStore } from '../stores/band'
 import { useAuthStore } from '../stores/auth'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
 import { apiJson } from '../boot/api'
 
 const $q = useQuasar()
@@ -15,6 +16,7 @@ const calendarStore = useCalendarStore()
 const bandStore = useBandStore()
 const authStore = useAuthStore()
 const { t, tv } = useI18n()
+const { isIos, isAndroid, pIcon } = usePlatform()
 
 type GigSetlistOption = {
   id: number
@@ -247,6 +249,11 @@ function openModal(year: number, month: number, day: number) {
   }
   void fetchGigSetlists()
   showEventModal.value = true
+}
+
+function openCreateEventModal() {
+  const today = new Date()
+  openModal(today.getFullYear(), today.getMonth(), today.getDate())
 }
 
 async function editEvent(event: CalendarEvent) {
@@ -546,6 +553,26 @@ watch(
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('nav.calendar') }}</div>
             <div class="row items-center q-gutter-sm">
+              <q-btn
+                v-if="isIos"
+                flat
+                no-caps
+                color="primary"
+                :icon="pIcon('add')"
+                :label="t('calendar.createEvent')"
+                class="q-px-sm text-weight-medium"
+                @click="openCreateEventModal"
+              />
+              <q-btn
+                v-else-if="!isAndroid"
+                color="primary"
+                dense
+                unelevated
+                icon="add"
+                :label="t('calendar.createEvent')"
+                class="q-px-sm"
+                @click="openCreateEventModal"
+              />
               <q-btn
                 outline
                 dense
@@ -994,6 +1021,21 @@ watch(
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Android Floating Action Button (FAB) -->
+    <q-page-sticky
+      v-if="isAndroid"
+      position="bottom-right"
+      :offset="[18, 76]"
+      style="z-index: 1000"
+    >
+      <q-btn
+        fab
+        icon="add"
+        color="primary"
+        @click="openCreateEventModal"
+      />
+    </q-page-sticky>
   </q-page>
 </template>
 

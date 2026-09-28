@@ -8,6 +8,7 @@ import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
 import { exportXlsx, exportPdf, exportDocx, isShareCancellation, formatTotalDuration, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
 
 const $q = useQuasar()
@@ -16,6 +17,7 @@ const router = useRouter()
 const songsStore = useSongsStore()
 const authStore = useAuthStore()
 const { t } = useI18n()
+const { isIos, isAndroid, pIcon } = usePlatform()
 
 function goToHome() {
   router.push({ path: '/' })
@@ -1406,7 +1408,22 @@ onMounted(() => {
                 <q-tooltip>{{ t('setlist.exportExcel') }}</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="selectedSetlistMode === 'master' || selectedGigId"
+                v-if="isIos && (selectedSetlistMode === 'master' || selectedGigId)"
+                flat
+                no-caps
+                color="primary"
+                :icon="pIcon('add')"
+                :label="selectedGigId ? t('setlist.buildSetlist') : t('common.add')"
+                class="q-px-sm text-weight-medium"
+                :disable="!selectedGigId && atSetlistLimit"
+                @click="openAddSongModal"
+              >
+                <q-tooltip v-if="!selectedGigId && atSetlistLimit">
+                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
+                </q-tooltip>
+              </q-btn>
+              <q-btn
+                v-else-if="!isAndroid && (selectedSetlistMode === 'master' || selectedGigId)"
                 round
                 :color="!selectedGigId && atSetlistLimit ? 'grey' : 'primary'"
                 icon="add"
@@ -2299,6 +2316,22 @@ onMounted(() => {
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Android Floating Action Button (FAB) -->
+    <q-page-sticky
+      v-if="isAndroid && (selectedSetlistMode === 'master' || selectedGigId)"
+      position="bottom-right"
+      :offset="[18, 76]"
+      style="z-index: 1000"
+    >
+      <q-btn
+        fab
+        icon="add"
+        color="primary"
+        :disable="!selectedGigId && atSetlistLimit"
+        @click="openAddSongModal"
+      />
+    </q-page-sticky>
   </q-page>
 </template>
 
