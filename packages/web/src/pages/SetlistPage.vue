@@ -1542,15 +1542,13 @@ onMounted(() => {
                   @click="goToHome"
                 />
                 <q-btn outline dense color="secondary" icon="content_copy" :label="t('setlist.duplicateGig')" @click="duplicateGigSetlist" />
-                <q-btn color="primary" dense icon="print" :label="t('setlist.printExport')" @click="openPrintExportModal" />
                 <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />
                 <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
               </div>
             </div>
           </div>
-          <div v-else class="row items-center justify-between text-caption text-grey-7 q-mb-md">
-            <div>Songs: {{ songCount }} · Total length: {{ formatTotalDuration(totalDurationMs) }}</div>
-            <q-btn outline dense size="sm" color="primary" icon="print" :label="t('setlist.printExport')" @click="openPrintExportModal" />
+          <div v-else class="text-caption text-grey-7 q-mb-md">
+            Songs: {{ songCount }} · Total length: {{ formatTotalDuration(totalDurationMs) }}
           </div>
 
           <q-list v-if="filteredSongs.length" separator>

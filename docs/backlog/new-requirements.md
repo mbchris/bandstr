@@ -220,6 +220,7 @@
   - [x] Support column customization and role presets: Standard (Titel, Interpret, BPM), Drummer (Titel, BPM, Notizen), Gitarre (Titel, Tuning, Pitch), and Alle Spalten.
   - [x] Export formats: PDF (`exportPdf` via jsPDF and autoTable), Word (`exportDocx` via docx), and direct print (`window.print()`).
   - [x] Native mobile support via `@capacitor/filesystem` and `@capacitor/share` with fallback to browser download.
+  - [x] In Setlist view, remove duplicate "Print & Export" buttons to keep only the top printer icon symbol.
 
 ## TASK-0224: Voting - Swipe to Accept (Setlist) or Archive (#25)
 - **Status:** done
