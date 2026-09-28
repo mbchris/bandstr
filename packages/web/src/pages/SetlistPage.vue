@@ -1440,62 +1440,75 @@ onMounted(() => {
         </q-card-section>
 
         <q-card-section>
-          <SegmentedControl
-            v-if="!selectedGigId && selectedSetlistMode === 'master'"
-            v-model="currentTab"
-            :options="setlistTabOptions"
-            class="q-mb-md"
-          />
+          <div class="row q-col-gutter-sm q-mb-md items-center justify-between">
+            <div v-if="!selectedGigId && selectedSetlistMode === 'master'" class="col-12 col-sm-auto">
+              <SegmentedControl
+                v-if="!selectedGigId && selectedSetlistMode === 'master'"
+                v-model="currentTab"
+                :options="setlistTabOptions"
+              />
+            </div>
+            <div :class="{ 'col-12 col-sm-auto': !selectedGigId && selectedSetlistMode === 'master', 'col-12': selectedGigId || selectedSetlistMode !== 'master' }">
+              <q-select
+                v-model="selectedListOption"
+                :options="filteredListOptions"
+                use-input
+                input-debounce="0"
+                @filter="filterListOptions"
+                emit-value
+                map-options
+                dense
+                outlined
+                class="setlist-select"
+                style="min-width: 220px"
+              >
+                <template #option="scope">
+                  <q-item v-bind="scope.itemProps" :class="{ 'text-primary text-weight-medium': scope.opt.value === 'new_gig' }">
+                    <q-item-section v-if="scope.opt.value === 'new_gig'" avatar style="min-width: 28px; padding-right: 8px">
+                      <q-icon name="add" color="primary" size="xs" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.label }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey">
+                      {{ t('common.noResults') }}
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+            </div>
+          </div>
 
-          <div class="row q-gutter-sm q-mb-md items-center">
-            <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
-              <template #prepend><q-icon name="search" /></template>
-            </q-input>
-            <q-select
-              v-model="selectedListOption"
-              :options="filteredListOptions"
-              use-input
-              input-debounce="0"
-              @filter="filterListOptions"
-              emit-value
-              map-options
-              dense
-              outlined
-              class="setlist-select"
-              style="min-width: 196px"
-            >
-              <template #option="scope">
-                <q-item v-bind="scope.itemProps" :class="{ 'text-primary text-weight-medium': scope.opt.value === 'new_gig' }">
-                  <q-item-section v-if="scope.opt.value === 'new_gig'" avatar style="min-width: 28px; padding-right: 8px">
-                    <q-icon name="add" color="primary" size="xs" />
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label>{{ scope.opt.label }}</q-item-label>
-                  </q-item-section>
-                </q-item>
-              </template>
-              <template #no-option>
-                <q-item>
-                  <q-item-section class="text-grey">
-                    {{ t('common.noResults') }}
-                  </q-item-section>
-                </q-item>
-              </template>
-            </q-select>
-            <q-select
-              v-if="!selectedGigId && selectedSetlistMode === 'master'"
-              v-model="selectedTagFilters"
-              :options="availableTagOptions"
-              multiple
-              use-input
-              use-chips
-              hide-dropdown-icon
-              new-value-mode="add-unique"
-              outlined
-              dense
-              style="min-width: 260px"
-              :label="t('setlist.filterTags')"
-            />
+          <div class="row q-col-gutter-sm q-mb-md items-center">
+            <div :class="(!selectedGigId && selectedSetlistMode === 'master') ? 'col-12 col-sm-6' : 'col-12'">
+              <q-input
+                v-model="searchQuery"
+                outlined
+                :placeholder="t('setlist.filterTitle')"
+                class="full-width"
+                clearable
+              >
+                <template #prepend><q-icon name="search" size="sm" /></template>
+              </q-input>
+            </div>
+            <div v-if="!selectedGigId && selectedSetlistMode === 'master'" class="col-12 col-sm-6">
+              <q-select
+                v-model="selectedTagFilters"
+                :options="availableTagOptions"
+                multiple
+                use-input
+                use-chips
+                hide-dropdown-icon
+                new-value-mode="add-unique"
+                outlined
+                class="full-width"
+                :label="t('setlist.filterTags')"
+              />
+            </div>
           </div>
           <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-md rounded-borders bg-widget-surface border-subtle">
             <div class="row q-col-gutter-sm q-mb-sm">
