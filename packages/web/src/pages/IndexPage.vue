@@ -529,7 +529,7 @@ async function confirmBierwart(member: any) {
                   <div class="text-center" style="min-width: 50px">
                     <div class="text-overline" style="font-size: 10px">{{ new Date(gig.startTime).toLocaleString(dateLocale, { month: 'short' }) }}</div>
                     <div class="text-h5 text-red">{{ new Date(gig.startTime).getDate() }}</div>
-                    <div class="text-overline text-grey" style="font-size: 8px">{{ new Date(gig.startTime).toLocaleDateString(dateLocale, { weekday: 'short' }) }}</div>
+                    <div class="text-overline text-grey" style="font-size: 10px">{{ new Date(gig.startTime).toLocaleDateString(dateLocale, { weekday: 'short' }) }}</div>
                   </div>
                 </q-item-section>
                 <q-item-section>

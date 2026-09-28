@@ -602,7 +602,7 @@ watch(
                     <span v-if="event.isTentative" class="q-ml-xs">?</span>
                   </div>
                 </template>
-                <div v-if="getEvents(dayData.year, dayData.month, dayData.day).length > 3" class="text-caption text-grey" style="font-size: 9px">
+                <div v-if="getEvents(dayData.year, dayData.month, dayData.day).length > 3" class="text-caption text-grey" style="font-size: 10px">
                   {{ t('calendar.more', { n: getEvents(dayData.year, dayData.month, dayData.day).length - 3 }) }}
                 </div>
               </div>

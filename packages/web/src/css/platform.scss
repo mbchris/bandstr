@@ -1,0 +1,70 @@
+// =============================================================================
+// platform.scss — Platform-specific overrides for iOS and Android
+// =============================================================================
+
+// iOS Sheet Grabber indicator
+.ios-sheet-grabber {
+  width: 36px;
+  height: 5px;
+  border-radius: 2.5px;
+  background-color: rgba(120, 120, 128, 0.35);
+  margin: 8px auto 4px auto;
+  display: block;
+  flex-shrink: 0;
+}
+
+// ─── iOS Guidelines & Polish ──────────────────────────────────────────────────
+body.platform-ios,
+body.is-ios-native {
+  // Form bottom sheets on iOS
+  .q-dialog--bottom .q-card {
+    border-top-left-radius: 20px !important;
+    border-top-right-radius: 20px !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    max-height: 88vh;
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.18);
+  }
+
+  // Action sheets on iOS
+  .ios-action-sheet {
+    .q-card {
+      border-radius: 16px !important;
+      background: var(--surface-raised);
+      margin-bottom: env(safe-area-inset-bottom, 16px);
+    }
+  }
+
+  // Segmented control feel
+  .segmented-control {
+    background: rgba(118, 118, 128, 0.12);
+    border-radius: 9px;
+    padding: 2px;
+  }
+}
+
+// ─── Android Guidelines & Polish ──────────────────────────────────────────────
+body.platform-android,
+body.is-android-native {
+  // M3 Floating Action Button elevation
+  .q-btn--fab {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+    transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:active {
+      transform: scale(0.96);
+    }
+  }
+
+  // Segmented control feel on Android
+  .segmented-control {
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    padding: 2px;
+  }
+
+  &.body--dark .segmented-control {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
