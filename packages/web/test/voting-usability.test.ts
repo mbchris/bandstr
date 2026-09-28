@@ -44,7 +44,7 @@ describe('Voting Page Usability Overhaul (#28 Task 3)', () => {
   it('places voting button immediately right of avatar stack and opens details dialog on avatar stack click', () => {
     expect(content).toMatch(/class="avatar-stack\s+cursor-pointer/)
     expect(content).toMatch(/@click="openDetailsDialog\(song\)"/)
-    expect(content).toMatch(/<q-btn\s+dense\s+flat\s+icon="how_to_vote"\s+@click="openVotePicker\(song\)"/)
+    expect(content).toMatch(/<q-btn\s+dense\s+flat\s+(:icon="pIcon\('thumb_up'\)"|icon="how_to_vote")\s+@click="openVotePicker\(song\)"/)
     // Eye icon (visibility) button should be removed
     expect(content).not.toMatch(/icon="visibility"/)
   })

@@ -58,9 +58,9 @@ describe('Setlist Active/Archive Tabs & Swipe Logic (#28 Task 4)', () => {
     expect(content).toContain('onSwipeLeft')
 
     // Icons for swipe operations
-    expect(content).toContain('how_to_vote')
-    expect(content).toContain('unarchive')
-    expect(content).toContain('archive')
+    expect(content).toMatch(/thumb_up|how_to_vote/)
+    expect(content).toMatch(/replay|unarchive/)
+    expect(content).toMatch(/inventory_2|archive/)
   })
 
   it('removes redundant arrow_back (Move to Voting) action button from song actions', () => {

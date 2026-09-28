@@ -661,12 +661,12 @@ watch(
             >
               <template #left>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon :name="currentTab === 'active' ? 'check' : 'unarchive'" size="28px" />
+                  <q-icon :name="currentTab === 'active' ? pIcon('done') : pIcon('replay')" size="28px" />
                 </div>
               </template>
               <template #right>
                 <div v-if="currentTab === 'active'" class="row items-center q-gutter-xs">
-                  <q-icon name="archive" size="28px" />
+                  <q-icon :name="pIcon('inventory_2')" size="28px" />
                 </div>
               </template>
 
@@ -680,8 +680,8 @@ watch(
               >
                 <q-item-section side class="song-order-controls">
                   <div class="column items-center q-gutter-xs">
-                    <q-icon v-if="currentTab === 'active' && !searchQuery && votingSort === 'default'" name="drag_indicator" size="sm" color="grey-6" class="cursor-grab" />
-                    <q-btn flat round dense :icon="song.isPinned ? 'bookmark' : 'bookmark_border'" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
+                    <q-icon v-if="currentTab === 'active' && !searchQuery && votingSort === 'default'" :name="pIcon('drag_handle')" size="sm" color="grey-6" class="cursor-grab" />
+                    <q-btn flat round dense :icon="song.isPinned ? pIcon('push_pin') : pIcon('push_pin_outline')" :color="song.isPinned ? 'primary' : 'grey'" size="sm" @click="togglePin(song)" />
                   </div>
                 </q-item-section>
 
@@ -732,7 +732,7 @@ watch(
                       <q-tooltip>{{ votedNamesLabel(song) }}</q-tooltip>
                     </div>
 
-                    <q-btn dense flat icon="how_to_vote" @click="openVotePicker(song)">
+                    <q-btn dense flat :icon="pIcon('thumb_up')" @click="openVotePicker(song)">
                       <q-tooltip>{{ t('voting.selfVoteHint') }}</q-tooltip>
                     </q-btn>
 

@@ -49,13 +49,13 @@ describe('Voting Swipe-to-Setlist and Swipe-to-Archive (#25)', () => {
     expect(content).toContain('@left=')
     expect(content).toContain('@right=')
 
-    // Left slot (swipe right) must show acceptance icon (check or playlist_add_check)
+    // Left slot (swipe right) must show acceptance icon (done or check)
     expect(content).toMatch(/#left/)
-    expect(content).toMatch(/check/)
+    expect(content).toMatch(/done|check/)
 
     // Right slot (swipe left) must show archive icon
     expect(content).toMatch(/#right/)
-    expect(content).toMatch(/archive/)
+    expect(content).toMatch(/inventory_2|archive/)
 
     // Script must define swipe handlers
     expect(content).toContain('onSwipeRight')

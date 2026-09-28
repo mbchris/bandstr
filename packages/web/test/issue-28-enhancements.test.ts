@@ -36,8 +36,8 @@ describe('Issue #28 Usability Enhancements (OPEN items)', () => {
     const pagePath = path.resolve(__dirname, '../src/pages/CalendarPage.vue')
     const content = fs.readFileSync(pagePath, 'utf-8')
 
-    // Dialog positioned at top
-    expect(content).toMatch(/<q-dialog v-model="showEventModal" position="top">/)
+    // Dialog positioned at top (or bottom on iOS)
+    expect(content).toMatch(/<q-dialog v-model="showEventModal" (:position="isIos \? 'bottom' : 'top'"|position="top")>/)
 
     // Card style decreased by ~30% (from 450px to 315px) and moved down (margin-top: 84px) to leave space for app header
     expect(content).toMatch(/max-width:\s*315px/)

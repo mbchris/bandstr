@@ -72,7 +72,7 @@ describe('useDialog composable & bottom sheet adaptation', () => {
 
     expect(setlistContent).toMatch(/position="isIos \? 'bottom' : 'standard'"|:position="isIos \? 'bottom' : 'standard'"/)
     expect(votingContent).toMatch(/position="isIos \? 'bottom' : 'standard'"|:position="isIos \? 'bottom' : 'standard'"/)
-    expect(calendarContent).toMatch(/position="isIos \? 'bottom' : 'standard'"|:position="isIos \? 'bottom' : 'standard'"/)
+    expect(calendarContent).toMatch(/:position="isIos \? 'bottom' : '(standard|top)'"/)
     expect(dashboardContent).toMatch(/position="isIos \? 'bottom' : 'standard'"|:position="isIos \? 'bottom' : 'standard'"/)
 
     expect(setlistContent).toContain('ios-sheet-grabber')

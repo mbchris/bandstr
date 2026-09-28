@@ -1580,12 +1580,12 @@ onMounted(() => {
             >
               <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'" #left>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon :name="currentTab === 'active' ? 'how_to_vote' : 'unarchive'" size="28px" />
+                  <q-icon :name="currentTab === 'active' ? pIcon('thumb_up') : pIcon('replay')" size="28px" />
                 </div>
               </template>
               <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master' && currentTab === 'active'" #right>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon name="archive" size="28px" />
+                  <q-icon :name="pIcon('inventory_2')" size="28px" />
                 </div>
               </template>
 
@@ -1608,7 +1608,7 @@ onMounted(() => {
                   <div class="column items-center q-gutter-xs">
                     <q-icon
                       v-if="selectedGigId || selectedSetlistMode !== 'master' || currentTab === 'active'"
-                      name="drag_indicator"
+                      :name="pIcon('drag_handle')"
                       size="sm"
                       color="grey-6"
                       class="cursor-grab"
@@ -1637,7 +1637,7 @@ onMounted(() => {
                       flat
                       round
                       dense
-                      :icon="isPinnedItem(item) ? 'lock' : 'lock_open'"
+                      :icon="isPinnedItem(item) ? pIcon('push_pin') : pIcon('push_pin_outline')"
                       :color="isPinnedItem(item) ? 'primary' : 'grey'"
                       :class="{ 'pinned-lock-btn': isPinnedItem(item) }"
                       size="sm"
@@ -1795,7 +1795,7 @@ onMounted(() => {
                     flat
                     round
                     dense
-                    :icon="isInUserSetlist(item.id) ? 'playlist_add_check' : 'playlist_add'"
+                    :icon="isInUserSetlist(item.id) ? pIcon('library_add_check') : pIcon('library_add')"
                     color="primary"
                     size="sm"
                     @click="toggleUserSetlist(item)"
@@ -1949,7 +1949,7 @@ onMounted(() => {
                   <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <q-btn flat round dense icon="playlist_add" color="primary" @click="addToGigBuilder(item)" />
+                  <q-btn flat round dense :icon="pIcon('library_add')" color="primary" @click="addToGigBuilder(item)" />
                 </q-item-section>
               </q-item>
             </q-list>

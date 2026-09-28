@@ -17,7 +17,7 @@ const bandStore = useBandStore()
 const notificationsStore = useNotificationsStore()
 const $q = useQuasar()
 const { t } = useI18n()
-const { isIos, pIcon } = usePlatform()
+const { isIos } = usePlatform()
 
 const joining = ref(false)
 const creatingBand = ref(false)

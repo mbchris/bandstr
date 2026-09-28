@@ -640,8 +640,8 @@ watch(
     </div>
 
     <!-- Event Create/Edit Dialog -->
-    <q-dialog v-model="showEventModal" :position="isIos ? 'bottom' : 'standard'">
-      <q-card style="width: 90vw; max-width: 420px; max-height: calc(100vh - 104px); display: flex; flex-direction: column;">
+    <q-dialog v-model="showEventModal" :position="isIos ? 'bottom' : 'top'">
+      <q-card style="width: 90vw; max-width: 315px; margin-top: 84px; max-height: calc(100vh - 104px); display: flex; flex-direction: column;">
         <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ editingEvent ? t('calendar.editEvent') : t('calendar.createEvent') }}</div>
