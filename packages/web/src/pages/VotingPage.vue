@@ -7,6 +7,7 @@ import { useSongsStore, type Song } from '../stores/songs'
 import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { exportXlsx, isShareCancellation } from '../utils/export'
 import { getInitials } from '../utils/initials'
 
@@ -66,6 +67,11 @@ const activeSongsCount = computed(() =>
 const archivedSongsCount = computed(() =>
   songsStore.songs.filter((s) => s.type !== 'pause' && s.type !== 'tuning' && !s.isSetlist && s.isArchived).length,
 )
+
+const votingTabOptions = computed(() => [
+  { label: t('voting.activeTab'), value: 'active', badge: activeSongsCount.value, badgeColor: 'primary' },
+  { label: t('voting.archiveTab'), value: 'archived', badge: archivedSongsCount.value, badgeColor: 'grey-7' },
+])
 
 const totalMembersCount = computed(() => visibleMembers.value.length)
 
@@ -587,22 +593,11 @@ watch(
         </q-card-section>
 
         <q-card-section class="q-pt-none q-pb-none">
-          <q-tabs
+          <SegmentedControl
             v-model="currentTab"
-            dense
-            align="left"
-            class="text-grey-7"
-            active-color="primary"
-            indicator-color="primary"
-          >
-            <q-tab name="active" :label="t('voting.activeTab')">
-              <q-badge color="primary" floating rounded>{{ activeSongsCount }}</q-badge>
-            </q-tab>
-            <q-tab name="archived" :label="t('voting.archiveTab')">
-              <q-badge color="grey-7" floating rounded>{{ archivedSongsCount }}</q-badge>
-            </q-tab>
-          </q-tabs>
-          <q-separator />
+            :options="votingTabOptions"
+            class="q-my-xs"
+          />
         </q-card-section>
 
         <q-card-section>

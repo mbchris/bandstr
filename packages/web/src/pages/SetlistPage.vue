@@ -6,6 +6,7 @@ import { useSongsStore, type Song } from '../stores/songs'
 import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../composables/useI18n'
 import { exportXlsx, exportPdf, exportDocx, isShareCancellation, formatTotalDuration, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
 
@@ -135,6 +136,11 @@ const activeSetlistSongsCount = computed(() =>
 const archivedSetlistSongsCount = computed(() =>
   songsStore.songs.filter((s) => s.isSetlist && s.type === 'song' && s.isArchived).length,
 )
+
+const setlistTabOptions = computed(() => [
+  { label: t('setlist.activeTab'), value: 'active', badge: activeSetlistSongsCount.value, badgeColor: 'primary' },
+  { label: t('setlist.archiveTab'), value: 'archived', badge: archivedSetlistSongsCount.value, badgeColor: 'grey-7' },
+])
 
 // Active song list depends on gig selection
 const activeSongs = computed(() => {
@@ -1417,22 +1423,12 @@ onMounted(() => {
         </q-card-section>
 
         <q-card-section>
-          <q-tabs
+          <SegmentedControl
             v-if="!selectedGigId && selectedSetlistMode === 'master'"
             v-model="currentTab"
-            dense
-            align="left"
-            class="text-grey-7 q-mb-sm"
-            active-color="primary"
-            indicator-color="primary"
-          >
-            <q-tab name="active" :label="t('setlist.activeTab')">
-              <q-badge color="primary" floating rounded>{{ activeSetlistSongsCount }}</q-badge>
-            </q-tab>
-            <q-tab name="archived" :label="t('setlist.archiveTab')">
-              <q-badge color="grey-7" floating rounded>{{ archivedSetlistSongsCount }}</q-badge>
-            </q-tab>
-          </q-tabs>
+            :options="setlistTabOptions"
+            class="q-mb-md"
+          />
 
           <div class="row q-gutter-sm q-mb-md items-center">
             <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>

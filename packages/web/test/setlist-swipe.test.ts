@@ -35,16 +35,13 @@ describe('Setlist Active/Archive Tabs & Swipe Logic (#28 Task 4)', () => {
     expect(de.setlist.songReactivatedNamed).toContain('{title}')
   })
 
-  it('renders q-tabs with Active and Archive tabs and count badges in Master Setlist mode', () => {
-    expect(content).toContain('<q-tabs')
+  it('renders SegmentedControl with Active and Archive tabs and count badges in Master Setlist mode', () => {
+    expect(content).toContain('<SegmentedControl')
     expect(content).toMatch(/v-if="!selectedGigId && selectedSetlistMode === 'master'"/)
     expect(content).toMatch(/v-model="currentTab"/)
-    expect(content).toContain('<q-tab name="active"')
-    expect(content).toContain('<q-tab name="archived"')
-    expect(content).toContain(":label=\"t('setlist.activeTab')\"")
-    expect(content).toContain(":label=\"t('setlist.archiveTab')\"")
     expect(content).toContain('activeSetlistSongsCount')
     expect(content).toContain('archivedSetlistSongsCount')
+    expect(content).toContain('setlistTabOptions')
   })
 
   it('filters activeSongs based on currentTab', () => {
