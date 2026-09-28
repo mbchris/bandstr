@@ -1473,7 +1473,7 @@ onMounted(() => {
                 @click="openAddSongModal"
               >
                 <q-tooltip v-if="!selectedGigId && atSetlistLimit">
-                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
+                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the repertoire
                 </q-tooltip>
               </q-btn>
               <q-btn
@@ -1486,7 +1486,7 @@ onMounted(() => {
                 @click="openAddSongModal"
               >
                 <q-tooltip v-if="!selectedGigId && atSetlistLimit">
-                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the master setlist
+                  PRO feature — free plan is limited to {{ FREE_SETLIST_LIMIT }} songs in the repertoire
                 </q-tooltip>
               </q-btn>
             </div>
