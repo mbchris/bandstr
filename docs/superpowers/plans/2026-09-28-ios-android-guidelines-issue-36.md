@@ -70,28 +70,28 @@ flowchart TD
 - `usePlatform()` produces `{ isIos: ComputedRef<boolean>, isAndroid: ComputedRef<boolean>, isNative: ComputedRef<boolean>, isWeb: ComputedRef<boolean>, platform: ComputedRef<'ios' | 'android' | 'web'>, pIcon: (name: string) => string }`
 - `platformIcon(name: string, platform?: 'ios' | 'android' | 'web'): string` produces mapped icon string
 
-- [ ] **Step 1: Write failing tests for platform utility and icon resolution**
+- [x] **Step 1: Write failing tests for platform utility and icon resolution**
   Test `usePlatform` and `platformIcon` mapping:
   - iOS resolves `add` -> `ion-ios-add`, `edit` -> `ion-ios-create`, `delete` -> `ion-ios-trash`, `push_pin` -> `ion-ios-pin`, `library_add` -> `ion-ios-add-circle-outline`, `thumb_up` -> `ion-ios-thumbs-up`.
   - Android/Web resolves `add` -> `add`, `push_pin` -> `push_pin`, `library_add` -> `library_add`, `thumb_up` -> `thumb_up`.
   - Unknown icons pass through safely.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @bandstr/web test test/platform-icons.test.ts`
   Expected: FAIL (modules not found).
 
-- [ ] **Step 3: Implement `platformIcons.ts` and `usePlatform.ts`**
+- [x] **Step 3: Implement `platformIcons.ts` and `usePlatform.ts`**
   - In `packages/web/quasar.config.ts`: add `'ionicons-v4'` to `extras`.
   - In `packages/web/src/utils/platformIcons.ts`: build complete dictionary mapping ~70 icons between Material and Ionicons-v4 (`ion-ios-*`).
   - In `packages/web/src/composables/usePlatform.ts`: export reactive flags using Capacitor `getPlatform()`, Quasar `Platform.is`, and a `pIcon(name)` helper.
   - In `packages/web/src/boot/platform.ts`: on iOS native or iOS browser, call `$q.iconSet.set(ioniconsV4)` to adapt Quasar internal components.
   - Create `CLAUDE.md` with instructions on updating `platformIcons.ts` when adding new UI icons.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `pnpm --filter @bandstr/web test test/platform-icons.test.ts`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add packages/web/quasar.config.ts packages/web/src/composables/usePlatform.ts packages/web/src/utils/platformIcons.ts packages/web/src/boot/platform.ts CLAUDE.md packages/web/test/platform-icons.test.ts
   git commit -m "feat(platform): add platform detection composable, ionicons support, and icon mapping layer"
@@ -109,25 +109,25 @@ flowchart TD
 - Modify: `packages/web/src/pages/IndexPage.vue:532`
 - Create: `packages/web/test/typography-platform-css.test.ts`
 
-- [ ] **Step 1: Write test for typography rules**
+- [x] **Step 1: Write test for typography rules**
   Test that `quasar.variables.scss` contains `$body-font-size: 15px;`, no occurrences of inline `font-size: 8px` or `font-size: 9px` exist in `packages/web/src`, and `platform.scss` is imported in `app.scss`.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @bandstr/web test test/typography-platform-css.test.ts`
   Expected: FAIL.
 
-- [ ] **Step 3: Update typography and SCSS**
+- [x] **Step 3: Update typography and SCSS**
   - Set `$body-font-size: 15px;` in `packages/web/src/css/quasar.variables.scss`.
   - Create `packages/web/src/css/platform.scss` with `.platform-ios` styles (sheet rounding, grabber bar `.ios-sheet-grabber`, segmented control styling) and `.platform-android` styles (M3 elevation, spacing).
   - Import `platform.scss` in `packages/web/src/css/app.scss`.
   - Update `packages/web/src/pages/CalendarPage.vue:605` (`style="font-size: 10px"`).
   - Update `packages/web/src/pages/IndexPage.vue:532` (`style="font-size: 10px"`).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `pnpm --filter @bandstr/web test test/typography-platform-css.test.ts`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add packages/web/src/css/quasar.variables.scss packages/web/src/css/platform.scss packages/web/src/css/app.scss packages/web/src/pages/CalendarPage.vue packages/web/src/pages/IndexPage.vue packages/web/test/typography-platform-css.test.ts
   git commit -m "feat(style): bump body font to 15px, enforce 10px minimum, and add platform-scoped SCSS"
@@ -143,23 +143,23 @@ flowchart TD
 - Modify: `packages/web/src/pages/VotingPage.vue:590-605`
 - Create: `packages/web/test/segmented-control.test.ts`
 
-- [ ] **Step 1: Write test for SegmentedControl component**
+- [x] **Step 1: Write test for SegmentedControl component**
   Verify that `SegmentedControl.vue` renders options, shows badges if provided, toggles model value on click, and renders with pill/segmented styling.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @bandstr/web test test/segmented-control.test.ts`
   Expected: FAIL.
 
-- [ ] **Step 3: Implement `SegmentedControl.vue` and integrate in SetlistPage & VotingPage**
+- [x] **Step 3: Implement `SegmentedControl.vue` and integrate in SetlistPage & VotingPage**
   - Create `packages/web/src/components/SegmentedControl.vue` using `<q-btn-toggle>` with options, custom badges, and responsive rounded pill styling.
   - In `packages/web/src/pages/SetlistPage.vue`: replace `<q-tabs>` for master setlist active/archived toggle with `<SegmentedControl v-model="currentTab" :options="tabs" />`.
   - In `packages/web/src/pages/VotingPage.vue`: replace `<q-tabs>` with `<SegmentedControl v-model="currentTab" :options="tabOptions" />` showing badge counters.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `pnpm --filter @bandstr/web test test/segmented-control.test.ts`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add packages/web/src/components/SegmentedControl.vue packages/web/src/pages/SetlistPage.vue packages/web/src/pages/VotingPage.vue packages/web/test/segmented-control.test.ts
   git commit -m "feat(ui): replace binary tabs with modern segmented controls on setlist and voting pages"
@@ -175,27 +175,27 @@ flowchart TD
 - Modify: `packages/web/src/pages/CalendarPage.vue`
 - Create: `packages/web/test/primary-actions.test.ts`
 
-- [ ] **Step 1: Write tests for primary action placement**
+- [x] **Step 1: Write tests for primary action placement**
   Verify that:
   - On Android: SetlistPage renders `<q-page-sticky>` FAB for Add Song; VotingPage renders `<q-page-sticky>` FAB for Suggest Song; CalendarPage renders `<q-page-sticky>` FAB for Create Event.
   - On iOS: Top trailing action button is displayed in the page header/toolbar.
   - On Web: Toolbar action buttons are preserved.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @bandstr/web test test/primary-actions.test.ts`
   Expected: FAIL.
 
-- [ ] **Step 3: Implement platform-specific action placement**
+- [x] **Step 3: Implement platform-specific action placement**
   - Use `usePlatform()` (`isIos`, `isAndroid`) in `SetlistPage.vue`, `VotingPage.vue`, and `CalendarPage.vue`.
   - On Android: Add `<q-page-sticky position="bottom-right" :offset="[18, 18]">` with `<q-btn fab ... />` with proper z-index and safe spacing above mobile bottom nav.
   - On iOS: Render flat trailing button in the top action area with `:icon="pIcon('add')"` and label.
   - Keep web fallback intact.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `pnpm --filter @bandstr/web test test/primary-actions.test.ts`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add packages/web/src/pages/SetlistPage.vue packages/web/src/pages/VotingPage.vue packages/web/src/pages/CalendarPage.vue packages/web/test/primary-actions.test.ts
   git commit -m "feat(ui): implement platform-specific primary actions with iOS trailing buttons and Android FABs"
@@ -213,23 +213,23 @@ flowchart TD
 - Modify: `packages/web/src/pages/DashboardPage.vue`
 - Create: `packages/web/test/dialog-adaptation.test.ts`
 
-- [ ] **Step 1: Write tests for dialog adaptation**
+- [x] **Step 1: Write tests for dialog adaptation**
   Verify `useDialog` returns platform-appropriate options (Action Sheet on iOS with `position: 'bottom'`, centered on Android), and modal dialog positions adapt according to `isIos`.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @bandstr/web test test/dialog-adaptation.test.ts`
   Expected: FAIL.
 
-- [ ] **Step 3: Implement `useDialog.ts` and adapt modal templates**
+- [x] **Step 3: Implement `useDialog.ts` and adapt modal templates**
   - In `packages/web/src/composables/useDialog.ts`: create `showConfirmDialog()` helper wrapping `$q.dialog` with iOS Action Sheet options (`position: 'bottom'`, destructive styling in red) and Android centered dialog.
   - Add `:position="isIos ? 'bottom' : 'standard'"` to form dialogs (`showAddSongModal`, `showSongModal`, `showEventModal`, `showCreateBandDialog`, etc.).
   - Add `<div v-if="isIos" class="ios-sheet-grabber" />` inside modal cards on iOS for native grabber affordance.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `pnpm --filter @bandstr/web test test/dialog-adaptation.test.ts`
   Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add packages/web/src/composables/useDialog.ts packages/web/src/pages/SetlistPage.vue packages/web/src/pages/VotingPage.vue packages/web/src/pages/CalendarPage.vue packages/web/src/pages/DashboardPage.vue packages/web/test/dialog-adaptation.test.ts
   git commit -m "feat(dialogs): implement iOS bottom sheet dialogs with grabbers and platform-aware confirmation dialogs"
@@ -248,7 +248,7 @@ flowchart TD
 - Modify: `packages/web/src/layouts/MainLayout.vue`
 - Create: `packages/web/test/semantic-icons.test.ts`
 
-- [ ] **Step 1: Write test for semantic icon replacements**
+- [x] **Step 1: Write test for semantic icon replacements**
   Verify:
   - Pin in setlist uses `push_pin` (or `pIcon('push_pin')`) instead of `lock`.
   - Pin in voting uses `push_pin` instead of `bookmark`.
@@ -259,25 +259,25 @@ flowchart TD
   - Reactivate uses `replay` instead of `unarchive`.
   - Drag handle uses `drag_handle` instead of `drag_indicator`.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run: `pnpm --filter @bandstr/web test test/semantic-icons.test.ts`
   Expected: FAIL.
 
-- [ ] **Step 3: Update icon references across Vue templates**
+- [x] **Step 3: Update icon references across Vue templates**
   Apply semantic icon updates and wrap with `pIcon(...)` where dynamic platform resolution applies.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `pnpm --filter @bandstr/web test test/semantic-icons.test.ts`
   Expected: PASS.
 
-- [ ] **Step 5: Full verification (tests, typecheck, lint)**
+- [x] **Step 5: Full verification (tests, typecheck, lint)**
   Run:
   - `pnpm --filter @bandstr/web test`
   - `pnpm --filter @bandstr/web typecheck`
   - `pnpm --filter @bandstr/web lint`
   Expected: All tests pass, zero type errors, zero lint warnings.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   ```bash
   git add packages/web/src/pages/SetlistPage.vue packages/web/src/pages/VotingPage.vue packages/web/src/pages/CalendarPage.vue packages/web/src/pages/DashboardPage.vue packages/web/src/pages/IndexPage.vue packages/web/src/layouts/MainLayout.vue packages/web/test/semantic-icons.test.ts
   git commit -m "feat(iter-36): replace semantic icons across views and wire platform icon resolver — closes #36"
