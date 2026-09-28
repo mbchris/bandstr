@@ -66,6 +66,7 @@ const selectedGigId = ref<number | null>(null)
 const gigs = ref<GigSetlist[]>([])
 const calendarGigs = ref<CalendarGigOption[]>([])
 const selectedGigMeta = ref<EditableGigMeta | null>(null)
+const gigMetaExpanded = ref(false)
 const gigSongs = ref<Song[]>([])
 const userSetlistSongs = ref<Song[]>([])
 const personalNotes = ref<any[]>([])
@@ -1010,6 +1011,24 @@ async function confirmGigBuilder() {
   }
 }
 
+async function quickAddToGig(item: Song) {
+  if (!selectedGigId.value) return
+  if (gigSongs.value.some((s) => s.id === item.id)) return
+  isSaving.value = true
+  try {
+    await apiJson(`/gigs/${selectedGigId.value}/songs`, {
+      method: 'POST',
+      body: JSON.stringify({ songId: item.id, position: gigSongs.value.length }),
+    })
+    await fetchGigSongs(selectedGigId.value)
+    $q.notify({ message: t('setlist.addedToUserSetlist'), color: 'positive', timeout: 1500 })
+  } catch {
+    $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+  } finally {
+    isSaving.value = false
+  }
+}
+
 const showAddUserSetlistModal = ref(false)
 const selectedUserSetlistSongIds = ref<number[]>([])
 
@@ -1557,67 +1576,86 @@ onMounted(() => {
               />
             </div>
           </div>
-          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md q-pa-md rounded-borders bg-widget-surface border-subtle">
-            <div class="row q-col-gutter-sm q-mb-sm">
-              <div class="col-12 col-md-4">
-                <q-input v-model="selectedGigMeta.title" :label="t('common.title')" outlined dense />
-              </div>
-              <div class="col-12 col-md-4">
-                <q-select
-                  v-model="selectedGigMeta.calendarEventId"
-                  :options="filteredCalendarGigLinkOptions"
-                  use-input
-                  input-debounce="0"
-                  @filter="filterCalendarGigOptions"
-                  emit-value
-                  map-options
-                  outlined
-                  dense
-                  clearable
-                  :label="t('setlist.linkCalendarGig')"
-                >
-                  <template #no-option>
-                    <q-item>
-                      <q-item-section class="text-grey">
-                        {{ t('common.noResults') }}
-                      </q-item-section>
-                    </q-item>
-                  </template>
-                </q-select>
-              </div>
-              <div class="col-12 col-md-4">
-                <q-input v-model="selectedGigMeta.location" :label="t('setlist.location')" outlined dense />
-              </div>
+          <div v-if="selectedGigId && selectedGigMeta" class="q-mb-md">
+            <div class="row items-center q-gutter-xs cursor-pointer q-py-xs" @click="gigMetaExpanded = !gigMetaExpanded">
+              <span class="text-weight-bold text-subtitle2">{{ selectedGigMeta.title }}</span>
+              <span v-if="selectedGigMeta.gigDate" class="text-caption text-grey-7">· {{ selectedGigMeta.gigDate }}</span>
+              <span v-if="selectedGigMeta.location" class="text-caption text-grey-7">· {{ selectedGigMeta.location }}</span>
+              <q-space />
+              <q-btn
+                flat
+                round
+                dense
+                :icon="gigMetaExpanded ? 'expand_less' : 'expand_more'"
+                size="sm"
+                :title="gigMetaExpanded ? t('setlist.collapseGigMeta') : t('setlist.expandGigMeta')"
+                @click.stop="gigMetaExpanded = !gigMetaExpanded"
+              />
             </div>
-            <div class="row q-col-gutter-sm q-mb-sm">
-              <div class="col-12 col-sm-6 col-md-3">
-                <q-input v-model="selectedGigMeta.gigDate" :label="t('setlist.gigDate')" outlined dense placeholder="YYYY-MM-DD" />
+
+            <q-slide-transition>
+              <div v-if="gigMetaExpanded" class="q-mt-sm q-pa-md rounded-borders bg-widget-surface border-subtle">
+                <div class="row q-col-gutter-sm q-mb-sm">
+                  <div class="col-12 col-md-4">
+                    <q-input v-model="selectedGigMeta.title" :label="t('common.title')" outlined dense />
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-select
+                      v-model="selectedGigMeta.calendarEventId"
+                      :options="filteredCalendarGigLinkOptions"
+                      use-input
+                      input-debounce="0"
+                      @filter="filterCalendarGigOptions"
+                      emit-value
+                      map-options
+                      outlined
+                      dense
+                      clearable
+                      :label="t('setlist.linkCalendarGig')"
+                    >
+                      <template #no-option>
+                        <q-item>
+                          <q-item-section class="text-grey">
+                            {{ t('common.noResults') }}
+                          </q-item-section>
+                        </q-item>
+                      </template>
+                    </q-select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-input v-model="selectedGigMeta.location" :label="t('setlist.location')" outlined dense />
+                  </div>
+                </div>
+                <div class="row q-col-gutter-sm q-mb-sm">
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <q-input v-model="selectedGigMeta.gigDate" :label="t('setlist.gigDate')" outlined dense placeholder="YYYY-MM-DD" />
+                  </div>
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <q-input v-model="selectedGigMeta.gigTime" :label="t('setlist.gigTime')" outlined dense placeholder="HH:MM" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <q-input v-model="selectedGigMeta.notes" :label="t('setlist.notes')" outlined dense />
+                  </div>
+                </div>
+                <div class="row items-center justify-end q-mt-xs q-gutter-xs">
+                  <q-btn
+                    v-if="selectedGigMeta.calendarEventId"
+                    outline
+                    dense
+                    color="primary"
+                    icon="home"
+                    :label="t('setlist.viewGigOnHome')"
+                    @click="goToHome"
+                  />
+                  <q-btn outline dense color="secondary" icon="content_copy" :label="t('setlist.duplicateGig')" @click="duplicateGigSetlist" />
+                  <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />
+                  <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
+                </div>
               </div>
-              <div class="col-12 col-sm-6 col-md-3">
-                <q-input v-model="selectedGigMeta.gigTime" :label="t('setlist.gigTime')" outlined dense placeholder="HH:MM" />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input v-model="selectedGigMeta.notes" :label="t('setlist.notes')" outlined dense />
-              </div>
-            </div>
-            <div class="row items-center justify-between q-mt-xs">
-              <div class="text-caption text-grey-7">
-                Songs: {{ songCount }} · Total length: {{ formatTotalDuration(totalDurationMs) }}
-              </div>
-              <div class="row q-gutter-xs">
-                <q-btn
-                  v-if="selectedGigMeta.calendarEventId"
-                  outline
-                  dense
-                  color="primary"
-                  icon="home"
-                  :label="t('setlist.viewGigOnHome')"
-                  @click="goToHome"
-                />
-                <q-btn outline dense color="secondary" icon="content_copy" :label="t('setlist.duplicateGig')" @click="duplicateGigSetlist" />
-                <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />
-                <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
-              </div>
+            </q-slide-transition>
+
+            <div class="text-caption text-grey-7 q-mt-xs">
+              Songs: {{ songCount }} · Total length: {{ formatTotalDuration(totalDurationMs) }}
             </div>
           </div>
           <div v-else class="text-caption text-grey-7 q-mb-md">
@@ -1893,6 +1931,42 @@ onMounted(() => {
         <q-banner v-else rounded class="bg-widget-surface">
           {{ !selectedGigId && selectedSetlistMode === 'master' && currentTab === 'archived' ? t('setlist.noArchivedSongs') : t('setlist.noItems') }}
         </q-banner>
+
+        <q-expansion-item
+          v-if="selectedGigId"
+          icon="library_add"
+          :label="t('setlist.gigTabAll')"
+          class="q-mt-md"
+          header-class="text-primary text-weight-medium"
+        >
+          <q-card flat>
+            <q-card-section class="q-pa-sm">
+              <q-input v-model="gigBuilderSearch" dense outlined clearable :placeholder="t('setlist.filterTitle')">
+                <template #prepend><q-icon name="search" /></template>
+              </q-input>
+              <q-list v-if="filteredGigBuilderSourceItems.length" separator class="q-mt-sm">
+                <q-item v-for="item in filteredGigBuilderSourceItems" :key="`inline-add-${item.id}`" dense>
+                  <q-item-section>
+                    <q-item-label>{{ item.title }}</q-item-label>
+                    <q-item-label caption>{{ item.artist }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      :icon="pIcon('library_add')"
+                      color="primary"
+                      :title="t('setlist.addToGigQuick')"
+                      @click="quickAddToGig(item)"
+                    />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+              <div v-else class="text-grey text-italic text-center q-pa-md">{{ t('setlist.noItems') }}</div>
+            </q-card-section>
+          </q-card>
+        </q-expansion-item>
         </q-card-section>
       </q-card>
     </div>
