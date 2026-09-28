@@ -90,3 +90,12 @@
   - [x] Add `UIApplicationSceneManifest` to `Info.plist` with scene configuration.
   - [x] Update `AppDelegate.swift` with `configurationForConnecting` and remove legacy lifecycle methods.
   - [x] Register `SceneDelegate.swift` in Xcode project (`project.pbxproj`).
+
+## TASK-9008: Further Usability Findings
+- **Status:** done
+- **Labels:** bug
+- **Acceptance Criteria:**
+  - [x] "Gig Setlist" dropdown is an autocomplete textfield, reduced in size by 30%, with selection centered vertically.
+  - [x] Removed "+ new Gig Setlist" button and added "New Gig Setlist..." option just below the "Master Setlist" entry in the dropdown.
+  - [x] Calendar "Rehearsal" description field is 4 lines instead of a 1-line field.
+

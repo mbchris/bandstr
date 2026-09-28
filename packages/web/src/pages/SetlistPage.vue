@@ -68,6 +68,7 @@ const personalNotes = ref<any[]>([])
 
 const listOptions = computed(() => [
   { label: t('setlist.masterSetlist'), value: 'master' },
+  { label: `${t('setlist.newGigSetlist')}...`, value: 'new_gig' },
   { label: t('setlist.userSetlist'), value: 'user' },
   ...gigs.value.map((g) => {
     let dateStr = ''
@@ -78,6 +79,29 @@ const listOptions = computed(() => [
     return { label: dateStr ? `${dateStr} ${g.title}${calendarLabel}` : `${g.title}${calendarLabel}`, value: `gig:${g.id}` }
   }),
 ])
+
+const filteredListOptions = ref<Array<{ label: string; value: string }>>([])
+
+watch(
+  listOptions,
+  (options) => {
+    filteredListOptions.value = options
+  },
+  { immediate: true },
+)
+
+function filterListOptions(val: string, update: (callback: () => void) => void) {
+  update(() => {
+    if (!val) {
+      filteredListOptions.value = listOptions.value
+    } else {
+      const needle = val.toLowerCase()
+      filteredListOptions.value = listOptions.value.filter((opt) =>
+        opt.label.toLowerCase().includes(needle),
+      )
+    }
+  })
+}
 
 const calendarGigLinkOptions = computed(() => [
   { label: t('setlist.unlinked'), value: null },
@@ -307,7 +331,11 @@ async function refreshAll() {
   await Promise.all(promises)
 }
 
-watch(selectedListOption, (newVal) => {
+watch(selectedListOption, async (newVal, oldVal) => {
+  if (newVal === 'new_gig') {
+    await createGigSetlist(oldVal)
+    return
+  }
   selectedTagFilters.value = []
   currentTab.value = 'active'
   if (newVal === 'user') {
@@ -321,7 +349,7 @@ watch(selectedListOption, (newVal) => {
     return
   }
 
-  if (newVal.startsWith('gig:')) {
+  if (newVal && newVal.startsWith('gig:')) {
     selectedSetlistMode.value = 'master'
     const id = Number(newVal.slice(4))
     selectedGigId.value = Number.isFinite(id) && id > 0 ? id : null
@@ -377,7 +405,7 @@ watch(
   },
 )
 
-async function createGigSetlist() {
+async function createGigSetlist(fallbackOption?: string) {
   isSaving.value = true
   try {
     const created = await apiJson<{ id: number }>('/gigs', {
@@ -388,6 +416,7 @@ async function createGigSetlist() {
     selectedListOption.value = `gig:${created.id}`
   } catch {
     $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
+    selectedListOption.value = fallbackOption && fallbackOption !== 'new_gig' ? fallbackOption : 'master'
   } finally {
     isSaving.value = false
   }
@@ -1405,27 +1434,41 @@ onMounted(() => {
             </q-tab>
           </q-tabs>
 
-          <div class="row q-gutter-sm q-mb-md">
+          <div class="row q-gutter-sm q-mb-md items-center">
             <q-input v-model="searchQuery" dense outlined :placeholder="t('setlist.filterTitle')" class="col" clearable>
               <template #prepend><q-icon name="search" /></template>
             </q-input>
             <q-select
               v-model="selectedListOption"
-              :options="listOptions"
+              :options="filteredListOptions"
+              use-input
+              input-debounce="0"
+              @filter="filterListOptions"
               emit-value
               map-options
               dense
               outlined
-              style="min-width: 280px"
-            />
-            <q-btn
-              flat
-              dense
-              icon="add_circle"
-              color="primary"
-              :label="t('setlist.newGigSetlist')"
-              @click="createGigSetlist"
-            />
+              class="setlist-select"
+              style="min-width: 196px"
+            >
+              <template #option="scope">
+                <q-item v-bind="scope.itemProps" :class="{ 'text-primary text-weight-medium': scope.opt.value === 'new_gig' }">
+                  <q-item-section v-if="scope.opt.value === 'new_gig'" avatar style="min-width: 28px; padding-right: 8px">
+                    <q-icon name="add" color="primary" size="xs" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.label }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </template>
+              <template #no-option>
+                <q-item>
+                  <q-item-section class="text-grey">
+                    {{ t('common.noResults') }}
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
             <q-select
               v-if="!selectedGigId && selectedSetlistMode === 'master'"
               v-model="selectedTagFilters"
@@ -2497,6 +2540,17 @@ onMounted(() => {
   }
   .no-print {
     display: none !important;
+  }
+}
+
+.setlist-select {
+  .q-field__control {
+    display: flex;
+    align-items: center;
+  }
+  .q-field__native {
+    display: flex;
+    align-items: center;
   }
 }
 </style>

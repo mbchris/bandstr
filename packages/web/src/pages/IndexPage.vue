@@ -603,7 +603,7 @@ async function confirmBierwart(member: any) {
             <q-input v-model="editForm.startTime" :label="t('calendar.startTime')" type="datetime-local" outlined dense class="col" />
             <q-input v-model="editForm.endTime" :label="t('calendar.endTime')" type="datetime-local" outlined dense class="col" />
           </div>
-          <q-input v-model="editForm.description" :label="t('calendar.description')" type="textarea" outlined dense autogrow />
+          <q-input v-model="editForm.description" :label="t('calendar.description')" type="textarea" :rows="4" outlined dense />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="t('common.cancel')" v-close-popup />

@@ -605,7 +605,7 @@ watch(
             <q-input v-model="form.endTime" :label="t('calendar.endTime')" type="datetime-local" outlined dense class="col" />
           </div>
 
-          <q-input v-model="form.description" :label="t('calendar.description')" :placeholder="t('calendar.descPlaceholder')" type="textarea" outlined dense autogrow />
+          <q-input v-model="form.description" :label="t('calendar.description')" :placeholder="t('calendar.descPlaceholder')" type="textarea" :rows="4" outlined dense />
 
           <q-toggle v-model="form.isTentative" :label="t('calendar.tentativeLabel')" />
 
