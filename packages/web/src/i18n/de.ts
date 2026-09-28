@@ -47,6 +47,7 @@ export default {
     undo: 'Rückgängig',
     undone: 'Aktion rückgängig gemacht',
     error: 'Fehler',
+    ok: 'OK',
   },
 
   // Login page
@@ -178,6 +179,8 @@ export default {
     today: 'Heute',
     createEvent: 'Termin erstellen',
     editEvent: 'Termin bearbeiten',
+    rehearsal: 'Probe',
+    gig: 'Auftritt',
     typeRehearsal: 'Probe',
     typeGig: 'Auftritt',
     typeEvent: 'Allgemeiner Termin',

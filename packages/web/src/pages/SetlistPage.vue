@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import { apiJson } from '../boot/api'
 import Markdown from '../components/Markdown.vue'
 import { useI18n } from '../composables/useI18n'
-import { exportXlsx, exportPdf, exportDocx, isShareCancellation, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
+import { exportXlsx, exportPdf, exportDocx, isShareCancellation, formatTotalDuration, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -1486,7 +1486,7 @@ onMounted(() => {
             </div>
             <div class="row items-center justify-between q-mt-xs">
               <div class="text-caption text-grey-7">
-                Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}
+                Songs: {{ songCount }} · Total length: {{ formatTotalDuration(totalDurationMs) }}
               </div>
               <div class="row q-gutter-xs">
                 <q-btn
@@ -1506,7 +1506,7 @@ onMounted(() => {
             </div>
           </div>
           <div v-else class="row items-center justify-between text-caption text-grey-7 q-mb-md">
-            <div>Songs: {{ songCount }} · Total length: {{ formatDuration(totalDurationMs) }}</div>
+            <div>Songs: {{ songCount }} · Total length: {{ formatTotalDuration(totalDurationMs) }}</div>
             <q-btn outline dense size="sm" color="primary" icon="print" :label="t('setlist.printExport')" @click="openPrintExportModal" />
           </div>
 
@@ -2164,7 +2164,7 @@ onMounted(() => {
                 </div>
                 <div class="text-subtitle2 text-grey-8">
                   {{ authStore.activeBand?.name || 'bandstr' }}
-                  <span class="q-ml-sm text-caption">· {{ filteredSongs.filter((s) => s.type === 'song').length }} Songs ({{ formatDuration(totalDurationMs) }})</span>
+                  <span class="q-ml-sm text-caption">· {{ filteredSongs.filter((s) => s.type === 'song').length }} Songs ({{ formatTotalDuration(totalDurationMs) }})</span>
                 </div>
               </div>
               <div v-if="selectedGigId && selectedGigMeta" class="text-right text-caption">
@@ -2255,7 +2255,7 @@ onMounted(() => {
 
             <!-- Footer summary -->
             <div class="row justify-between items-center q-mt-lg text-caption text-grey-7 border-top-dark q-pt-sm">
-              <div>Total Songs: {{ filteredSongs.filter((s) => s.type === 'song').length }} · Total Duration: {{ formatDuration(totalDurationMs) }}</div>
+              <div>Total Songs: {{ filteredSongs.filter((s) => s.type === 'song').length }} · Total Duration: {{ formatTotalDuration(totalDurationMs) }}</div>
               <div>Generated with bandstr</div>
             </div>
           </div>

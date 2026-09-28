@@ -506,43 +506,51 @@ onMounted(async () => {
               <div class="text-subtitle1 text-weight-bold">{{ t('admin.eventTimeDefaults') }}</div>
               <div class="text-caption text-grey">{{ t('admin.eventTimeDefaultsHint') }}</div>
             </q-card-section>
-            <q-card-section class="q-gutter-md">
-              <div class="row q-col-gutter-md">
-                <div class="col-12 col-sm-6">
-                  <q-input
-                    v-model="defaultRehearsalStartTime"
-                    type="time"
-                    outlined
-                    dense
-                    :label="t('admin.defaultRehearsalStart')"
-                  />
+            <q-card-section class="q-gutter-y-md">
+              <div>
+                <div class="text-caption text-weight-medium q-mb-xs">{{ t('calendar.rehearsal') }}</div>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-6">
+                    <q-input
+                      v-model="defaultRehearsalStartTime"
+                      type="time"
+                      outlined
+                      dense
+                      :label="t('admin.defaultRehearsalStart')"
+                    />
+                  </div>
+                  <div class="col-6">
+                    <q-input
+                      v-model="defaultRehearsalEndTime"
+                      type="time"
+                      outlined
+                      dense
+                      :label="t('admin.defaultRehearsalEnd')"
+                    />
+                  </div>
                 </div>
-                <div class="col-12 col-sm-6">
-                  <q-input
-                    v-model="defaultRehearsalEndTime"
-                    type="time"
-                    outlined
-                    dense
-                    :label="t('admin.defaultRehearsalEnd')"
-                  />
-                </div>
-                <div class="col-12 col-sm-6">
-                  <q-input
-                    v-model="defaultGigStartTime"
-                    type="time"
-                    outlined
-                    dense
-                    :label="t('admin.defaultGigStart')"
-                  />
-                </div>
-                <div class="col-12 col-sm-6">
-                  <q-input
-                    v-model="defaultGigEndTime"
-                    type="time"
-                    outlined
-                    dense
-                    :label="t('admin.defaultGigEnd')"
-                  />
+              </div>
+              <div>
+                <div class="text-caption text-weight-medium q-mb-xs">{{ t('calendar.gig') }}</div>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-6">
+                    <q-input
+                      v-model="defaultGigStartTime"
+                      type="time"
+                      outlined
+                      dense
+                      :label="t('admin.defaultGigStart')"
+                    />
+                  </div>
+                  <div class="col-6">
+                    <q-input
+                      v-model="defaultGigEndTime"
+                      type="time"
+                      outlined
+                      dense
+                      :label="t('admin.defaultGigEnd')"
+                    />
+                  </div>
                 </div>
               </div>
               <div class="row justify-end q-mt-md">

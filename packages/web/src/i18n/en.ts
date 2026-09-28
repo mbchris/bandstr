@@ -47,6 +47,7 @@ export default {
     undo: 'Undo',
     undone: 'Action undone',
     error: 'Error',
+    ok: 'OK',
   },
 
   // Login page
@@ -177,6 +178,8 @@ export default {
     today: 'Today',
     createEvent: 'Create Event',
     editEvent: 'Edit Event',
+    rehearsal: 'Rehearsal',
+    gig: 'Gig',
     typeRehearsal: 'Rehearsal',
     typeGig: 'Gig',
     typeEvent: 'General Event',

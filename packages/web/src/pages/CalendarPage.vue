@@ -531,13 +531,13 @@ watch(
     </div>
 
     <!-- Event Create/Edit Dialog -->
-    <q-dialog v-model="showEventModal">
-      <q-card style="width: 90vw; max-width: 380px; margin-top: 60px; max-height: calc(100vh - 80px)">
+    <q-dialog v-model="showEventModal" position="top">
+      <q-card style="width: 90vw; max-width: 315px; margin-top: 84px; max-height: calc(100vh - 104px); display: flex; flex-direction: column;">
         <q-card-section class="row items-center">
           <div class="text-h6">{{ editingEvent ? t('calendar.editEvent') : t('calendar.createEvent') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
         </q-card-section>
-        <q-card-section class="q-gutter-md">
+        <q-card-section class="q-gutter-md scroll col">
           <q-input v-model="form.title" :label="t('common.title')" outlined dense autofocus />
 
           <div class="row q-gutter-sm">
@@ -700,7 +700,7 @@ watch(
 
     <!-- Day View Dialog -->
     <q-dialog v-model="showDayViewModal">
-      <q-card v-if="selectedDayData" style="min-width: 400px">
+      <q-card v-if="selectedDayData" style="width: 90vw; max-width: 400px">
         <q-card-section>
           <div class="text-overline text-grey">
             {{ new Date(selectedDayData.year, selectedDayData.month, selectedDayData.day).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) }}

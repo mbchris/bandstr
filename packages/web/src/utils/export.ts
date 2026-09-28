@@ -115,6 +115,14 @@ export function formatDuration(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+export function formatTotalDuration(ms: number): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return '00:00:00'
+  const hours = Math.floor(ms / 3600000)
+  const minutes = Math.floor((ms % 3600000) / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
 function formatPitch(pitch: number | null | undefined): string {
   if (typeof pitch !== 'number' || pitch === 0) return '-'
   return (pitch > 0 ? '+' : '') + pitch
@@ -136,7 +144,7 @@ export async function exportPdf(data: SetlistExportData, filename: string): Prom
     : data.items
         .filter((i) => i.type === 'song' && typeof i.lengthMs === 'number')
         .reduce((sum, i) => sum + (i.lengthMs ?? 0), 0)
-  const totalDurationStr = formatDuration(totalDurationMs)
+  const totalDurationStr = formatTotalDuration(totalDurationMs)
 
   // Header
   let currentY = 18
@@ -299,7 +307,7 @@ export async function exportDocx(data: SetlistExportData, filename: string): Pro
     : data.items
         .filter((i) => i.type === 'song' && typeof i.lengthMs === 'number')
         .reduce((sum, i) => sum + (i.lengthMs ?? 0), 0)
-  const totalDurationStr = formatDuration(totalDurationMs)
+  const totalDurationStr = formatTotalDuration(totalDurationMs)
 
   const children: any[] = []
 
