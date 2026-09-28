@@ -213,6 +213,13 @@ export default {
     gigSetlistLabel: 'Gig-Setliste',
     newGigSetlist: 'Neue Gig-Setliste (Standard)',
     openSetlist: 'Setliste öffnen',
+    repeatLabel: 'Wiederholen',
+    repeatNone: 'Keine Wiederholung',
+    repeatWeekly: 'Jede Woche',
+    repeatBiweekly: 'Alle 2 Wochen',
+    repeatMonthly: 'Jeden Monat',
+    repeatCountLabel: 'Anzahl Wiederholungen',
+    repeatTimes: '{n} weitere Termine ({total} Termine gesamt)',
   },
 
   // Voting page

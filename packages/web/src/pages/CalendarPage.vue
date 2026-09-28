@@ -103,6 +103,18 @@ const ownerOptions = computed(() => [
   ...bandStore.members.filter((m) => !m.isHidden).map((u) => ({ label: u.name, value: u.id })),
 ])
 
+const repeatOptions = computed(() => [
+  { label: t('calendar.repeatNone'), value: 'none' },
+  { label: t('calendar.repeatWeekly'), value: 'weekly' },
+  { label: t('calendar.repeatBiweekly'), value: 'biweekly' },
+  { label: t('calendar.repeatMonthly'), value: 'monthly' },
+])
+
+const repeatCountOptions = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+  label: String(n),
+  value: n,
+}))
+
 // Calendar state
 const currentDate = ref(new Date())
 const currentYear = computed(() => currentDate.value.getFullYear())
@@ -190,6 +202,8 @@ const form = ref({
   endTime: '',
   isTentative: false,
   gigSetlistId: null as number | null,
+  repeat: 'none' as 'none' | 'weekly' | 'biweekly' | 'monthly',
+  repeatCount: 1,
 })
 
 function applyTimeDefaults(startTimeStr: string, endTimeStr: string) {
@@ -228,6 +242,8 @@ function openModal(year: number, month: number, day: number) {
     endTime: toDatetimeLocal(end),
     isTentative: false,
     gigSetlistId: null,
+    repeat: 'none',
+    repeatCount: 1,
   }
   void fetchGigSetlists()
   showEventModal.value = true
@@ -245,6 +261,8 @@ async function editEvent(event: CalendarEvent) {
     endTime: toDatetimeLocal(new Date(event.endTime)),
     isTentative: event.isTentative || false,
     gigSetlistId: event.gigSetlistId ?? null,
+    repeat: 'none',
+    repeatCount: 1,
   }
   showEventModal.value = true
 }
@@ -275,19 +293,71 @@ watch(
   },
 )
 
+function calculateNextEventDates(
+  baseStart: Date,
+  baseEnd: Date,
+  repeat: 'weekly' | 'biweekly' | 'monthly',
+  index: number,
+): { start: Date; end: Date } {
+  const durationMs = baseEnd.getTime() - baseStart.getTime()
+  const nextStart = new Date(baseStart)
+
+  if (repeat === 'weekly') {
+    nextStart.setDate(nextStart.getDate() + 7 * index)
+  } else if (repeat === 'biweekly') {
+    nextStart.setDate(nextStart.getDate() + 14 * index)
+  } else if (repeat === 'monthly') {
+    const targetMonth = baseStart.getMonth() + index
+    nextStart.setMonth(targetMonth)
+  }
+
+  const nextEnd = new Date(nextStart.getTime() + durationMs)
+  return { start: nextStart, end: nextEnd }
+}
+
 async function saveEvent() {
   isSaving.value = true
   try {
-    const payload = {
-      ...form.value,
-      startTime: new Date(form.value.startTime).toISOString(),
-      endTime: new Date(form.value.endTime).toISOString(),
+    const baseStartTime = new Date(form.value.startTime)
+    const baseEndTime = new Date(form.value.endTime)
+    const basePayload = {
+      title: form.value.title,
+      description: form.value.description,
+      type: form.value.type,
+      userId: form.value.userId,
+      isTentative: form.value.isTentative,
       gigSetlistId: form.value.type === 'gig' ? form.value.gigSetlistId : null,
     }
+
     if (editingEvent.value) {
-      await calendarStore.updateEvent(editingEvent.value.id, payload as any)
+      await calendarStore.updateEvent(editingEvent.value.id, {
+        ...basePayload,
+        startTime: baseStartTime.toISOString(),
+        endTime: baseEndTime.toISOString(),
+      } as any)
     } else {
-      await calendarStore.createEvent(payload as any)
+      const occurrences: Array<{ start: Date; end: Date }> = [
+        { start: baseStartTime, end: baseEndTime },
+      ]
+
+      if (form.value.repeat && form.value.repeat !== 'none') {
+        const count = Math.min(Math.max(Number(form.value.repeatCount) || 1, 1), 8)
+        for (let i = 1; i <= count; i++) {
+          occurrences.push(
+            calculateNextEventDates(baseStartTime, baseEndTime, form.value.repeat, i),
+          )
+        }
+      }
+
+      await Promise.all(
+        occurrences.map((occ) =>
+          calendarStore.createEvent({
+            ...basePayload,
+            startTime: occ.start.toISOString(),
+            endTime: occ.end.toISOString(),
+          } as any),
+        ),
+      )
     }
     void fetchGigSetlists()
     showEventModal.value = false
@@ -615,6 +685,30 @@ watch(
           <div class="row q-gutter-sm">
             <q-input v-model="form.startTime" :label="t('calendar.startTime')" type="datetime-local" outlined dense class="col" />
             <q-input v-model="form.endTime" :label="t('calendar.endTime')" type="datetime-local" outlined dense class="col" />
+          </div>
+
+          <div v-if="!editingEvent" class="row q-gutter-sm items-center">
+            <q-select
+              v-model="form.repeat"
+              :options="repeatOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="t('calendar.repeatLabel')"
+              class="col"
+            />
+            <q-select
+              v-if="form.repeat !== 'none'"
+              v-model="form.repeatCount"
+              :options="repeatCountOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="t('calendar.repeatCountLabel')"
+              class="col-4"
+            />
           </div>
 
           <q-input v-model="form.description" :label="t('calendar.description')" :placeholder="t('calendar.descPlaceholder')" type="textarea" :rows="4" outlined dense />

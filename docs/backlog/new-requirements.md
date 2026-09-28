@@ -244,6 +244,15 @@
   - [x] In the "Gig Setlist" view, invalid links pointing to calendar entries that no longer exist or are not gigs are removed.
   - [x] Selecting a calendar entry in the "Gig Setlist" view shall be from an autocomplete text box instead of a simple drop-down menu.
 
+## TASK-0226: Recurring Calendar Events / Terminserien (#20)
+- **Status:** done
+- **Labels:** feature, frontend, calendar
+- **Acceptance Criteria:**
+  - [x] In "Termin erstellen" modal, add "Wiederholen" option (Keine Wiederholung, Jede Woche, Alle 2 Wochen, Jeden Monat).
+  - [x] When a repetition is selected, allow configuring the number of occurrences (1-8).
+  - [x] Each recurring event is stored as an independent calendar entry so individual events can be modified or deleted separately.
+  - [x] All common event details (title, type, owner, times, description, tentative flag) are preserved across repeated entries.
+
 # Sample Acceptance Criteria (use this for reference)
 
 ## TASK-0000: Example Task

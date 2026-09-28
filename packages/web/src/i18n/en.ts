@@ -212,6 +212,13 @@ export default {
     gigSetlistLabel: 'Gig Setlist',
     newGigSetlist: 'New Gig Setlist (default)',
     openSetlist: 'Open Setlist',
+    repeatLabel: 'Repeat',
+    repeatNone: 'No repeat',
+    repeatWeekly: 'Every week',
+    repeatBiweekly: 'Every 2 weeks',
+    repeatMonthly: 'Every month',
+    repeatCountLabel: 'Number of repeats',
+    repeatTimes: '{n} further occurrences ({total} events total)',
   },
 
   // Voting page
