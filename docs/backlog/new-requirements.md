@@ -183,6 +183,7 @@
   - [x] Allow toggling attendance directly inside the rehearsal calendar event dialog.
   - [x] Provide a Rehearsal Attendance Overview ("Probenübersicht") modal displaying upcoming rehearsals vs. all active band members.
   - [x] Display status indicators (🟢 all confirmed, 🔴 absent member, 🟠 pending responses) on calendar rehearsal chips.
+  - [x] Group attendance by status (present, absent, open) in rehearsal calendar dialog for improved readability.
 
 ## TASK-0220: Voting Ranking & Song Archive (#22)
 - **Status:** done

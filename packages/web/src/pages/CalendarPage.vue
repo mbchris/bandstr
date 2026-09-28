@@ -388,6 +388,18 @@ const currentEditingMyAttendance = computed(() => {
   return currentEditingAttendance.value?.myAttendance ?? null
 })
 
+const groupedAttendancePresent = computed(() => {
+  return (currentEditingAttendance.value?.memberAttendance ?? []).filter((m) => m.status === 'present')
+})
+
+const groupedAttendanceAbsent = computed(() => {
+  return (currentEditingAttendance.value?.memberAttendance ?? []).filter((m) => m.status === 'absent')
+})
+
+const groupedAttendanceOpen = computed(() => {
+  return (currentEditingAttendance.value?.memberAttendance ?? []).filter((m) => m.status !== 'present' && m.status !== 'absent')
+})
+
 async function updateAttendanceForCurrentEvent(status: 'present' | 'absent' | 'reset') {
   if (!editingEvent.value) return
   isSavingAttendance.value = true
@@ -667,18 +679,36 @@ watch(
                 />
               </div>
 
-              <!-- Member attendance chips -->
-              <div v-if="currentEditingAttendance?.memberAttendance?.length" class="q-mt-xs">
-                <div class="row q-gutter-xs">
+              <!-- Member attendance grouped chips -->
+              <div v-if="currentEditingAttendance?.memberAttendance?.length" class="column q-gutter-xs q-mt-xs">
+                <div v-if="groupedAttendancePresent.length" class="row items-center">
                   <q-chip
-                    v-for="m in currentEditingAttendance.memberAttendance"
-                    :key="m.userId"
                     dense
-                    :color="m.status === 'present' ? 'green-1' : m.status === 'absent' ? 'red-1' : 'grey-2'"
-                    :text-color="m.status === 'present' ? 'positive' : m.status === 'absent' ? 'negative' : 'grey-8'"
-                    :icon="m.status === 'present' ? 'check_circle' : m.status === 'absent' ? 'cancel' : 'help_outline'"
+                    color="green-1"
+                    text-color="positive"
+                    icon="check_circle"
                   >
-                    {{ m.userName }}: {{ m.status === 'present' ? t('home.attendanceConfirmed') : m.status === 'absent' ? t('home.attendanceAbsent') : t('home.attendanceUnset') }}
+                    {{ groupedAttendancePresent.map((m) => m.userName).join(', ') }}
+                  </q-chip>
+                </div>
+                <div v-if="groupedAttendanceAbsent.length" class="row items-center">
+                  <q-chip
+                    dense
+                    color="red-1"
+                    text-color="negative"
+                    icon="cancel"
+                  >
+                    {{ groupedAttendanceAbsent.map((m) => m.userName).join(', ') }}
+                  </q-chip>
+                </div>
+                <div v-if="groupedAttendanceOpen.length" class="row items-center">
+                  <q-chip
+                    dense
+                    color="grey-2"
+                    text-color="grey-8"
+                    icon="help_outline"
+                  >
+                    {{ groupedAttendanceOpen.map((m) => m.userName).join(', ') }}
                   </q-chip>
                 </div>
               </div>
