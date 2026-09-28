@@ -776,8 +776,9 @@ watch(
     </div>
 
     <!-- Add/Edit Song Dialog -->
-    <q-dialog v-model="showSongModal">
+    <q-dialog v-model="showSongModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card style="min-width: 450px">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ modalSong.id ? t('voting.editSong') : t('voting.suggestNew') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -863,8 +864,9 @@ watch(
     </q-dialog>
 
     <!-- Vote Details -->
-    <q-dialog v-model="showDetailsDialog">
+    <q-dialog v-model="showDetailsDialog" :position="isIos ? 'bottom' : 'standard'">
       <q-card style="min-width: 360px; max-width: 96vw">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('voting.details') }}</div>
           <q-space />

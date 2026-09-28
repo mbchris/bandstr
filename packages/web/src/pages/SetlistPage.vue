@@ -1826,8 +1826,9 @@ onMounted(() => {
     </div>
 
     <!-- Add Song to Master Setlist Dialog -->
-    <q-dialog v-model="showAddSongModal">
+    <q-dialog v-model="showAddSongModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card style="min-width: 450px">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('setlist.addSongTitle') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -1963,8 +1964,9 @@ onMounted(() => {
     </q-dialog>
 
     <!-- Add Songs to User Setlist Dialog -->
-    <q-dialog v-model="showAddUserSetlistModal">
+    <q-dialog v-model="showAddUserSetlistModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card class="song-picker-card">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('setlist.addToUserSetlist') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -2001,8 +2003,9 @@ onMounted(() => {
     </q-dialog>
 
     <!-- Note Viewer Dialog -->
-    <q-dialog v-model="showNoteModal">
+    <q-dialog v-model="showNoteModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card style="min-width: 400px">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ noteModalTitle }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -2018,8 +2021,9 @@ onMounted(() => {
     </q-dialog>
 
     <!-- Edit Song Dialog -->
-    <q-dialog v-model="showEditModal">
+    <q-dialog v-model="showEditModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card v-if="editingItem" style="min-width: 450px">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('setlist.editSong') }}: {{ editingItem.title }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />

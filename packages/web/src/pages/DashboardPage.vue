@@ -8,6 +8,7 @@ import { useBandStore } from '../stores/band'
 import { useNotificationsStore } from '../stores/notifications'
 import { isAndroidNative } from '../plugins/playBilling'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,6 +17,7 @@ const bandStore = useBandStore()
 const notificationsStore = useNotificationsStore()
 const $q = useQuasar()
 const { t } = useI18n()
+const { isIos, pIcon } = usePlatform()
 
 const joining = ref(false)
 const creatingBand = ref(false)
@@ -615,8 +617,9 @@ onMounted(async () => {
       </div>
     </div>
 
-    <q-dialog v-model="showCreateBandDialog">
+    <q-dialog v-model="showCreateBandDialog" :position="isIos ? 'bottom' : 'standard'">
       <q-card style="min-width: 420px">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('dashboard.createBand') }}</div>
           <q-space />
@@ -633,8 +636,9 @@ onMounted(async () => {
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showEditModal">
+    <q-dialog v-model="showEditModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card style="min-width: 420px" v-if="editForm">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ t('dashboard.editBand') }}</div>
           <q-space />

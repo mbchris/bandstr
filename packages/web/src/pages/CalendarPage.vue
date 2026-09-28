@@ -640,8 +640,9 @@ watch(
     </div>
 
     <!-- Event Create/Edit Dialog -->
-    <q-dialog v-model="showEventModal" position="top">
-      <q-card style="width: 90vw; max-width: 315px; margin-top: 84px; max-height: calc(100vh - 104px); display: flex; flex-direction: column;">
+    <q-dialog v-model="showEventModal" :position="isIos ? 'bottom' : 'standard'">
+      <q-card style="width: 90vw; max-width: 420px; max-height: calc(100vh - 104px); display: flex; flex-direction: column;">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section class="row items-center">
           <div class="text-h6">{{ editingEvent ? t('calendar.editEvent') : t('calendar.createEvent') }}</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -850,8 +851,9 @@ watch(
     </q-dialog>
 
     <!-- Day View Dialog -->
-    <q-dialog v-model="showDayViewModal">
+    <q-dialog v-model="showDayViewModal" :position="isIos ? 'bottom' : 'standard'">
       <q-card v-if="selectedDayData" style="width: 90vw; max-width: 400px">
+        <div v-if="isIos" class="ios-sheet-grabber" />
         <q-card-section>
           <div class="text-overline text-grey">
             {{ new Date(selectedDayData.year, selectedDayData.month, selectedDayData.day).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) }}
