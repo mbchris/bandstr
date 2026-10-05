@@ -8,6 +8,7 @@ import { useBandStore, type BandMember } from '../stores/band'
 import { apiJson } from '../boot/api'
 import { useI18n } from '../composables/useI18n'
 import { usePlatform } from '../composables/usePlatform'
+import { useSwipeAffordance } from '../composables/useSwipeAffordance'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { exportXlsx, isShareCancellation } from '../utils/export'
 import { getInitials } from '../utils/initials'
@@ -20,6 +21,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const { isIos, isAndroid, pIcon } = usePlatform()
+const { tryPeek } = useSwipeAffordance('voting-songs')
 
 const searchQuery = ref('')
 const draggingIndex = ref<number | null>(null)
@@ -562,6 +564,8 @@ function handleExport() {
 onMounted(() => {
   void Promise.all([songsStore.fetchSongs(), bandStore.fetchMembers()]).then(() => {
     openSongFromQuery()
+    const firstItem = document.querySelector('.voting-slide-item .q-slide-item__content') as HTMLElement | null
+    tryPeek(firstItem)
   })
 })
 
@@ -569,6 +573,10 @@ watch(
   () => songsStore.songs.length,
   () => {
     openSongFromQuery()
+    setTimeout(() => {
+      const firstItem = document.querySelector('.voting-slide-item .q-slide-item__content') as HTMLElement | null
+      tryPeek(firstItem)
+    }, 200)
   },
 )
 </script>
@@ -660,7 +668,10 @@ watch(
             <q-slide-item
               v-for="(song, index) in filteredSongs"
               :key="song.id"
-              class="voting-slide-item"
+              class="voting-slide-item swipeable-affordance-item has-swipe-left-affordance"
+              :class="{
+                'has-swipe-right-affordance': !song.isArchived,
+              }"
               left-color="positive"
               right-color="negative"
               @left="({ reset }) => onSwipeRight(song, reset)"

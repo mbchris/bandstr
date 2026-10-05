@@ -9,6 +9,7 @@ import Markdown from '../components/Markdown.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { useI18n } from '../composables/useI18n'
 import { usePlatform } from '../composables/usePlatform'
+import { useSwipeAffordance } from '../composables/useSwipeAffordance'
 import { exportXlsx, exportPdf, exportDocx, isShareCancellation, formatTotalDuration, type SetlistExportColumn, type SetlistExportData, type SetlistExportItem } from '../utils/export'
 
 const $q = useQuasar()
@@ -18,6 +19,8 @@ const songsStore = useSongsStore()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const { isIos, isAndroid, pIcon } = usePlatform()
+const { tryPeek: tryPeekSongs } = useSwipeAffordance('setlist-songs')
+const { tryPeek: tryPeekGigs } = useSwipeAffordance('setlist-gigs')
 
 function goToGigDetails() {
   if (selectedGigMeta.value?.calendarEventId) {
@@ -1687,6 +1690,17 @@ onMounted(() => {
   fetchCalendarGigs()
   fetchUserSetlistSongs()
   fetchPersonalNotes()
+
+  // Visual layout affordance peek for first rendered item
+  setTimeout(() => {
+    if (activeTab.value === 'gig' && !selectedGigId.value) {
+      const firstGig = document.querySelector('.gig-slide-item .q-slide-item__content') as HTMLElement | null
+      tryPeekGigs(firstGig)
+    } else {
+      const firstSong = document.querySelector('.setlist-slide-item.has-swipe-left-affordance .q-slide-item__content') as HTMLElement | null
+      tryPeekSongs(firstSong)
+    }
+  }, 400)
 })
 </script>
 
@@ -1832,6 +1846,7 @@ onMounted(() => {
               <q-slide-item
                 v-for="gig in filteredGigs"
                 :key="gig.id"
+                class="gig-slide-item swipeable-affordance-item has-swipe-left-affordance"
                 :left-color="gig.isArchived ? 'positive' : 'primary'"
                 @left="({ reset }) => toggleGigArchive(gig, reset)"
               >
@@ -1980,10 +1995,12 @@ onMounted(() => {
               v-for="(item, index) in filteredSongs"
               :key="getItemKey(item)"
               :data-song-index="index"
-              class="setlist-slide-item"
+              class="setlist-slide-item swipeable-affordance-item"
               :class="{
                 'set-divider-slide': item.type === 'set',
                 'encore-divider-slide': item.type === 'encore',
+                'has-swipe-left-affordance': item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master',
+                'has-swipe-right-affordance': item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master' && !item.isArchived,
                 'dragging-item': draggingIndex === index,
                 'drag-over-item': dragOverIndex === index && draggingIndex !== index,
               }"

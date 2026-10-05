@@ -8,7 +8,7 @@ describe('Issue #19 Setlist Print & Export remaining open issues', () => {
     const content = fs.readFileSync(pagePath, 'utf-8')
 
     // Top printer symbol must be present
-    expect(content).toMatch(/<q-btn\s+flat\s+round\s+icon="print"\s+@click="openPrintExportModal">/)
+    expect(content).toMatch(/<q-btn\s+flat\s+round\s+(?:icon="print"|:icon="pIcon\('print'\)")\s+@click="openPrintExportModal">/)
 
     // No duplicate buttons with :label="t('setlist.printExport')" in the page body
     expect(content).not.toMatch(/<q-btn[^>]*:label="t\('setlist\.printExport'\)"/)
