@@ -7,6 +7,7 @@ import { useBandStore } from '../stores/band'
 import { apiJson } from '../boot/api'
 import MarkdownComponent from '../components/Markdown.vue'
 import BeerRain from '../components/BeerRain.vue'
+import BleedingCardCarousel from '../components/BleedingCardCarousel.vue'
 import { useI18n } from '../composables/useI18n'
 import { getInitials } from '../utils/initials'
 
@@ -515,8 +516,51 @@ async function confirmBierwart(member: any) {
             </div>
           </q-card-section>
 
-          <q-card-section v-if="upcomingGigs?.length">
-            <q-list separator>
+          <q-card-section v-if="upcomingGigs?.length" class="q-px-none q-px-sm-md">
+            <!-- Mobile Bleeding Card Carousel -->
+            <div v-if="$q.screen.lt.md">
+              <BleedingCardCarousel>
+                <q-card
+                  v-for="gig in upcomingGigs"
+                  :key="gig.id"
+                  flat
+                  bordered
+                  class="bleeding-edge-item gig-entry cursor-pointer"
+                  :class="{ 'gig-clickable': gig.gigSetlistId }"
+                  @click="gig.gigSetlistId ? goToGigSetlist(gig.gigSetlistId) : null"
+                >
+                  <q-card-section>
+                    <div class="row items-center no-wrap justify-between q-mb-sm">
+                      <div class="row items-center q-gutter-sm">
+                        <div class="text-h6 text-red text-weight-bold">{{ new Date(gig.startTime).getDate() }}</div>
+                        <div class="text-caption text-weight-medium text-grey-7">
+                          {{ new Date(gig.startTime).toLocaleString(dateLocale, { month: 'short' }) }} · {{ new Date(gig.startTime).toLocaleDateString(dateLocale, { weekday: 'short' }) }}
+                        </div>
+                      </div>
+                      <q-badge v-if="gig.isTentative" color="grey" :label="t('calendar.tentative')" />
+                    </div>
+                    <div class="text-subtitle1 text-weight-bold q-mb-xs">{{ gig.title }}</div>
+                    <div v-if="gig.description" class="text-caption text-grey-8 q-mb-sm ellipsis-2-lines">
+                      <markdown-component :content="gig.description" />
+                    </div>
+                    <div v-if="gig.gigSetlistId" class="row justify-end q-mt-sm">
+                      <q-btn
+                        outline
+                        dense
+                        color="primary"
+                        icon="queue_music"
+                        :label="t('home.openSetlist')"
+                        size="sm"
+                        @click.stop="goToGigSetlist(gig.gigSetlistId)"
+                      />
+                    </div>
+                  </q-card-section>
+                </q-card>
+              </BleedingCardCarousel>
+            </div>
+
+            <!-- Desktop Vertical List -->
+            <q-list v-else separator>
               <q-item
                 v-for="gig in upcomingGigs"
                 :key="gig.id"

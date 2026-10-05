@@ -956,16 +956,16 @@ watch(
           <div v-else-if="!calendarStore.upcomingRehearsals.length" class="text-center text-grey q-pa-lg">
             {{ t('calendar.noUpcomingRehearsals') }}
           </div>
-          <div v-else class="q-table__container q-table--horizontal-separator" style="overflow-x: auto">
-            <table class="q-table q-table--dense full-width">
+          <div v-else class="q-table__container q-table--horizontal-separator edge-fade-mask" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+            <table class="q-table q-table--dense full-width attendance-matrix-table">
               <thead>
                 <tr>
-                  <th class="text-left q-px-sm">{{ t('calendar.tableDate') }}</th>
-                  <th class="text-left q-px-sm">{{ t('calendar.tableRehearsal') }}</th>
-                  <th v-for="member in calendarStore.attendanceMembers" :key="member.userId" class="text-center q-px-xs">
+                  <th class="text-left q-px-sm" style="min-width: 80px">{{ t('calendar.tableDate') }}</th>
+                  <th class="text-left q-px-sm" style="min-width: 120px">{{ t('calendar.tableRehearsal') }}</th>
+                  <th v-for="member in calendarStore.attendanceMembers" :key="member.userId" class="text-center q-px-xs" style="min-width: 68px">
                     {{ member.userName }}
                   </th>
-                  <th class="text-center q-px-sm">{{ t('calendar.tableStatus') }}</th>
+                  <th class="text-center q-px-sm" style="min-width: 76px">{{ t('calendar.tableStatus') }}</th>
                 </tr>
               </thead>
               <tbody>

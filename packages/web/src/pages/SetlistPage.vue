@@ -284,7 +284,7 @@ function backToGigList() {
 const activeSongs = computed(() => {
   if (activeTab.value === 'gig' && selectedGigId.value) return gigSongs.value
   if (activeTab.value === 'user') {
-    let songs = userSetlistSongs.value
+    const songs = userSetlistSongs.value
     if (statusFilter.value === 'archived') {
       return songs.filter((s) => !!s.isArchived)
     } else if (statusFilter.value === 'active') {
