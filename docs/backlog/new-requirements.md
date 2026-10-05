@@ -251,7 +251,17 @@
   - [x] In "Termin erstellen" modal, add "Wiederholen" option (Keine Wiederholung, Jede Woche, Alle 2 Wochen, Jeden Monat).
   - [x] When a repetition is selected, allow configuring the number of occurrences (1-8).
   - [x] Each recurring event is stored as an independent calendar entry so individual events can be modified or deleted separately.
-  - [x] All common event details (title, type, owner, times, description, tentative flag) are preserved across repeated entries.
+## TASK-0227: Icon and Text Sizing and Optimizations (#41)
+- **Status:** done
+- **Labels:** feature, frontend, backend, setlist, calendar, icons
+- **Acceptance Criteria:**
+  - [x] Home page displays up to the next 5 upcoming gigs instead of 3.
+  - [x] "Open Setlist" on Home page upcoming gig directly opens the corresponding Gig Setlist without getting reset to the setlist overview.
+  - [x] User Setlist management uses a two-panel builder mirroring the Gig Setlist builder UI.
+  - [x] "View Gig" link in Setlist Gig Details navigates to the linked Calendar event details modal.
+  - [x] In Setlist Gig Details, calendar link input displays the human-readable date and title label instead of a raw numeric ID.
+  - [x] Gig details header buttons are compliant, clean round icon-only buttons with tooltips (edit, duplicate, save, delete).
+  - [x] Swipe "move to Voting" in Setlist uses a dedicated voting icon (`how_to_vote`).
 
 # Sample Acceptance Criteria (use this for reference)
 
