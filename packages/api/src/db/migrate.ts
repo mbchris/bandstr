@@ -212,34 +212,75 @@ async function ensureGigSetlistDetailsColumns() {
 async function ensureGigSetlistsCalendarConsistency() {
   if (!(await publicTableExists('gig_setlists')) || !(await publicTableExists('calendar_events'))) return
 
-  // 1. Remove invalid links: calendar_event_id pointing to non-existent or non-gig events
+  // 1. Ensure gig_setlist_id column exists on calendar_events
   await pool.query(`
-    UPDATE "gig_setlists"
-    SET "calendar_event_id" = NULL
-    WHERE "calendar_event_id" IS NOT NULL
+    ALTER TABLE "calendar_events"
+      ADD COLUMN IF NOT EXISTS "gig_setlist_id" integer;
+  `)
+
+  // 2. If legacy calendar_event_id column still exists on gig_setlists, backfill and clean up
+  const hasLegacyColumn = (await pool.query<{ count: string }>(`
+    SELECT count(*)::text as count
+    FROM information_schema.columns
+    WHERE table_name = 'gig_setlists' AND column_name = 'calendar_event_id'
+  `)).rows[0]?.count !== '0'
+
+  if (hasLegacyColumn) {
+    await pool.query(`
+      UPDATE "calendar_events" ce
+      SET "gig_setlist_id" = gs."id"
+      FROM "gig_setlists" gs
+      WHERE gs."calendar_event_id" = ce."id"
+        AND ce."type" = 'gig'
+        AND ce."gig_setlist_id" IS NULL;
+    `)
+    await pool.query(`
+      DROP INDEX IF EXISTS "gig_setlists_band_calendar_event_idx";
+      ALTER TABLE "gig_setlists" DROP CONSTRAINT IF EXISTS "gig_setlists_calendar_event_id_calendar_events_id_fk";
+      ALTER TABLE "gig_setlists" DROP COLUMN IF EXISTS "calendar_event_id";
+    `)
+  }
+
+  // 3. Remove invalid links where gig_setlist_id points to non-existent setlist
+  await pool.query(`
+    UPDATE "calendar_events" ce
+    SET "gig_setlist_id" = NULL
+    WHERE ce."gig_setlist_id" IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM "calendar_events" ce
-        WHERE ce."id" = "gig_setlists"."calendar_event_id"
-          AND ce."band_id" = "gig_setlists"."band_id"
-          AND ce."type" = 'gig'
+        SELECT 1 FROM "gig_setlists" gs
+        WHERE gs."id" = ce."gig_setlist_id"
+          AND gs."band_id" = ce."band_id"
       );
   `)
 
-  // 2. Ensure every calendar entry of type 'gig' has a gig setlist
-  await pool.query(`
-    INSERT INTO "gig_setlists" ("band_id", "title", "calendar_event_id", "gig_date", "gig_time", "notes", "created_at")
-    SELECT
-      ce."band_id",
-      ce."title",
-      ce."id",
-      to_char(ce."start_time", 'YYYY-MM-DD'),
-      to_char(ce."start_time", 'HH24:MI'),
-      ce."description",
-      ce."created_at"
-    FROM "calendar_events" ce
-    LEFT JOIN "gig_setlists" gs ON ce."id" = gs."calendar_event_id"
-    WHERE ce."type" = 'gig' AND gs."id" IS NULL;
+  // 4. Ensure every calendar entry of type 'gig' has a gig setlist
+  const missingGigs = await pool.query<{
+    id: number
+    band_id: number
+    title: string
+    description: string | null
+    start_time: Date
+    created_at: Date
+  }>(`
+    SELECT id, band_id, title, description, start_time, created_at
+    FROM "calendar_events"
+    WHERE "type" = 'gig' AND "gig_setlist_id" IS NULL
   `)
+
+  for (const gig of missingGigs.rows) {
+    const insertResult = await pool.query<{ id: number }>(`
+      INSERT INTO "gig_setlists" ("band_id", "title", "gig_date", "gig_time", "notes", "created_at")
+      VALUES ($1, $2, to_char($3::timestamp, 'YYYY-MM-DD'), to_char($3::timestamp, 'HH24:MI'), $4, $5)
+      RETURNING "id"
+    `, [gig.band_id, gig.title, gig.start_time, gig.description, gig.created_at])
+    if (insertResult.rows[0]) {
+      await pool.query(`
+        UPDATE "calendar_events"
+        SET "gig_setlist_id" = $1
+        WHERE "id" = $2
+      `, [insertResult.rows[0].id, gig.id])
+    }
+  }
 }
 
 async function ensureEventTimeDefaultsColumns() {

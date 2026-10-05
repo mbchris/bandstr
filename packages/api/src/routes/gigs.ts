@@ -67,50 +67,43 @@ async function getCalendarGigForBandOrNull(bandId: number, calendarEventId: numb
 gigs.get('/', async (c) => {
   const bandId = c.get('bandId')
 
-  // Clean up invalid links where calendar event no longer exists or is not of type 'gig'
-  await db.execute(sql`
-    UPDATE "gig_setlists"
-    SET "calendar_event_id" = NULL
-    WHERE "band_id" = ${bandId}
-      AND "calendar_event_id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM "calendar_events" ce
-        WHERE ce."id" = "gig_setlists"."calendar_event_id"
-          AND ce."band_id" = ${bandId}
-          AND ce."type" = 'gig'
-      )
+  const rows = await db.execute(sql`
+    WITH relevant_events AS (
+      SELECT DISTINCT ON (ce.gig_setlist_id)
+        ce.id AS "calendarEventId",
+        ce.title AS "calendarEventTitle",
+        ce.start_time AS "startTime",
+        ce.end_time AS "endTime",
+        ce.is_tentative AS "isTentative",
+        ce.gig_setlist_id
+      FROM calendar_events ce
+      WHERE ce.band_id = ${bandId}
+        AND ce.type = 'gig'
+        AND ce.gig_setlist_id IS NOT NULL
+      ORDER BY ce.gig_setlist_id, (ce.start_time >= NOW()) DESC, ce.start_time ASC
+    )
+    SELECT
+      gs.id,
+      gs.band_id AS "bandId",
+      gs.title,
+      gs.location,
+      gs.gig_date AS "gigDate",
+      gs.gig_time AS "gigTime",
+      gs.notes,
+      gs.is_archived AS "isArchived",
+      gs.created_at AS "createdAt",
+      re."calendarEventId",
+      re."calendarEventTitle",
+      re."startTime",
+      re."endTime",
+      re."isTentative"
+    FROM gig_setlists gs
+    LEFT JOIN relevant_events re ON re.gig_setlist_id = gs.id
+    WHERE gs.band_id = ${bandId}
+    ORDER BY COALESCE(re."startTime", gs.created_at) ASC, gs.id ASC
   `)
 
-  const rows = await db
-    .select({
-      id: gigSetlists.id,
-      bandId: gigSetlists.bandId,
-      title: gigSetlists.title,
-      location: gigSetlists.location,
-      gigDate: gigSetlists.gigDate,
-      gigTime: gigSetlists.gigTime,
-      notes: gigSetlists.notes,
-      calendarEventId: gigSetlists.calendarEventId,
-      isArchived: gigSetlists.isArchived,
-      createdAt: gigSetlists.createdAt,
-      calendarEventTitle: calendarEvents.title,
-      startTime: calendarEvents.startTime,
-      endTime: calendarEvents.endTime,
-      isTentative: calendarEvents.isTentative,
-    })
-    .from(gigSetlists)
-    .leftJoin(
-      calendarEvents,
-      and(
-        eq(gigSetlists.calendarEventId, calendarEvents.id),
-        eq(calendarEvents.bandId, bandId),
-        eq(calendarEvents.type, 'gig'),
-      ),
-    )
-    .where(eq(gigSetlists.bandId, bandId))
-    .orderBy(asc(sql`coalesce(${calendarEvents.startTime}, ${gigSetlists.createdAt})`), asc(gigSetlists.id))
-
-  return c.json(rows)
+  return c.json(rows.rows)
 })
 
 // POST /gigs
@@ -132,13 +125,25 @@ gigs.post('/', zValidator('json', gigSetlistBodySchema), async (c) => {
     .values({
       bandId,
       title: finalTitle,
-      calendarEventId: calendarEventId ?? null,
       location: location ?? null,
       gigDate: gigDate ?? null,
       gigTime: gigTime ?? null,
       notes: notes ?? null,
     })
     .returning()
+
+  if (typeof calendarEventId === 'number') {
+    await db
+      .update(calendarEvents)
+      .set({ gigSetlistId: row.id })
+      .where(
+        and(
+          eq(calendarEvents.id, calendarEventId),
+          eq(calendarEvents.bandId, bandId),
+          eq(calendarEvents.type, 'gig'),
+        ),
+      )
+  }
 
   return c.json(row, 201)
 })
@@ -158,19 +163,29 @@ async function handleUpdateGig(c: any) {
     if (!event) return c.json({ error: 'Linked calendar gig not found' }, 404)
 
     await db
-      .update(gigSetlists)
-      .set({ calendarEventId: null })
+      .update(calendarEvents)
+      .set({ gigSetlistId: gigId })
       .where(
         and(
-          eq(gigSetlists.bandId, bandId),
-          eq(gigSetlists.calendarEventId, calendarEventId),
+          eq(calendarEvents.id, calendarEventId),
+          eq(calendarEvents.bandId, bandId),
+          eq(calendarEvents.type, 'gig'),
+        ),
+      )
+  } else if (calendarEventId === null) {
+    await db
+      .update(calendarEvents)
+      .set({ gigSetlistId: null })
+      .where(
+        and(
+          eq(calendarEvents.gigSetlistId, gigId),
+          eq(calendarEvents.bandId, bandId),
         ),
       )
   }
 
   const updatePayload: Record<string, any> = {
     title: title?.trim() || gig.title,
-    calendarEventId: calendarEventId === undefined ? gig.calendarEventId : calendarEventId,
   }
   if (location !== undefined) updatePayload.location = location
   if (gigDate !== undefined) updatePayload.gigDate = gigDate
@@ -209,7 +224,6 @@ gigs.post('/:id/duplicate', zValidator('param', idParamSchema), async (c) => {
       gigDate: gig.gigDate,
       gigTime: gig.gigTime,
       notes: gig.notes,
-      calendarEventId: null,
     })
     .returning()
 

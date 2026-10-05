@@ -257,4 +257,104 @@ describe('Calendar API (/api/calendar)', () => {
     expect(gigs[0].calendarEventId).toBeNull()
     expect(gigs[0].calendarEventTitle).toBeNull()
   })
+
+  it('allows a setlist to be assigned to 0...n calendar entries and reassigning without failure', async () => {
+    const ctx = await createTestContext()
+    const now = new Date()
+    const later1 = new Date(now.getTime() + 1000 * 60 * 60 * 2)
+    const later2 = new Date(now.getTime() + 1000 * 60 * 60 * 24)
+    const later2End = new Date(later2.getTime() + 1000 * 60 * 60 * 2)
+
+    // 1. Create Setlist A
+    const setlistARes = await app.request('/api/gigs', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Festival Setlist A',
+      }),
+    })
+    expect(setlistARes.status).toBe(201)
+    const setlistA = await setlistARes.json()
+
+    // 2. Create Event 1 assigned to Setlist A
+    const event1Res = await app.request('/api/calendar', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Gig Tour Stop 1',
+        startTime: now.toISOString(),
+        endTime: later1.toISOString(),
+        type: 'gig',
+        gigSetlistId: setlistA.id,
+      }),
+    })
+    expect(event1Res.status).toBe(201)
+
+    // 3. Create Event 2 assigned to the SAME Setlist A
+    const event2Res = await app.request('/api/calendar', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Gig Tour Stop 2',
+        startTime: later2.toISOString(),
+        endTime: later2End.toISOString(),
+        type: 'gig',
+        gigSetlistId: setlistA.id,
+      }),
+    })
+    expect(event2Res.status).toBe(201)
+
+    // Check both events exist and both point to Setlist A
+    const eventsRes1 = await app.request('/api/calendar', { headers: ctx.headers })
+    const events1 = await eventsRes1.json()
+    expect(events1.length).toBe(2)
+    const ev1 = events1.find((e: any) => e.title === 'Gig Tour Stop 1')
+    const ev2 = events1.find((e: any) => e.title === 'Gig Tour Stop 2')
+    expect(ev1.gigSetlistId).toBe(setlistA.id)
+    expect(ev2.gigSetlistId).toBe(setlistA.id)
+
+    // 4. Create Setlist B
+    const setlistBRes = await app.request('/api/gigs', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Festival Setlist B',
+      }),
+    })
+    expect(setlistBRes.status).toBe(201)
+    const setlistB = await setlistBRes.json()
+
+    // 5. Update Event 1 to reassign to Setlist B
+    const updateEvent1Res = await app.request(`/api/calendar/${ev1.id}`, {
+      method: 'PUT',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        gigSetlistId: setlistB.id,
+      }),
+    })
+    expect(updateEvent1Res.status).toBe(200)
+
+    // 6. Verify Event 1 has Setlist B and Event 2 still has Setlist A
+    const eventsRes2 = await app.request('/api/calendar', { headers: ctx.headers })
+    const events2 = await eventsRes2.json()
+    const updatedEv1 = events2.find((e: any) => e.id === ev1.id)
+    const updatedEv2 = events2.find((e: any) => e.id === ev2.id)
+    expect(updatedEv1.gigSetlistId).toBe(setlistB.id)
+    expect(updatedEv2.gigSetlistId).toBe(setlistA.id)
+
+    // 7. Update Event 2 also to Setlist B
+    const updateEvent2Res = await app.request(`/api/calendar/${ev2.id}`, {
+      method: 'PUT',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        gigSetlistId: setlistB.id,
+      }),
+    })
+    expect(updateEvent2Res.status).toBe(200)
+
+    const eventsRes3 = await app.request('/api/calendar', { headers: ctx.headers })
+    const events3 = await eventsRes3.json()
+    const finalEv2 = events3.find((e: any) => e.id === ev2.id)
+    expect(finalEv2.gigSetlistId).toBe(setlistB.id)
+  })
 })

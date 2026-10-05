@@ -66,7 +66,7 @@ export const ICON_MAP: Record<string, IconDefinition> = {
   print: { android: 'print', ios: 'ion-ios-print' },
   download: { android: 'download', ios: 'ion-ios-download' },
   upload: { android: 'upload', ios: 'ion-ios-cloud-upload' },
-  how_to_vote: { android: 'thumb_up', ios: 'ion-ios-thumbs-up' },
+  how_to_vote: { android: 'how_to_vote', ios: 'ion-ios-filing' },
   star: { android: 'star', ios: 'ion-ios-star' },
   bookmark: { android: 'push_pin', ios: 'ion-ios-pin' },
   bookmark_border: { android: 'push_pin', ios: 'ion-ios-pin' },

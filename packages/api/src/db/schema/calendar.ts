@@ -27,10 +27,12 @@ export const calendarEvents = pgTable(
     userId: text('user_id').references(() => users.id), // for unavailabilities
     bierwartOverrideId: text('bierwart_override_id').references(() => users.id),
     isTentative: boolean('is_tentative').notNull().default(false),
+    gigSetlistId: integer('gig_setlist_id').references(() => gigSetlists.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [
     index('calendar_band_idx').on(t.bandId, t.startTime),
+    index('calendar_events_gig_setlist_idx').on(t.gigSetlistId),
   ],
 )
 
@@ -97,13 +99,11 @@ export const gigSetlists = pgTable(
     gigDate: text('gig_date'),
     gigTime: text('gig_time'),
     notes: text('notes'),
-    calendarEventId: integer('calendar_event_id').references(() => calendarEvents.id, { onDelete: 'set null' }),
     isArchived: boolean('is_archived').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [
     index('gig_setlists_band_idx').on(t.bandId, t.createdAt),
-    uniqueIndex('gig_setlists_band_calendar_event_idx').on(t.bandId, t.calendarEventId),
   ],
 )
 

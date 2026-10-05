@@ -98,14 +98,14 @@ rehearsals.get('/next', async (c) => {
       bierwartOverrideId: calendarEvents.bierwartOverrideId,
       isTentative: calendarEvents.isTentative,
       createdAt: calendarEvents.createdAt,
-      gigSetlistId: gigSetlists.id,
+      gigSetlistId: calendarEvents.gigSetlistId,
       gigSetlistTitle: gigSetlists.title,
     })
     .from(calendarEvents)
     .leftJoin(
       gigSetlists,
       and(
-        eq(calendarEvents.id, gigSetlists.calendarEventId),
+        eq(calendarEvents.gigSetlistId, gigSetlists.id),
         eq(calendarEvents.bandId, gigSetlists.bandId),
       ),
     )
@@ -117,7 +117,7 @@ rehearsals.get('/next', async (c) => {
       ),
     )
     .orderBy(calendarEvents.startTime)
-    .limit(3)
+    .limit(5)
 
   if (!nextRehearsal) {
     return c.json({ nextRehearsal: null, upcomingGigs })

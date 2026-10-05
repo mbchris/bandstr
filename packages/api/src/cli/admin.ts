@@ -1160,9 +1160,15 @@ export async function seedDemoAccount(
         gigDate: 'Next Saturday',
         gigTime: '20:00',
         notes: 'Standard 45min set',
-        calendarEventId: gigEventId,
       })
       .returning({ id: gigSetlists.id })
+
+    if (gigEventId) {
+      await db
+        .update(calendarEvents)
+        .set({ gigSetlistId: setlist.id })
+        .where(eq(calendarEvents.id, gigEventId))
+    }
 
     if (songIds.length > 0) {
       const setlistSongs = songIds.slice(0, 3)

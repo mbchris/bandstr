@@ -127,6 +127,13 @@
       "when": 1779100000000,
       "tag": "0018_gig_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779200000000,
+      "tag": "0019_calendar_events_gig_setlist",
+      "breakpoints": true
     }
   ]
 }

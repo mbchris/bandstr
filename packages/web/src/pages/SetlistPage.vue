@@ -19,8 +19,12 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 const { isIos, isAndroid, pIcon } = usePlatform()
 
-function goToHome() {
-  router.push({ path: '/' })
+function goToGigDetails() {
+  if (selectedGigMeta.value?.calendarEventId) {
+    router.push({ path: '/calendar', query: { eventId: String(selectedGigMeta.value.calendarEventId) } })
+  } else {
+    router.push({ path: '/calendar' })
+  }
 }
 
 const searchQuery = ref('')
@@ -1149,25 +1153,78 @@ async function quickAddToGig(item: Song) {
 }
 
 const showAddUserSetlistModal = ref(false)
-const selectedUserSetlistSongIds = ref<number[]>([])
+const userSetlistBuilderSearch = ref('')
+const userSetlistBuilderDraftItems = ref<Song[]>([])
+
+const filteredUserSetlistBuilderSourceItems = computed(() => {
+  const draftIds = new Set(userSetlistBuilderDraftItems.value.map((s) => s.id))
+  const q = userSetlistBuilderSearch.value.trim().toLowerCase()
+  return masterSetlistItems.value.filter((song) => {
+    if (draftIds.has(song.id)) return false
+    if (!q) return true
+    const inTags = (song.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
+    return song.title.toLowerCase().includes(q) || song.artist.toLowerCase().includes(q) || inTags
+  })
+})
 
 function openAddToUserSetlistModal() {
-  selectedUserSetlistSongIds.value = []
+  userSetlistBuilderDraftItems.value = [...userSetlistSongs.value].sort((a, b) => {
+    const posA = a.userSetlistPosition ?? a.position
+    const posB = b.userSetlistPosition ?? b.position
+    return posA - posB
+  })
+  userSetlistBuilderSearch.value = ''
   showAddUserSetlistModal.value = true
 }
 
-async function submitAddUserSetlistSongs() {
+function addToUserSetlistBuilder(item: Song) {
+  if (userSetlistBuilderDraftItems.value.some((existing) => existing.id === item.id)) return
+  userSetlistBuilderDraftItems.value.push(item)
+}
+
+function removeFromUserSetlistBuilder(songId: number) {
+  userSetlistBuilderDraftItems.value = userSetlistBuilderDraftItems.value.filter((item) => item.id !== songId)
+}
+
+function cancelUserSetlistBuilder() {
+  showAddUserSetlistModal.value = false
+  userSetlistBuilderSearch.value = ''
+  userSetlistBuilderDraftItems.value = []
+}
+
+async function confirmUserSetlistBuilder() {
   isSaving.value = true
   try {
-    for (let i = 0; i < selectedUserSetlistSongIds.value.length; i++) {
+    const currentSongIds = Array.from(new Set(userSetlistSongs.value.map((item) => item.id)))
+    const draftSongIds = userSetlistBuilderDraftItems.value.map((item) => item.id)
+
+    for (const songId of currentSongIds.filter((id) => !draftSongIds.includes(id))) {
+      await apiJson(`/songs/user-setlist/${songId}`, { method: 'DELETE' })
+    }
+
+    for (const songId of draftSongIds.filter((id) => !currentSongIds.includes(id))) {
       await apiJson('/songs/user-setlist', {
         method: 'POST',
-        body: JSON.stringify({ songId: selectedUserSetlistSongIds.value[i], position: userSetlistSongs.value.length + i }),
+        body: JSON.stringify({ songId, position: draftSongIds.indexOf(songId) }),
       })
     }
-    showAddUserSetlistModal.value = false
-    selectedUserSetlistSongIds.value = []
+
     await fetchUserSetlistSongs()
+
+    const order = draftSongIds.map((songId, index) => ({
+      songId,
+      position: index,
+    }))
+
+    if (order.length) {
+      await apiJson('/songs/user-setlist/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ order }),
+      })
+      await fetchUserSetlistSongs()
+    }
+
+    cancelUserSetlistBuilder()
   } catch {
     $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
   } finally {
@@ -1563,7 +1620,24 @@ onMounted(() => {
   if (typeof route.query.q === 'string') searchQuery.value = route.query.q
   if (typeof route.query.list === 'string') {
     const raw = route.query.list
-    if (raw === 'master' || raw === 'user' || raw.startsWith('gig:')) selectedListOption.value = raw
+    if (raw === 'master' || raw === 'user' || raw.startsWith('gig:')) {
+      selectedListOption.value = raw
+      if (raw.startsWith('gig:')) {
+        const id = Number(raw.slice(4))
+        if (Number.isFinite(id) && id > 0) {
+          activeTab.value = 'gig'
+          selectedGigId.value = id
+          selectedSetlistMode.value = 'master'
+          fetchGigSongs(id)
+        }
+      } else if (raw === 'user') {
+        activeTab.value = 'user'
+        selectedSetlistMode.value = 'user'
+      } else if (raw === 'master') {
+        activeTab.value = 'repertoire'
+        selectedSetlistMode.value = 'master'
+      }
+    }
   }
   songsStore.fetchSongs()
   fetchGigs()
@@ -1831,11 +1905,13 @@ onMounted(() => {
                     outline
                     dense
                     color="primary"
-                    icon="home"
-                    :label="t('setlist.viewGigOnHome')"
-                    @click="goToHome"
+                    :icon="pIcon('edit')"
+                    :label="t('setlist.viewGigDetails')"
+                    @click="goToGigDetails"
                   />
-                  <q-btn outline dense color="secondary" icon="content_copy" :label="t('setlist.duplicateGig')" @click="duplicateGigSetlist" />
+                  <q-btn outline dense round color="secondary" :icon="pIcon('content_copy')" @click="duplicateGigSetlist">
+                    <q-tooltip>{{ t('setlist.duplicateGig') }}</q-tooltip>
+                  </q-btn>
                   <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />
                   <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
                 </div>
@@ -1872,7 +1948,7 @@ onMounted(() => {
             >
               <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master'" #left>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon :name="item.isArchived ? pIcon('replay') : pIcon('thumb_up')" size="28px" />
+                  <q-icon :name="item.isArchived ? pIcon('replay') : pIcon('how_to_vote')" size="28px" />
                 </div>
               </template>
               <template v-if="item.type === 'song' && !selectedGigId && selectedSetlistMode === 'master' && !item.isArchived" #right>
@@ -2298,41 +2374,63 @@ onMounted(() => {
       </q-card>
     </q-dialog>
 
-    <!-- Add Songs to User Setlist Dialog -->
-    <q-dialog v-model="showAddUserSetlistModal" :position="isIos ? 'bottom' : 'standard'">
-      <q-card class="song-picker-card">
-        <div v-if="isIos" class="ios-sheet-grabber" />
+    <!-- User Setlist Builder Dialog -->
+    <q-dialog v-model="showAddUserSetlistModal" full-width>
+      <q-card class="gig-builder-card">
         <q-card-section class="row items-center">
-          <div class="text-h6">{{ t('setlist.addToUserSetlist') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+          <div class="text-h6">{{ t('setlist.editUserSetlist') }}</div>
+          <q-space /><q-btn flat round dense icon="close" @click="cancelUserSetlistBuilder" />
         </q-card-section>
-        <q-card-section class="song-picker-body">
-          <div class="song-picker-search">
-            <q-select
-              v-model="selectedUserSetlistSongIds"
-              :options="availableUserSetlistSongOptions"
-              emit-value
-              map-options
-              multiple
-              use-input
-              input-debounce="0"
-              use-chips
-              outlined
-              dense
-              :label="t('setlist.selectSongs')"
-              option-label="label"
-              option-value="value"
-              popup-content-class="song-picker-options-popup"
-            />
+        <q-card-section class="gig-builder-body">
+          <div class="gig-builder-target q-pa-sm rounded-borders bg-widget-surface">
+            <div class="text-subtitle2 text-weight-bold q-mb-sm">{{ t('setlist.userSetlistCurrent') }}</div>
+            <q-list v-if="userSetlistBuilderDraftItems.length" separator>
+              <q-item v-for="(item, index) in userSetlistBuilderDraftItems" :key="`${item.id}-${index}`" dense>
+                <q-item-section side class="text-caption text-grey">{{ index + 1 }}</q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ item.title }}</q-item-label>
+                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense icon="remove_circle" color="negative" @click="removeFromUserSetlistBuilder(item.id)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey text-italic">{{ t('setlist.noItems') }}</div>
           </div>
-          <div class="row q-gutter-sm q-mt-sm">
-            <q-btn flat dense size="sm" :label="t('setlist.selectAll')" @click="selectedUserSetlistSongIds = availableUserSetlistSongOptions.map(o => o.value)" />
-            <q-btn flat dense size="sm" :label="t('setlist.selectNone')" @click="selectedUserSetlistSongIds = []" />
+
+          <div class="gig-builder-source q-mt-md">
+            <div class="row q-gutter-sm items-center q-mb-sm">
+              <div class="text-subtitle2 text-weight-bold">{{ t('setlist.masterSetlist') }}</div>
+              <q-space />
+              <q-input
+                v-model="userSetlistBuilderSearch"
+                dense
+                outlined
+                clearable
+                :placeholder="t('setlist.filterTitle')"
+                style="min-width: 240px"
+              >
+                <template #prepend><q-icon name="search" /></template>
+              </q-input>
+            </div>
+            <q-list v-if="filteredUserSetlistBuilderSourceItems.length" separator bordered class="rounded-borders">
+              <q-item v-for="item in filteredUserSetlistBuilderSourceItems" :key="`user-source-${item.id}`" dense>
+                <q-item-section>
+                  <q-item-label>{{ item.title }}</q-item-label>
+                  <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round dense :icon="pIcon('library_add')" color="primary" @click="addToUserSetlistBuilder(item)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey text-italic text-center q-pa-md">{{ t('setlist.noItems') }}</div>
           </div>
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat :label="t('common.cancel')" v-close-popup />
-          <q-btn color="primary" :label="t('common.add')" :loading="isSaving" :disable="!selectedUserSetlistSongIds.length" @click="submitAddUserSetlistSongs" />
+          <q-btn flat :label="t('common.cancel')" @click="cancelUserSetlistBuilder" />
+          <q-btn color="primary" :label="t('common.ok')" :loading="isSaving" @click="confirmUserSetlistBuilder" />
         </q-card-actions>
       </q-card>
     </q-dialog>

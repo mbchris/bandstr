@@ -22,6 +22,7 @@ type GigSetlistOption = {
   id: number
   title: string
   calendarEventId?: number | null
+  isArchived?: boolean
 }
 
 const availableGigSetlists = ref<GigSetlistOption[]>([])
@@ -43,12 +44,14 @@ type GigSetlistSelectOption = {
 
 const gigSetlistOptions = computed<GigSetlistSelectOption[]>(() => [
   { id: null, title: `➕ ${t('calendar.newGigSetlist')}`, label: `➕ ${t('calendar.newGigSetlist')}`, value: null },
-  ...availableGigSetlists.value.map((g) => ({
-    id: g.id,
-    title: g.title,
-    label: g.title,
-    value: g.id,
-  })),
+  ...availableGigSetlists.value
+    .filter((g) => !g.isArchived)
+    .map((g) => ({
+      id: g.id,
+      title: g.title,
+      label: g.title,
+      value: g.id,
+    })),
 ])
 
 const filteredGigSetlistOptions = ref<GigSetlistSelectOption[]>([])
@@ -77,10 +80,10 @@ function filterGigSetlists(val: string, update: (callback: () => void) => void) 
 function resolveGigSetlistTitle(event: CalendarEvent): string {
   if (event.gigSetlistTitle) return event.gigSetlistTitle
   if (event.gigSetlistId) {
-    const match = gigSetlistOptions.value.find(
-      (opt) => opt.id === event.gigSetlistId || opt.value === event.gigSetlistId,
+    const match = availableGigSetlists.value.find(
+      (opt) => opt.id === event.gigSetlistId,
     )
-    if (match && match.title && match.id !== null) {
+    if (match && match.title) {
       return match.title
     }
   }
