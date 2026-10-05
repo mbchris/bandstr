@@ -546,6 +546,21 @@ watch(
     openEventFromQuery()
   },
 )
+
+watch(
+  () => route.query.eventId,
+  (newId) => {
+    if (newId) {
+      if (calendarStore.events.length === 0) {
+        void calendarStore.fetchEvents().then(() => {
+          openEventFromQuery()
+        })
+      } else {
+        openEventFromQuery()
+      }
+    }
+  },
+)
 </script>
 
 <template>

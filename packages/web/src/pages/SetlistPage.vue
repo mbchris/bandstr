@@ -91,7 +91,10 @@ watch(activeTab, (tab) => {
     selectedGigId.value = null
     selectedSetlistMode.value = 'user'
   } else if (tab === 'gig') {
-    selectedGigId.value = null
+    // If not already viewing a gig or if list option is not a gig, clear selectedGigId
+    if (!selectedListOption.value.startsWith('gig:') && !selectedGigId.value) {
+      selectedGigId.value = null
+    }
     selectedSetlistMode.value = 'master'
   }
 })
@@ -143,6 +146,14 @@ const calendarGigLinkOptions = computed(() => [
 ])
 
 const filteredCalendarGigLinkOptions = ref<Array<{ label: string; value: number | null }>>([])
+
+watch(
+  calendarGigLinkOptions,
+  (opts) => {
+    filteredCalendarGigLinkOptions.value = opts
+  },
+  { immediate: true },
+)
 
 function filterCalendarGigOptions(val: string, update: (callback: () => void) => void) {
   update(() => {
@@ -249,11 +260,21 @@ async function toggleGigArchive(gig: GigSetlist, reset: () => void) {
 function selectGig(gigId: number) {
   selectedGigId.value = gigId
   selectedListOption.value = `gig:${gigId}`
+  if (route.query.list !== `gig:${gigId}`) {
+    const nextQuery = { ...route.query, list: `gig:${gigId}` }
+    void router.replace({ path: route.path, query: nextQuery })
+  }
 }
 
 function backToGigList() {
   selectedGigId.value = null
   selectedListOption.value = 'master'
+  const currentList = route.query.list
+  if (typeof currentList === 'string' && currentList.startsWith('gig:')) {
+    const nextQuery = { ...route.query }
+    delete nextQuery.list
+    void router.replace({ path: route.path, query: nextQuery })
+  }
 }
 
 // Active song list depends on gig selection and activeTab
@@ -393,8 +414,43 @@ function getYouTubeId(url: string | null | undefined) {
 }
 
 // Data fetching
+async function fetchCalendarGigs() {
+  try {
+    const events = await apiJson<Array<{ id: number; title: string; type: string; startTime: string }>>('/calendar')
+    calendarGigs.value = events
+      .filter((event) => event.type === 'gig')
+      .map((event) => ({ id: event.id, title: event.title, startTime: event.startTime }))
+      .sort((a, b) => {
+        const left = new Date(a.startTime).getTime()
+        const right = new Date(b.startTime).getTime()
+        return left - right
+      })
+
+    // Update selectedGigMeta if needed
+    if (calendarGigs.value.length > 0) {
+      const validCalendarIds = new Set(calendarGigs.value.map((g) => g.id))
+      for (const g of gigs.value) {
+        if (g.calendarEventId && !validCalendarIds.has(g.calendarEventId)) {
+          g.calendarEventId = null
+          g.calendarEventTitle = null
+          g.startTime = null
+          g.endTime = null
+        }
+      }
+      if (selectedGigMeta.value?.calendarEventId && !validCalendarIds.has(selectedGigMeta.value.calendarEventId)) {
+        selectedGigMeta.value.calendarEventId = null
+      }
+    }
+  } catch {
+    calendarGigs.value = []
+  }
+}
+
 async function fetchGigs() {
   try {
+    if (calendarGigs.value.length === 0) {
+      await fetchCalendarGigs()
+    }
     const list = await apiJson<GigSetlist[]>('/gigs')
     const validCalendarIds = new Set(calendarGigs.value.map((g) => g.id))
     gigs.value = list.map((g) => {
@@ -411,36 +467,6 @@ async function fetchGigs() {
     })
   } catch {
     gigs.value = []
-  }
-}
-
-async function fetchCalendarGigs() {
-  try {
-    const events = await apiJson<Array<{ id: number; title: string; type: string; startTime: string }>>('/calendar')
-    calendarGigs.value = events
-      .filter((event) => event.type === 'gig')
-      .map((event) => ({ id: event.id, title: event.title, startTime: event.startTime }))
-      .sort((a, b) => {
-        const left = new Date(a.startTime).getTime()
-        const right = new Date(b.startTime).getTime()
-        return left - right
-      })
-
-    // Remove invalid calendar links if any remain
-    const validCalendarIds = new Set(calendarGigs.value.map((g) => g.id))
-    for (const g of gigs.value) {
-      if (g.calendarEventId && !validCalendarIds.has(g.calendarEventId)) {
-        g.calendarEventId = null
-        g.calendarEventTitle = null
-        g.startTime = null
-        g.endTime = null
-      }
-    }
-    if (selectedGigMeta.value?.calendarEventId && !validCalendarIds.has(selectedGigMeta.value.calendarEventId)) {
-      selectedGigMeta.value.calendarEventId = null
-    }
-  } catch {
-    calendarGigs.value = []
   }
 }
 
@@ -533,6 +559,23 @@ watch(
     if (typeof raw === 'string' && (raw === 'master' || raw === 'user' || raw.startsWith('gig:'))) {
       if (selectedListOption.value !== raw) {
         selectedListOption.value = raw
+      }
+      if (raw.startsWith('gig:')) {
+        const id = Number(raw.slice(4))
+        if (Number.isFinite(id) && id > 0) {
+          activeTab.value = 'gig'
+          selectedGigId.value = id
+          selectedSetlistMode.value = 'master'
+          fetchGigSongs(id)
+        }
+      } else if (raw === 'user') {
+        activeTab.value = 'user'
+        selectedGigId.value = null
+        selectedSetlistMode.value = 'user'
+      } else if (raw === 'master') {
+        activeTab.value = 'repertoire'
+        selectedGigId.value = null
+        selectedSetlistMode.value = 'master'
       }
     }
   },
@@ -1656,10 +1699,10 @@ onMounted(() => {
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
             <div class="row q-gutter-sm items-center no-wrap">
               <!-- Always present: -->
-              <q-btn flat round icon="print" @click="openPrintExportModal">
+              <q-btn flat round :icon="pIcon('print')" @click="openPrintExportModal">
                 <q-tooltip>{{ t('setlist.printExport') }}</q-tooltip>
               </q-btn>
-              <q-btn flat round icon="download" @click="handleExport">
+              <q-btn flat round :icon="pIcon('download')" @click="handleExport">
                 <q-tooltip>{{ t('setlist.exportExcel') }}</q-tooltip>
               </q-btn>
               <!-- Conditional, appended: -->
@@ -1667,7 +1710,7 @@ onMounted(() => {
                 v-if="activeTab === 'repertoire' || (activeTab === 'gig' && selectedGigId)"
                 flat
                 round
-                icon="note_add"
+                :icon="pIcon('note_add')"
                 @click="openSpecialModal"
               >
                 <q-tooltip>{{ t('setlist.addSetlistNote') }}</q-tooltip>
@@ -1676,7 +1719,7 @@ onMounted(() => {
                 v-if="activeTab === 'user'"
                 flat
                 round
-                icon="add"
+                :icon="pIcon('add')"
                 @click="openAddToUserSetlistModal"
               >
                 <q-tooltip>{{ t('setlist.addToUserSetlist') }}</q-tooltip>
@@ -1686,7 +1729,7 @@ onMounted(() => {
                 flat
                 no-caps
                 color="primary"
-                icon="build"
+                :icon="pIcon('tune')"
                 :label="t('setlist.buildSetlist')"
                 class="q-px-sm text-weight-medium"
                 @click="openGigBuilder"
@@ -1696,7 +1739,7 @@ onMounted(() => {
                 flat
                 round
                 color="primary"
-                icon="add"
+                :icon="pIcon('add')"
                 @click="createGigSetlist()"
               >
                 <q-tooltip>{{ t('setlist.newGigSetlist') }}</q-tooltip>
@@ -1720,7 +1763,7 @@ onMounted(() => {
                 v-else-if="!isAndroid && activeTab === 'repertoire'"
                 round
                 :color="atSetlistLimit ? 'grey' : 'primary'"
-                icon="add"
+                :icon="pIcon('add')"
                 class="round-add-btn"
                 :disable="atSetlistLimit"
                 @click="openAddSongModal"
@@ -1818,7 +1861,7 @@ onMounted(() => {
               <q-btn
                 outline
                 color="primary"
-                icon="add"
+                :icon="pIcon('add')"
                 :label="t('setlist.newGigSetlist')"
                 @click="createGigSetlist()"
               />
@@ -1832,7 +1875,7 @@ onMounted(() => {
               <q-btn
                 flat
                 dense
-                icon="arrow_back"
+                :icon="pIcon('arrow_back')"
                 color="primary"
                 :label="t('setlist.backToGigs')"
                 @click="backToGigList"
@@ -1904,16 +1947,22 @@ onMounted(() => {
                     v-if="selectedGigMeta.calendarEventId"
                     outline
                     dense
+                    round
                     color="primary"
                     :icon="pIcon('edit')"
-                    :label="t('setlist.viewGigDetails')"
                     @click="goToGigDetails"
-                  />
+                  >
+                    <q-tooltip>{{ t('setlist.viewGigDetails') }}</q-tooltip>
+                  </q-btn>
                   <q-btn outline dense round color="secondary" :icon="pIcon('content_copy')" @click="duplicateGigSetlist">
                     <q-tooltip>{{ t('setlist.duplicateGig') }}</q-tooltip>
                   </q-btn>
-                  <q-btn flat dense color="primary" icon="save" :label="t('common.save')" @click="saveGigMeta" />
-                  <q-btn flat dense color="negative" icon="delete" @click="deleteGigSetlist" />
+                  <q-btn flat dense round color="primary" :icon="pIcon('save')" @click="saveGigMeta">
+                    <q-tooltip>{{ t('common.save') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn flat dense round color="negative" :icon="pIcon('delete')" @click="deleteGigSetlist">
+                    <q-tooltip>{{ t('common.delete') }}</q-tooltip>
+                  </q-btn>
                 </div>
               </div>
             </q-slide-transition>
@@ -2127,13 +2176,13 @@ onMounted(() => {
               <!-- Actions -->
               <q-item-section side>
                 <div class="row q-gutter-xs">
-                  <q-btn v-if="canModifySong(item)" flat round dense icon="edit" size="sm" @click="openEditModal(item)" />
+                  <q-btn v-if="canModifySong(item)" flat round dense :icon="pIcon('edit')" size="sm" @click="openEditModal(item)" />
                   <q-btn
                     v-if="!selectedGigId && selectedSetlistMode === 'master'"
                     flat
                     round
                     dense
-                    icon="delete"
+                    :icon="pIcon('delete')"
                     color="red"
                     size="sm"
                     @click="deleteSong(item)"
@@ -2145,7 +2194,7 @@ onMounted(() => {
                     flat
                     round
                     dense
-                    icon="playlist_remove"
+                    :icon="pIcon('playlist_remove')"
                     color="red"
                     size="sm"
                     @click="removeFromSetlist(item)"
@@ -2157,7 +2206,7 @@ onMounted(() => {
                     flat
                     round
                     dense
-                    icon="playlist_remove"
+                    :icon="pIcon('playlist_remove')"
                     color="red"
                     size="sm"
                     @click="removeFromSetlist(item)"
@@ -2181,7 +2230,7 @@ onMounted(() => {
                     flat
                     round
                     dense
-                    icon="close"
+                    :icon="pIcon('close')"
                     color="red"
                     size="sm"
                     @click="removeFromSetlist(item)"
