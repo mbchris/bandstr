@@ -365,3 +365,82 @@ body.body--desktop {
 .q-notification.bandstr-notify.bg-negative {
   background: rgba(198, 40, 40, 0.84) !important;
 }
+
+
+// ─── Swipe & Bleeding Edge Affordance Cues ──────────────────────
+.bleeding-edge-container {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 14px;
+  padding: 4px 16px 14px 16px;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.bleeding-edge-item {
+  flex: 0 0 84vw;
+  max-width: 84vw;
+  scroll-snap-align: start;
+  box-sizing: border-box;
+
+  @media (min-width: 600px) {
+    flex: 0 0 380px;
+    max-width: 380px;
+  }
+}
+
+.edge-fade-mask {
+  mask-image: linear-gradient(to right, black calc(100% - 36px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 36px), transparent 100%);
+}
+
+// Swipeable list item layout affordances (e.g. q-slide-item)
+.swipeable-affordance-item {
+  margin: 4px 6px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  .q-slide-item__content {
+    position: relative;
+    border-radius: 12px;
+  }
+
+  // Left edge accent bar (swipe-right cue)
+  &.has-swipe-left-affordance .q-slide-item__content::before {
+    content: '';
+    position: absolute;
+    top: 14%;
+    bottom: 14%;
+    left: 2px;
+    width: 3.5px;
+    border-radius: 3px;
+    background: var(--q-positive, #2e7d32);
+    opacity: 0.72;
+    pointer-events: none;
+    z-index: 2;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  // Right edge accent bar (swipe-left cue)
+  &.has-swipe-right-affordance .q-slide-item__content::after {
+    content: '';
+    position: absolute;
+    top: 14%;
+    bottom: 14%;
+    right: 2px;
+    width: 3.5px;
+    border-radius: 3px;
+    background: var(--q-negative, #c62828);
+    opacity: 0.72;
+    pointer-events: none;
+    z-index: 2;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+}
