@@ -301,6 +301,17 @@ const activeSongs = computed(() => {
   return songsStore.songs.filter((s) => s.isSetlist)
 })
 
+const gigSongOccurrences = computed(() => {
+  const counts = new Map<number, number>()
+  if (activeTab.value !== 'gig' || !selectedGigId.value) return counts
+  for (const song of gigSongs.value) {
+    if (song.type === 'song') {
+      counts.set(song.id, (counts.get(song.id) || 0) + 1)
+    }
+  }
+  return counts
+})
+
 const filteredSongs = computed(() => {
   let list = [...activeSongs.value]
 
@@ -950,7 +961,9 @@ async function removeFromSetlist(item: Song) {
   }).onOk(async () => {
     try {
       if (selectedGigId.value) {
-        await apiJson(`/gigs/${selectedGigId.value}/songs/${item.id}`, { method: 'DELETE' })
+        const gigSongId = (item as Song & { gigSongId?: number }).gigSongId
+        const query = gigSongId ? `?gigSongId=${gigSongId}` : ''
+        await apiJson(`/gigs/${selectedGigId.value}/songs/${item.id}${query}`, { method: 'DELETE' })
         await fetchGigSongs(selectedGigId.value)
       } else if (item.type !== 'song') {
         await songsStore.deleteSong(item.id)
@@ -1182,7 +1195,6 @@ async function confirmGigBuilder() {
 
 async function quickAddToGig(item: Song) {
   if (!selectedGigId.value) return
-  if (gigSongs.value.some((s) => s.id === item.id)) return
   isSaving.value = true
   try {
     await apiJson(`/gigs/${selectedGigId.value}/songs`, {
@@ -2106,6 +2118,17 @@ onMounted(() => {
                 <template v-if="item.type === 'song'">
                   <q-item-label class="text-weight-bold">
                     {{ item.title }}
+                    <q-badge
+                      v-if="selectedGigId && (gigSongOccurrences.get(item.id) ?? 0) > 1"
+                      color="amber-9"
+                      text-color="black"
+                      rounded
+                      class="q-ml-xs text-weight-bold"
+                    >
+                      <q-icon name="priority_high" size="12px" class="q-mr-xs" />
+                      {{ gigSongOccurrences.get(item.id) }}
+                      <q-tooltip>{{ t('setlist.songOccurrenceTooltip', { count: gigSongOccurrences.get(item.id) }) }}</q-tooltip>
+                    </q-badge>
                     <q-icon
                       v-if="item.notes"
                       name="info"
