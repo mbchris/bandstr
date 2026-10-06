@@ -528,14 +528,26 @@ function openRehearsalFromOverview(rehearsal: any) {
   }
 }
 
-onMounted(() => {
-  void Promise.all([
+async function refreshCalendar() {
+  await Promise.all([
     calendarStore.fetchEvents(),
     calendarStore.fetchRehearsalAttendance(),
     bandStore.fetchMembers(),
     fetchGigSetlists(),
     authStore.fetchActiveBandDetails(),
-  ]).then(() => {
+  ])
+}
+
+async function onRefresh(done: () => void) {
+  try {
+    await refreshCalendar()
+  } finally {
+    done()
+  }
+}
+
+onMounted(() => {
+  void refreshCalendar().then(() => {
     openEventFromQuery()
   })
 })
@@ -565,8 +577,9 @@ watch(
 
 <template>
   <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <q-card flat bordered>
+    <q-pull-to-refresh @refresh="onRefresh">
+      <div style="max-width: 1200px; margin: 0 auto">
+        <q-card flat bordered>
         <q-card-section>
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('nav.calendar') }}</div>
@@ -656,6 +669,7 @@ watch(
         </q-card-section>
       </q-card>
     </div>
+    </q-pull-to-refresh>
 
     <!-- Event Create/Edit Dialog -->
     <q-dialog v-model="showEventModal" :position="isIos ? 'bottom' : 'top'">
