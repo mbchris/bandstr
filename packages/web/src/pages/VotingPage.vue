@@ -561,8 +561,20 @@ function handleExport() {
   })
 }
 
+async function refreshVoting() {
+  await Promise.all([songsStore.fetchSongs(), bandStore.fetchMembers()])
+}
+
+async function onRefresh(done: () => void) {
+  try {
+    await refreshVoting()
+  } finally {
+    done()
+  }
+}
+
 onMounted(() => {
-  void Promise.all([songsStore.fetchSongs(), bandStore.fetchMembers()]).then(() => {
+  void refreshVoting().then(() => {
     openSongFromQuery()
     const firstItem = document.querySelector('.voting-slide-item .q-slide-item__content') as HTMLElement | null
     tryPeek(firstItem)
@@ -583,8 +595,9 @@ watch(
 
 <template>
   <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <q-card flat bordered>
+    <q-pull-to-refresh @refresh="onRefresh">
+      <div style="max-width: 1200px; margin: 0 auto">
+        <q-card flat bordered>
         <q-card-section>
           <div class="row items-center justify-between">
             <div class="text-h5 text-weight-bold">{{ t('voting.heading') }}</div>
@@ -792,6 +805,7 @@ watch(
         </q-card-section>
       </q-card>
     </div>
+    </q-pull-to-refresh>
 
     <!-- Add/Edit Song Dialog -->
     <q-dialog v-model="showSongModal" :position="isIos ? 'bottom' : 'standard'">
