@@ -263,6 +263,17 @@
   - [x] Gig details header buttons are compliant, clean round icon-only buttons with tooltips (edit, duplicate, save, delete).
   - [x] Swipe "move to Voting" in Setlist uses a dedicated voting icon (`how_to_vote`).
 
+## TASK-0228: Setlist Management (#43)
+- **Status:** done
+- **Labels:** feature, frontend, backend, setlist, cli
+- **Acceptance Criteria:**
+  - [x] Each song in the Repertoire (`is_setlist = true` and `type = 'song'`) must be unique per band (case-insensitive title and artist). Non-song items are exempt.
+  - [x] Songs can be added multiple times to a Gig Setlist. An exclamation mark badge with occurrence count (`! {count}`) is displayed when a song appears > 1 times.
+  - [x] Deleting a song from a Gig Setlist deletes only that specific occurrence (`gigSongId`), not all occurrences.
+  - [x] Adding songs from Repertoire to a Gig Setlist selects strictly from the Master Setlist and excludes non-song items (`pause`, `tuning`, `note`, `set`, `encore`).
+  - [x] Backend CLI command `list-duplicate-songs` to list duplicate songs in the repertoire per band.
+  - [x] Backend CLI command `delete-duplicate-songs` to deduplicate songs, remapping references across gig songs, rehearsal songs, votes, notes, and user setlist songs.
+
 # Sample Acceptance Criteria (use this for reference)
 
 ## TASK-0000: Example Task
