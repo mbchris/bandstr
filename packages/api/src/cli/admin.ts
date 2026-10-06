@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { hashPassword } from 'better-auth/crypto'
 import { db, pool } from '../db/index.js'
 import {
@@ -10,8 +10,10 @@ import {
   calendarEvents,
   gigSetlists,
   gigSongs,
+  personalNotes,
   rehearsalSongs,
   songs,
+  userSetlistSongs,
   users,
   votes,
 } from '../db/schema.js'
@@ -1234,6 +1236,359 @@ export async function seedDemoAccount(
   return { userId, bandId, email }
 }
 
+export type DuplicateSongGroup = {
+  bandId: number
+  bandName: string
+  normalizedKey: string
+  title: string
+  artist: string
+  duplicateCount: number
+  songIds: number[]
+  songs: Array<{
+    id: number
+    title: string
+    artist: string
+    createdAt: Date
+    gigCount: number
+    rehearsalCount: number
+    voteCount: number
+    noteCount: number
+    userSetlistCount: number
+  }>
+}
+
+export async function listDuplicateSongs(
+  options: Record<string, string | boolean> = {},
+): Promise<DuplicateSongGroup[]> {
+  const rawBandId = options['band-id'] ?? options.bandId
+  const bandIdFilter = rawBandId ? Number.parseInt(String(rawBandId), 10) : null
+  if (rawBandId && (!Number.isInteger(bandIdFilter) || (bandIdFilter ?? 0) <= 0)) {
+    throw new Error('Option --band-id must be a positive integer')
+  }
+
+  const allRepertoireSongs = await db
+    .select({
+      id: songs.id,
+      bandId: songs.bandId,
+      title: songs.title,
+      artist: songs.artist,
+      type: songs.type,
+      isSetlist: songs.isSetlist,
+      createdAt: songs.createdAt,
+    })
+    .from(songs)
+    .where(
+      and(
+        eq(songs.isSetlist, true),
+        eq(songs.type, 'song'),
+        bandIdFilter ? eq(songs.bandId, bandIdFilter) : sql`1=1`,
+      ),
+    )
+    .orderBy(asc(songs.createdAt), asc(songs.id))
+
+  const allBands = await db.select({ id: bands.id, name: bands.name }).from(bands)
+  const bandNameMap = new Map(allBands.map((b) => [b.id, b.name]))
+
+  const groupMap = new Map<string, typeof allRepertoireSongs>()
+  for (const song of allRepertoireSongs) {
+    const key = `${song.bandId}::${song.title.trim().toLowerCase()}::${song.artist.trim().toLowerCase()}`
+    pushMapValue(groupMap, key, song)
+  }
+
+  const duplicateGroups: DuplicateSongGroup[] = []
+
+  for (const [key, groupSongs] of groupMap.entries()) {
+    if (groupSongs.length <= 1) continue
+
+    const songIds = groupSongs.map((s) => s.id)
+    const bandId = groupSongs[0].bandId
+    const bandName = bandNameMap.get(bandId) ?? `Band #${bandId}`
+
+    const songDetails = await Promise.all(
+      groupSongs.map(async (s) => {
+        const [gigs] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(gigSongs)
+          .where(eq(gigSongs.songId, s.id))
+        const [rehearsals] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(rehearsalSongs)
+          .where(eq(rehearsalSongs.songId, s.id))
+        const [vts] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(votes)
+          .where(eq(votes.songId, s.id))
+        const [notes] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(personalNotes)
+          .where(eq(personalNotes.songId, s.id))
+        const [userSetlists] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(userSetlistSongs)
+          .where(eq(userSetlistSongs.songId, s.id))
+
+        return {
+          id: s.id,
+          title: s.title,
+          artist: s.artist,
+          createdAt: s.createdAt,
+          gigCount: Number(gigs?.count ?? 0),
+          rehearsalCount: Number(rehearsals?.count ?? 0),
+          voteCount: Number(vts?.count ?? 0),
+          noteCount: Number(notes?.count ?? 0),
+          userSetlistCount: Number(userSetlists?.count ?? 0),
+        }
+      }),
+    )
+
+    duplicateGroups.push({
+      bandId,
+      bandName,
+      normalizedKey: key,
+      title: groupSongs[0].title,
+      artist: groupSongs[0].artist,
+      duplicateCount: groupSongs.length,
+      songIds,
+      songs: songDetails,
+    })
+  }
+
+  console.log(`Duplicate songs in repertoire (found ${duplicateGroups.length} groups):`)
+  if (duplicateGroups.length === 0) {
+    console.log('No duplicate songs found.')
+    return []
+  }
+
+  const tableRows: string[][] = []
+  for (const group of duplicateGroups) {
+    for (const s of group.songs) {
+      tableRows.push([
+        String(group.bandId),
+        group.bandName,
+        String(s.id),
+        s.title,
+        s.artist,
+        s.createdAt.toISOString().slice(0, 10),
+        `gigs:${s.gigCount} reh:${s.rehearsalCount} votes:${s.voteCount} notes:${s.noteCount} uset:${s.userSetlistCount}`,
+      ])
+    }
+  }
+
+  printTextTable(['bandId', 'bandName', 'songId', 'title', 'artist', 'created', 'references'], tableRows)
+  return duplicateGroups
+}
+
+export type DeleteDuplicatesResult = {
+  bandId: number
+  groupsProcessed: number
+  deletedCount: number
+  survivorId: number | null
+}
+
+export async function deleteDuplicateSongs(
+  options: Record<string, string | boolean> = {},
+): Promise<DeleteDuplicatesResult> {
+  const rawBandId = options['band-id'] ?? options.bandId
+  if (!rawBandId) {
+    throw new Error('Missing required option --band-id')
+  }
+  const bandId = Number.parseInt(String(rawBandId), 10)
+  if (!Number.isInteger(bandId) || bandId <= 0) {
+    throw new Error('Option --band-id must be a positive integer')
+  }
+
+  const keepStrategy = String(options.keep ?? 'oldest').toLowerCase().trim()
+  if (keepStrategy !== 'oldest' && keepStrategy !== 'newest') {
+    throw new Error('Option --keep must be "oldest" or "newest"')
+  }
+  const dryRun = readBooleanOption(options, 'dry-run', false)
+
+  const duplicateGroups = await listDuplicateSongs({ 'band-id': String(bandId) })
+  if (duplicateGroups.length === 0) {
+    console.log(`No duplicate songs found for band ${bandId}.`)
+    return { bandId, groupsProcessed: 0, deletedCount: 0, survivorId: null }
+  }
+
+  let totalDeleted = 0
+  let lastSurvivorId: number | null = null
+
+  await db.transaction(async (tx) => {
+    for (const group of duplicateGroups) {
+      const fullSongs = await tx
+        .select()
+        .from(songs)
+        .where(inArray(songs.id, group.songIds))
+
+      fullSongs.sort((a, b) => {
+        const timeDiff = a.createdAt.getTime() - b.createdAt.getTime()
+        if (timeDiff !== 0) {
+          return keepStrategy === 'oldest' ? timeDiff : -timeDiff
+        }
+        return keepStrategy === 'oldest' ? a.id - b.id : b.id - a.id
+      })
+
+      const survivor = fullSongs[0]
+      const toDelete = fullSongs.slice(1)
+      const toDeleteIds = toDelete.map((s) => s.id)
+      lastSurvivorId = survivor.id
+
+      const mergedUpdates: Record<string, any> = {}
+      for (const dup of toDelete) {
+        if (!survivor.spotifyUrl && dup.spotifyUrl) mergedUpdates.spotifyUrl = dup.spotifyUrl
+        if (!survivor.youtubeUrl && dup.youtubeUrl) mergedUpdates.youtubeUrl = dup.youtubeUrl
+        if (!survivor.thumbnailUrl && dup.thumbnailUrl) mergedUpdates.thumbnailUrl = dup.thumbnailUrl
+        if (!survivor.notes && dup.notes) mergedUpdates.notes = dup.notes
+        if (survivor.bpm == null && dup.bpm != null) mergedUpdates.bpm = dup.bpm
+        if (survivor.lengthMs == null && dup.lengthMs != null) mergedUpdates.lengthMs = dup.lengthMs
+        if ((!survivor.tags || survivor.tags.length === 0) && dup.tags && dup.tags.length > 0) {
+          mergedUpdates.tags = dup.tags
+        }
+      }
+
+      if (Object.keys(mergedUpdates).length > 0) {
+        await tx.update(songs).set(mergedUpdates).where(eq(songs.id, survivor.id))
+      }
+
+      for (const dupId of toDeleteIds) {
+        await tx
+          .update(gigSongs)
+          .set({ songId: survivor.id })
+          .where(and(eq(gigSongs.songId, dupId), eq(gigSongs.bandId, bandId)))
+
+        const existingSurvivorRehearsals = await tx
+          .select({ rehearsalId: rehearsalSongs.rehearsalId })
+          .from(rehearsalSongs)
+          .where(eq(rehearsalSongs.songId, survivor.id))
+        const survivorRehearsalIds = new Set(existingSurvivorRehearsals.map((r) => r.rehearsalId))
+
+        const dupRehearsals = await tx
+          .select()
+          .from(rehearsalSongs)
+          .where(eq(rehearsalSongs.songId, dupId))
+
+        for (const dr of dupRehearsals) {
+          if (survivorRehearsalIds.has(dr.rehearsalId)) {
+            await tx
+              .delete(rehearsalSongs)
+              .where(and(eq(rehearsalSongs.rehearsalId, dr.rehearsalId), eq(rehearsalSongs.songId, dupId)))
+          } else {
+            await tx
+              .update(rehearsalSongs)
+              .set({ songId: survivor.id })
+              .where(and(eq(rehearsalSongs.rehearsalId, dr.rehearsalId), eq(rehearsalSongs.songId, dupId)))
+            survivorRehearsalIds.add(dr.rehearsalId)
+          }
+        }
+
+        const existingSurvivorVotes = await tx
+          .select({ userId: votes.userId })
+          .from(votes)
+          .where(eq(votes.songId, survivor.id))
+        const survivorVotedUserIds = new Set(existingSurvivorVotes.map((v) => v.userId))
+
+        const dupVotes = await tx
+          .select()
+          .from(votes)
+          .where(eq(votes.songId, dupId))
+
+        for (const dv of dupVotes) {
+          if (survivorVotedUserIds.has(dv.userId)) {
+            await tx
+              .delete(votes)
+              .where(and(eq(votes.songId, dupId), eq(votes.userId, dv.userId)))
+          } else {
+            await tx
+              .update(votes)
+              .set({ songId: survivor.id })
+              .where(and(eq(votes.songId, dupId), eq(votes.userId, dv.userId)))
+            survivorVotedUserIds.add(dv.userId)
+          }
+        }
+
+        const existingSurvivorNotes = await tx
+          .select({ userId: personalNotes.userId })
+          .from(personalNotes)
+          .where(eq(personalNotes.songId, survivor.id))
+        const survivorNoteUserIds = new Set(existingSurvivorNotes.map((n) => n.userId))
+
+        const dupNotes = await tx
+          .select()
+          .from(personalNotes)
+          .where(eq(personalNotes.songId, dupId))
+
+        for (const dn of dupNotes) {
+          if (survivorNoteUserIds.has(dn.userId)) {
+            await tx
+              .delete(personalNotes)
+              .where(and(eq(personalNotes.songId, dupId), eq(personalNotes.userId, dn.userId)))
+          } else {
+            await tx
+              .update(personalNotes)
+              .set({ songId: survivor.id })
+              .where(and(eq(personalNotes.songId, dupId), eq(personalNotes.userId, dn.userId)))
+            survivorNoteUserIds.add(dn.userId)
+          }
+        }
+
+        const existingSurvivorUserSetlists = await tx
+          .select({ userId: userSetlistSongs.userId })
+          .from(userSetlistSongs)
+          .where(and(eq(userSetlistSongs.songId, survivor.id), eq(userSetlistSongs.bandId, bandId)))
+        const survivorUserSetlistUserIds = new Set(existingSurvivorUserSetlists.map((u) => u.userId))
+
+        const dupUserSetlists = await tx
+          .select()
+          .from(userSetlistSongs)
+          .where(and(eq(userSetlistSongs.songId, dupId), eq(userSetlistSongs.bandId, bandId)))
+
+        for (const du of dupUserSetlists) {
+          if (survivorUserSetlistUserIds.has(du.userId)) {
+            await tx
+              .delete(userSetlistSongs)
+              .where(
+                and(
+                  eq(userSetlistSongs.songId, dupId),
+                  eq(userSetlistSongs.userId, du.userId),
+                  eq(userSetlistSongs.bandId, bandId),
+                ),
+              )
+          } else {
+            await tx
+              .update(userSetlistSongs)
+              .set({ songId: survivor.id })
+              .where(
+                and(
+                  eq(userSetlistSongs.songId, dupId),
+                  eq(userSetlistSongs.userId, du.userId),
+                  eq(userSetlistSongs.bandId, bandId),
+                ),
+              )
+            survivorUserSetlistUserIds.add(du.userId)
+          }
+        }
+
+        await tx.delete(songs).where(and(eq(songs.id, dupId), eq(songs.bandId, bandId)))
+        totalDeleted += 1
+      }
+    }
+
+    if (dryRun) {
+      throw new Error(`[DRY-RUN] Rollback transaction. Planned to delete ${totalDeleted} songs.`)
+    }
+  })
+
+  console.log(
+    `Duplicate deletion complete for band ${bandId}: processed ${duplicateGroups.length} groups, deleted ${totalDeleted} duplicates.`,
+  )
+
+  return {
+    bandId,
+    groupsProcessed: duplicateGroups.length,
+    deletedCount: totalDeleted,
+    survivorId: lastSurvivorId,
+  }
+}
+
 const COMMAND_HELP: Record<string, string> = {
   'list-users': `Command: list-users
 Usage:
@@ -1368,6 +1723,24 @@ Options:
   --password "<password>"     Demo account password (default: random secure password)
   --name "<name>"             Display name (default: App Reviewer)
   --band-name "<band-name>"   Demo band name (default: The Bandstr Demo Band)`,
+
+  'list-duplicate-songs': `Command: list-duplicate-songs
+Usage:
+  /app/bandstr-cli list-duplicate-songs [--band-id <id>]
+Description:
+  List songs that appear multiple times in the repertoire (case-insensitive title and artist).
+Options:
+  --band-id <id>              Optional band ID filter (integer)`,
+
+  'delete-duplicate-songs': `Command: delete-duplicate-songs
+Usage:
+  /app/bandstr-cli delete-duplicate-songs --band-id <id> [options]
+Description:
+  Delete duplicate songs in repertoire and remap all related references (gigs, rehearsals, votes, notes).
+Options:
+  --band-id <id>              Required band ID (integer)
+  --keep oldest|newest        Which occurrence to keep (default: oldest)
+  --dry-run true|false        Simulate deletion and rollback transaction (default: false)`,
 }
 
 function printHelp(commandName?: string): void {
@@ -1394,6 +1767,8 @@ Commands:
   send-band-push               Send push notification to band devices
   import-songs-from-sql-db     Import songs from another PostgreSQL database
   import-votings-from-sql-db   Import votings from another PostgreSQL database
+  list-duplicate-songs         List duplicate songs in repertoire
+  delete-duplicate-songs       Delete duplicate songs and remap references
 
 Show full usage for a command:
   /app/bandstr-cli help <command>
@@ -1453,6 +1828,12 @@ async function main(): Promise<void> {
       break
     case 'seed-demo-account':
       await seedDemoAccount(options)
+      break
+    case 'list-duplicate-songs':
+      await listDuplicateSongs(options)
+      break
+    case 'delete-duplicate-songs':
+      await deleteDuplicateSongs(options)
       break
     default:
       throw new Error(`Unknown command "${command}". Run with "help" for usage.`)
