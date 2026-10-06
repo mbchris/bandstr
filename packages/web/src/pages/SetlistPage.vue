@@ -385,7 +385,7 @@ function canModifySong(item: Song) {
 
 const masterSetlistItems = computed(() =>
   songsStore.songs
-    .filter((s) => s.isSetlist && !s.isArchived)
+    .filter((s) => s.isSetlist && !s.isArchived && s.type === 'song')
     .sort((a, b) => a.position - b.position),
 )
 
@@ -1107,10 +1107,8 @@ const gigBuilderSearch = ref('')
 const gigBuilderDraftItems = ref<Song[]>([])
 
 const filteredGigBuilderSourceItems = computed(() => {
-  const draftIds = new Set(gigBuilderDraftItems.value.map((s) => s.id))
   const q = gigBuilderSearch.value.trim().toLowerCase()
   return masterSetlistItems.value.filter((song) => {
-    if (draftIds.has(song.id)) return false
     if (!q) return true
     const inTags = (song.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
     return song.title.toLowerCase().includes(q) || song.artist.toLowerCase().includes(q) || inTags
@@ -1131,12 +1129,11 @@ function openGigBuilder() {
 }
 
 function addToGigBuilder(item: Song) {
-  if (gigBuilderDraftItems.value.some((existing) => existing.id === item.id)) return
-  gigBuilderDraftItems.value.push(item)
+  gigBuilderDraftItems.value.push({ ...item })
 }
 
-function removeFromGigBuilder(songId: number) {
-  gigBuilderDraftItems.value = gigBuilderDraftItems.value.filter((item) => item.id !== songId)
+function removeFromGigBuilder(index: number) {
+  gigBuilderDraftItems.value.splice(index, 1)
 }
 
 function cancelGigBuilder() {
@@ -1150,31 +1147,47 @@ async function confirmGigBuilder() {
   isSaving.value = true
   try {
     const targetGigId = selectedGigId.value
-    const currentSongIds = Array.from(new Set(gigSongs.value.map((item) => item.id)))
-    const draftSongIds = gigBuilderDraftItems.value.map((item) => item.id)
+    // Current gig items with gigSongId
+    const currentGigItems = [...gigSongs.value]
+    const draftItems = [...gigBuilderDraftItems.value]
 
-    for (const songId of currentSongIds.filter((id) => !draftSongIds.includes(id))) {
-      await apiJson(`/gigs/${targetGigId}/songs/${songId}`, { method: 'DELETE' })
+    // Identify which current gig items to keep vs delete
+    const remainingCurrent = [...currentGigItems]
+    const matchedGigSongIds: (number | undefined)[] = []
+
+    for (const draftItem of draftItems) {
+      const existingIdx = remainingCurrent.findIndex(
+        (cur) => cur.id === draftItem.id && (cur as any).gigSongId !== undefined,
+      )
+      if (existingIdx !== -1) {
+        const [matched] = remainingCurrent.splice(existingIdx, 1)
+        matchedGigSongIds.push((matched as Song & { gigSongId: number }).gigSongId)
+      } else {
+        matchedGigSongIds.push(undefined)
+      }
     }
 
-    for (const songId of draftSongIds.filter((id) => !currentSongIds.includes(id))) {
-      await apiJson(`/gigs/${targetGigId}/songs`, {
-        method: 'POST',
-        body: JSON.stringify({ songId, position: draftSongIds.indexOf(songId) }),
-      })
+    // Delete items that are in remainingCurrent
+    for (const toDelete of remainingCurrent) {
+      const gigSongId = (toDelete as Song & { gigSongId?: number }).gigSongId
+      const query = gigSongId ? `?gigSongId=${gigSongId}` : ''
+      await apiJson(`/gigs/${targetGigId}/songs/${toDelete.id}${query}`, { method: 'DELETE' })
     }
 
-    await fetchGigSongs(targetGigId)
+    // Insert items that did not have an existing gigSongId
+    for (let i = 0; i < draftItems.length; i++) {
+      if (!matchedGigSongIds[i]) {
+        const res = await apiJson<{ id: number }>(`/gigs/${targetGigId}/songs`, {
+          method: 'POST',
+          body: JSON.stringify({ songId: draftItems[i].id, position: i }),
+        })
+        matchedGigSongIds[i] = res.id
+      }
+    }
 
-    const order = draftSongIds
-      .map((songId, index) => {
-        const row = gigSongs.value.find((item) => item.id === songId && typeof (item as Song & { gigSongId?: number }).gigSongId === 'number')
-        if (!row) return null
-        return {
-          id: (row as Song & { gigSongId: number }).gigSongId,
-          position: index,
-        }
-      })
+    // Now reorder all items according to their draft position
+    const order = matchedGigSongIds
+      .map((gigSongId, position) => (gigSongId ? { id: gigSongId, position } : null))
       .filter((entry): entry is { id: number; position: number } => Boolean(entry))
 
     if (order.length) {
@@ -1182,9 +1195,9 @@ async function confirmGigBuilder() {
         method: 'POST',
         body: JSON.stringify({ order }),
       })
-      await fetchGigSongs(targetGigId)
     }
 
+    await fetchGigSongs(targetGigId)
     cancelGigBuilder()
   } catch {
     $q.notify({ message: t('setlist.failedAdd'), color: 'negative' })
@@ -2420,7 +2433,7 @@ onMounted(() => {
                   <q-item-label caption>{{ item.artist }} · {{ formatGigBuilderType(item.type) }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <q-btn flat round dense icon="remove_circle" color="negative" @click="removeFromGigBuilder(item.id)" />
+                  <q-btn flat round dense icon="remove_circle" color="negative" @click="removeFromGigBuilder(index)" />
                 </q-item-section>
               </q-item>
             </q-list>
