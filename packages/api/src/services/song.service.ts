@@ -23,6 +23,32 @@ export async function setlistSongCountForBand(bandId: number, excludingSongId?: 
   ).length
 }
 
+export async function findDuplicateRepertoireSong(
+  bandId: number,
+  title: string,
+  artist: string,
+  excludingSongId?: number,
+): Promise<boolean> {
+  const trimmedTitle = title.trim().toLowerCase()
+  const trimmedArtist = artist.trim().toLowerCase()
+  if (!trimmedTitle || !trimmedArtist) return false
+  const [existing] = await db
+    .select({ id: songsTable.id })
+    .from(songsTable)
+    .where(
+      and(
+        eq(songsTable.bandId, bandId),
+        eq(songsTable.isSetlist, true),
+        eq(songsTable.type, 'song'),
+        sql`LOWER(TRIM(${songsTable.title})) = ${trimmedTitle}`,
+        sql`LOWER(TRIM(${songsTable.artist})) = ${trimmedArtist}`,
+        excludingSongId !== undefined ? sql`${songsTable.id} != ${excludingSongId}` : sql`1=1`,
+      ),
+    )
+    .limit(1)
+  return Boolean(existing)
+}
+
 export type CreateSongInput = {
   title?: string
   artist?: string
@@ -122,12 +148,27 @@ export const songService = {
       }
     }
 
+    const finalTitle = data.title || meta.title || 'Untitled'
+    const finalArtist = data.artist || meta.artist || 'Unknown Artist'
+    const effectiveIsSetlist = data.isSetlist ?? false
+    const effectiveType = data.type ?? 'song'
+
+    if (effectiveIsSetlist && effectiveType === 'song') {
+      const isDuplicate = await findDuplicateRepertoireSong(bandId, finalTitle, finalArtist)
+      if (isDuplicate) {
+        return {
+          error: 'A song with this title and artist already exists in your repertoire.',
+          status: 409 as const,
+        }
+      }
+    }
+
     const [song] = await db
       .insert(songsTable)
       .values({
         bandId,
-        title: data.title || meta.title || 'Untitled',
-        artist: data.artist || meta.artist || 'Unknown Artist',
+        title: finalTitle,
+        artist: finalArtist,
         spotifyUrl: data.spotifyUrl,
         youtubeUrl: data.youtubeUrl,
         thumbnailUrl: meta.thumbnail,
@@ -210,6 +251,19 @@ export const songService = {
         lengthMs = meta.durationMs ?? lengthMs
       } catch {
         // Fall back to existing metadata
+      }
+    }
+
+    const nextTitle = data.title !== undefined ? data.title : existing.title
+    const nextArtist = data.artist !== undefined ? data.artist : existing.artist
+
+    if (nextIsSetlist && nextType === 'song') {
+      const isDuplicate = await findDuplicateRepertoireSong(bandId, nextTitle, nextArtist, id)
+      if (isDuplicate) {
+        return {
+          error: 'A song with this title and artist already exists in your repertoire.',
+          status: 409 as const,
+        }
       }
     }
 

@@ -40,6 +40,9 @@ export const songs = pgTable(
   },
   (t) => [
     index('songs_band_idx').on(t.bandId, t.position),
+    uniqueIndex('songs_unique_repertoire_idx')
+      .on(t.bandId, sql`lower(trim(${t.title}))`, sql`lower(trim(${t.artist}))`)
+      .where(sql`is_setlist = true and type = 'song'`),
   ],
 )
 
