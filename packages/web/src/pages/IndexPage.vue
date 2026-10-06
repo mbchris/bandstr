@@ -91,6 +91,14 @@ async function loadData() {
   await Promise.all([bandStore.fetchMembers(), fetchPersonalNotes(), fetchRehearsalProposals()])
 }
 
+async function onRefresh(done: () => void) {
+  try {
+    await loadData()
+  } finally {
+    done()
+  }
+}
+
 onMounted(loadData)
 
 function formatDate(d: string | number) {
@@ -333,10 +341,11 @@ async function confirmBierwart(member: any) {
 
 <template>
   <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <div class="row q-col-gutter-lg">
-        <div class="col-12 col-md-6">
-        <q-card v-if="nextRehearsal" flat bordered>
+    <q-pull-to-refresh @refresh="onRefresh">
+      <div style="max-width: 1200px; margin: 0 auto">
+        <div class="row q-col-gutter-lg">
+          <div class="col-12 col-md-6">
+          <q-card v-if="nextRehearsal" flat bordered>
           <q-card-section>
             <div class="row items-center justify-between">
               <div class="text-h6 text-primary">
@@ -634,6 +643,7 @@ async function confirmBierwart(member: any) {
       </div>
     </div>
   </div>
+  </q-pull-to-refresh>
 
     <q-dialog v-model="showRehearsalEdit">
       <q-card style="min-width: 400px">
