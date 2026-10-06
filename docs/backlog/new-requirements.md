@@ -274,6 +274,14 @@
   - [x] Backend CLI command `list-duplicate-songs` to list duplicate songs in the repertoire per band.
   - [x] Backend CLI command `delete-duplicate-songs` to deduplicate songs, remapping references across gig songs, rehearsal songs, votes, notes, and user setlist songs.
 
+## TASK-0229: Pull Down to Refresh (#42)
+- **Status:** done
+- **Labels:** feature, frontend, ux
+- **Acceptance Criteria:**
+  - [x] Implement "Pull Down to refresh" feature on mobile and touch devices.
+  - [x] Refreshes the data of Calendar, Setlist (Master, User, and Gig Setlists), Voting, and Home dashboard.
+  - [x] Visual representation (spinner/indicator) that the vertical "pull down swipe" is being activated and in progress.
+
 # Sample Acceptance Criteria (use this for reference)
 
 ## TASK-0000: Example Task
