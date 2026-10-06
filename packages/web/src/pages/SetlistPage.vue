@@ -497,9 +497,23 @@ async function fetchPersonalNotes() {
 }
 
 async function refreshAll() {
-  const promises: Promise<void>[] = [songsStore.fetchSongs(), fetchPersonalNotes(), fetchUserSetlistSongs()]
+  const promises: Promise<void>[] = [
+    songsStore.fetchSongs(),
+    fetchGigs(),
+    fetchCalendarGigs(),
+    fetchPersonalNotes(),
+    fetchUserSetlistSongs(),
+  ]
   if (selectedGigId.value) promises.push(fetchGigSongs(selectedGigId.value))
   await Promise.all(promises)
+}
+
+async function onRefresh(done: () => void) {
+  try {
+    await refreshAll()
+  } finally {
+    done()
+  }
 }
 
 watch(selectedListOption, async (newVal, oldVal) => {
@@ -1731,8 +1745,9 @@ onMounted(() => {
 
 <template>
   <q-page padding>
-    <div style="max-width: 1200px; margin: 0 auto">
-      <q-card flat bordered>
+    <q-pull-to-refresh @refresh="onRefresh">
+      <div style="max-width: 1200px; margin: 0 auto">
+        <q-card flat bordered>
         <q-card-section>
           <div class="row items-center justify-between no-wrap">
             <div class="text-h5 text-weight-bold">{{ t('setlist.heading') }}</div>
@@ -2337,6 +2352,7 @@ onMounted(() => {
         </q-card-section>
       </q-card>
     </div>
+    </q-pull-to-refresh>
 
     <!-- Add Song to Master Setlist Dialog -->
     <q-dialog v-model="showAddSongModal" :position="isIos ? 'bottom' : 'standard'">
