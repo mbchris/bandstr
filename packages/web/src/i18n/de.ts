@@ -355,6 +355,8 @@ export default {
     addedToUserSetlist: 'Zur User-Setlist hinzugefügt.',
     removedFromUserSetlist: 'Aus User-Setlist entfernt.',
     markdownHint: 'Markdown wird unterstützt.',
+    duplicateSongError: 'Ein Song mit diesem Titel und Interpreten existiert bereits im Repertoire.',
+    songOccurrenceTooltip: 'Dieser Song ist {count}-mal in dieser Setlist',
     addSongTitle: 'Neuen Song zum Repertoire hinzufügen',
     addGigSongTitle: 'Songs zur Gig-Setlist hinzufügen',
     editGigSetlist: 'Gig-Setlist bearbeiten',
