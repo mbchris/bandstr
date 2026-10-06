@@ -99,3 +99,12 @@
   - [x] Removed "+ new Gig Setlist" button and added "New Gig Setlist..." option just below the "Master Setlist" entry in the dropdown.
   - [x] Calendar "Rehearsal" description field is 4 lines instead of a 1-line field.
 
+## TASK-9009: Android compileSdk 36 warning and Play Console minSdk 24 rejection (#27)
+- **Status:** done
+- **Labels:** bug, android
+- **Acceptance Criteria:**
+  - [x] Android Gradle Plugin updated to 8.9.2 with official compileSdk 36 support.
+  - [x] compileSdk warning suppressed/resolved in gradle.properties and root build.gradle.
+  - [x] minSdkVersion bumped to 24 in variables.gradle to satisfy Google Play automatic protection.
+  - [x] Release App Bundle (.aab) builds cleanly with minSdk 24.
+
