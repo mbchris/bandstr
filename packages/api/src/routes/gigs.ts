@@ -20,6 +20,10 @@ const gigSongParamSchema = z.object({
   songId: z.coerce.number().int().positive(),
 })
 
+const deleteGigSongQuerySchema = z.object({
+  gigSongId: z.coerce.number().int().positive().optional(),
+})
+
 const gigSetlistBodySchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   calendarEventId: z.number().int().positive().nullable().optional(),
@@ -347,16 +351,40 @@ gigs.post(
 )
 
 // DELETE /gigs/:id/songs/:songId
-gigs.delete('/:id/songs/:songId', zValidator('param', gigSongParamSchema), async (c) => {
-  const bandId = c.get('bandId')
-  const { id: gigId, songId } = c.req.valid('param')
+gigs.delete(
+  '/:id/songs/:songId',
+  zValidator('param', gigSongParamSchema),
+  zValidator('query', deleteGigSongQuerySchema),
+  async (c) => {
+    const bandId = c.get('bandId')
+    const { id: gigId, songId } = c.req.valid('param')
+    const { gigSongId } = c.req.valid('query')
 
-  const gig = await getGigSetlistForBandOrNull(bandId, gigId)
-  if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
+    const gig = await getGigSetlistForBandOrNull(bandId, gigId)
+    if (!gig) return c.json({ error: 'Gig setlist not found' }, 404)
 
-  await db
-    .delete(gigSongs)
-    .where(and(eq(gigSongs.gigId, gigId), eq(gigSongs.songId, songId), eq(gigSongs.bandId, bandId)))
+    if (gigSongId) {
+      await db
+        .delete(gigSongs)
+        .where(
+          and(
+            eq(gigSongs.id, gigSongId),
+            eq(gigSongs.gigId, gigId),
+            eq(gigSongs.bandId, bandId),
+          ),
+        )
+    } else {
+      await db
+        .delete(gigSongs)
+        .where(
+          and(
+            eq(gigSongs.gigId, gigId),
+            eq(gigSongs.songId, songId),
+            eq(gigSongs.bandId, bandId),
+          ),
+        )
+    }
 
-  return c.json({ success: true })
-})
+    return c.json({ success: true })
+  },
+)
