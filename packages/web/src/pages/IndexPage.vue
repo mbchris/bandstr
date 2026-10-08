@@ -10,6 +10,7 @@ import BeerRain from '../components/BeerRain.vue'
 import BleedingCardCarousel from '../components/BleedingCardCarousel.vue'
 import { useI18n } from '../composables/useI18n'
 import { getInitials } from '../utils/initials'
+import { getAutoBierwartCandidate, calculateBeerMetrics } from '../utils/bierwart'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -52,6 +53,21 @@ const isAdmin = computed(() => {
 const nextRehearsal = computed(() => rehearsalData.value?.nextRehearsal ?? null)
 const upcomingGigs = computed(() => rehearsalData.value?.upcomingGigs ?? [])
 const visibleMembers = computed(() => bandStore.members.filter((m) => !m.isHidden))
+
+const isAttendanceExpanded = ref(false)
+
+const autoCandidate = computed(() => getAutoBierwartCandidate(visibleMembers.value, bierwart.value?.id))
+const beerMetrics = computed(() => calculateBeerMetrics(visibleMembers.value))
+
+const groupedAttendanceAccepted = computed(() => {
+  return (nextRehearsal.value?.memberAttendance ?? []).filter((m: any) => m.status === 'present')
+})
+const groupedAttendanceRejected = computed(() => {
+  return (nextRehearsal.value?.memberAttendance ?? []).filter((m: any) => m.status === 'absent')
+})
+const groupedAttendancePending = computed(() => {
+  return (nextRehearsal.value?.memberAttendance ?? []).filter((m: any) => m.status !== 'present' && m.status !== 'absent')
+})
 
 const bierwart = computed(() => {
   if (!nextRehearsal.value || visibleMembers.value.length === 0) return null
@@ -321,20 +337,45 @@ async function saveGigs() {
 const showBierwartModal = ref(false)
 function openBierwartModal() { showBierwartModal.value = true }
 
-async function confirmBierwart(member: any) {
+async function confirmBierwart(targetMember: any, isAuto: boolean = false) {
   if (!nextRehearsal.value) return
+  const outgoingBierwart = bierwart.value
+  const outgoingNotice = outgoingBierwart
+    ? `\n\n${t('home.counterIncrementNotice', { name: outgoingBierwart.name })}`
+    : ''
+  const autoSuffix = isAuto ? ` (${t('home.autoAssign')})` : ''
+
   $q.dialog({
     title: t('common.confirm'),
-    message: `${t('home.confirmBierwartChange')} ${member.name}`,
+    message: `${t('home.confirmBierwartChange')} ${targetMember.name}${autoSuffix}.${outgoingNotice}`,
     cancel: true,
   }).onOk(async () => {
     saving.value = true
     try {
-      await apiJson(`/calendar/${nextRehearsal.value.id}`, { method: 'PUT', body: JSON.stringify({ bierwartOverrideId: member.id }) })
-      await loadData()
+      if (outgoingBierwart?.id) {
+        await apiJson(`/users/${outgoingBierwart.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ beerCount: (outgoingBierwart.beerCount || 0) + 1 }),
+        })
+      }
+      await apiJson(`/calendar/${nextRehearsal.value.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ bierwartOverrideId: targetMember.id }),
+      })
+      await Promise.all([loadData(), bandStore.fetchMembers()])
       showBierwartModal.value = false
-    } catch (e: any) { $q.notify({ message: 'Failed: ' + e.message, color: 'negative' }) }
-    finally { saving.value = false }
+      $q.notify({
+        type: 'positive',
+        message: t('home.handoverSuccess', {
+          oldName: outgoingBierwart?.name || '',
+          newName: targetMember.name,
+        }),
+      })
+    } catch (e: any) {
+      $q.notify({ message: 'Failed: ' + e.message, color: 'negative' })
+    } finally {
+      saving.value = false
+    }
   })
 }
 </script>
@@ -416,21 +457,126 @@ async function confirmBierwart(member: any) {
               />
             </div>
 
-            <div v-if="nextRehearsal.memberAttendance?.length" class="option1-vote-row q-mb-md">
-              <div class="avatar-stack bg-widget-surface rounded-borders q-px-sm q-py-xs">
-                <q-avatar
-                  v-for="(member, i) in nextRehearsal.memberAttendance"
-                  :key="`attendance-${member.userId}`"
-                  size="24px"
-                  class="stack-avatar"
-                  :style="attendanceAvatarStyle(member.status, i)"
-                  color="grey-7"
-                  text-color="white"
-                >
-                  <span>{{ getInitials(member.userName) }}</span>
-                </q-avatar>
-                <q-tooltip>{{ attendanceNamesLabel }}</q-tooltip>
+            <div v-if="nextRehearsal.memberAttendance?.length" class="attendance-section q-mb-md">
+              <div
+                class="attendance-header row items-center justify-between bg-widget-surface rounded-borders q-px-sm q-py-xs cursor-pointer"
+                @click="isAttendanceExpanded = !isAttendanceExpanded"
+              >
+                <div class="row items-center q-gutter-xs">
+                  <div class="avatar-stack q-mr-sm">
+                    <q-avatar
+                      v-for="(member, i) in nextRehearsal.memberAttendance"
+                      :key="`attendance-${member.userId}`"
+                      size="24px"
+                      class="stack-avatar"
+                      :style="attendanceAvatarStyle(member.status, i)"
+                      color="grey-7"
+                      text-color="white"
+                    >
+                      <span>{{ getInitials(member.userName) }}</span>
+                    </q-avatar>
+                  </div>
+                  <q-badge v-if="groupedAttendanceRejected.length" color="negative" text-color="white" dense class="q-px-xs">
+                    <q-icon name="cancel" size="12px" class="q-mr-xs" />
+                    {{ groupedAttendanceRejected.length }}
+                  </q-badge>
+                  <q-badge v-if="groupedAttendanceAccepted.length" color="positive" text-color="white" dense class="q-px-xs">
+                    <q-icon name="check_circle" size="12px" class="q-mr-xs" />
+                    {{ groupedAttendanceAccepted.length }}
+                  </q-badge>
+                  <q-badge v-if="groupedAttendancePending.length" color="grey-6" text-color="white" dense class="q-px-xs">
+                    <q-icon name="help_outline" size="12px" class="q-mr-xs" />
+                    {{ groupedAttendancePending.length }}
+                  </q-badge>
+                </div>
+                <div class="row items-center text-caption text-grey-7">
+                  <span class="q-mr-xs">{{ isAttendanceExpanded ? t('home.attendanceDetailsCollapse') : t('home.attendanceDetailsExpand') }}</span>
+                  <q-icon :name="isAttendanceExpanded ? 'expand_less' : 'expand_more'" size="sm" />
+                </div>
               </div>
+
+              <!-- Expanded Coloured List Grouped by Rejected, Accepted, Pending -->
+              <q-slide-transition>
+                <div v-if="isAttendanceExpanded" class="attendance-expanded-list q-mt-sm column q-gutter-xs">
+                  <!-- Rejected Group -->
+                  <div v-if="groupedAttendanceRejected.length" class="attendance-group bg-red-1 text-negative rounded-borders q-pa-sm">
+                    <div class="row items-center justify-between text-weight-bold text-caption q-mb-xs">
+                      <div class="row items-center q-gutter-xs">
+                        <q-icon name="cancel" color="negative" size="16px" />
+                        <span>{{ t('home.attendanceGroupRejected') }}</span>
+                      </div>
+                      <q-badge color="negative" :label="String(groupedAttendanceRejected.length)" />
+                    </div>
+                    <div class="row wrap q-gutter-xs">
+                      <q-chip
+                        v-for="m in groupedAttendanceRejected"
+                        :key="`rejected-${m.userId}`"
+                        dense
+                        color="white"
+                        text-color="negative"
+                        class="shadow-1"
+                      >
+                        <q-avatar size="18px" color="red-2" text-color="negative">
+                          {{ getInitials(m.userName) }}
+                        </q-avatar>
+                        {{ m.userName }}
+                      </q-chip>
+                    </div>
+                  </div>
+
+                  <!-- Accepted Group -->
+                  <div v-if="groupedAttendanceAccepted.length" class="attendance-group bg-green-1 text-positive rounded-borders q-pa-sm">
+                    <div class="row items-center justify-between text-weight-bold text-caption q-mb-xs">
+                      <div class="row items-center q-gutter-xs">
+                        <q-icon name="check_circle" color="positive" size="16px" />
+                        <span>{{ t('home.attendanceGroupAccepted') }}</span>
+                      </div>
+                      <q-badge color="positive" :label="String(groupedAttendanceAccepted.length)" />
+                    </div>
+                    <div class="row wrap q-gutter-xs">
+                      <q-chip
+                        v-for="m in groupedAttendanceAccepted"
+                        :key="`accepted-${m.userId}`"
+                        dense
+                        color="white"
+                        text-color="positive"
+                        class="shadow-1"
+                      >
+                        <q-avatar size="18px" color="green-2" text-color="positive">
+                          {{ getInitials(m.userName) }}
+                        </q-avatar>
+                        {{ m.userName }}
+                      </q-chip>
+                    </div>
+                  </div>
+
+                  <!-- Pending Group -->
+                  <div v-if="groupedAttendancePending.length" class="attendance-group bg-grey-2 text-grey-8 rounded-borders q-pa-sm">
+                    <div class="row items-center justify-between text-weight-bold text-caption q-mb-xs">
+                      <div class="row items-center q-gutter-xs">
+                        <q-icon name="help_outline" color="grey-8" size="16px" />
+                        <span>{{ t('home.attendanceGroupPending') }}</span>
+                      </div>
+                      <q-badge color="grey-6" :label="String(groupedAttendancePending.length)" />
+                    </div>
+                    <div class="row wrap q-gutter-xs">
+                      <q-chip
+                        v-for="m in groupedAttendancePending"
+                        :key="`pending-${m.userId}`"
+                        dense
+                        color="white"
+                        text-color="grey-8"
+                        class="shadow-1"
+                      >
+                        <q-avatar size="18px" color="grey-3" text-color="grey-8">
+                          {{ getInitials(m.userName) }}
+                        </q-avatar>
+                        {{ m.userName }}
+                      </q-chip>
+                    </div>
+                  </div>
+                </div>
+              </q-slide-transition>
             </div>
 
             <div v-if="rehearsalProposals.length" class="q-mb-md">
@@ -481,27 +627,44 @@ async function confirmBierwart(member: any) {
               </q-list>
             </div>
 
-            <div v-if="bierwart" class="row items-center q-gutter-md cursor-pointer q-pa-sm rounded-borders" @click="openBierwartModal">
-              <q-avatar size="48px" color="orange-2">
-                <span class="text-orange text-weight-bold">{{ getInitials(bierwart.name) }}</span>
+            <div v-if="bierwart" class="row items-center q-gutter-md cursor-pointer q-pa-sm rounded-borders bg-widget-surface q-mt-sm" @click="openBierwartModal">
+              <q-avatar size="48px" color="amber-2">
+                <span class="text-amber-10 text-weight-bold">{{ getInitials(bierwart.name) }}</span>
               </q-avatar>
               <div class="col">
-                <div class="text-overline text-orange" style="font-size: 10px">{{ t('home.onDuty') }}</div>
+                <div class="row items-center q-gutter-xs">
+                  <span class="text-overline text-amber-9" style="font-size: 10px">{{ t('home.onDuty') }}</span>
+                  <q-badge v-if="beerMetrics.isHighest(bierwart.id)" color="amber-8" text-color="white" size="xs">
+                    👑 {{ t('home.highestCountBadge') }}
+                  </q-badge>
+                  <q-badge v-else-if="beerMetrics.isLowest(bierwart.id)" color="grey-6" text-color="white" size="xs">
+                    🎯 {{ t('home.lowestCountBadge') }}
+                  </q-badge>
+                </div>
                 <div class="text-subtitle1 text-weight-bold">{{ bierwart.name }}</div>
                 <div class="text-caption text-grey">{{ t('home.hasDrinks') }}</div>
+                <div class="q-mt-xs" style="max-width: 140px">
+                  <q-linear-progress
+                    :value="beerMetrics.getRelativeProgress(bierwart.beerCount || 0)"
+                    rounded
+                    size="4px"
+                    color="amber-8"
+                    track-color="amber-2"
+                  />
+                </div>
               </div>
               <div class="row items-center q-gutter-xs">
                 <template v-if="authStore.isFreePlan">
-                  <q-badge color="orange" :label="String(bierwart.beerCount || 0)" />
+                  <q-badge color="amber-9" :label="String(bierwart.beerCount || 0)" />
                   <q-chip dense color="orange" text-color="white" size="sm" icon="lock" label="PRO feature" class="q-ml-xs" />
                 </template>
                 <template v-else>
-                  <q-btn flat round dense icon="remove_circle" color="orange" size="sm" :loading="beerLoading" @click.stop="removeBeer" />
-                  <q-badge color="orange" :label="String(bierwart.beerCount || 0)" />
-                  <q-btn flat round dense icon="add_circle" color="orange" size="sm" :loading="beerLoading" @click.stop="addBeer" />
+                  <q-btn flat round dense icon="remove_circle" color="amber-9" size="sm" :loading="beerLoading" @click.stop="removeBeer" />
+                  <q-badge color="amber-9" text-color="white" class="text-weight-bold" :label="String(bierwart.beerCount || 0)" />
+                  <q-btn flat round dense icon="add_circle" color="amber-9" size="sm" :loading="beerLoading" @click.stop="addBeer" />
                 </template>
               </div>
-              <q-btn flat round dense icon="edit" size="sm" color="grey-4" />
+              <q-btn flat round dense icon="edit" size="sm" color="grey-6" />
             </div>
           </q-card-section>
         </q-card>
@@ -699,28 +862,99 @@ async function confirmBierwart(member: any) {
     </q-dialog>
 
     <q-dialog v-model="showBierwartModal">
-      <q-card style="min-width: 350px">
-        <q-card-section class="row items-center">
-          <q-icon name="science" color="orange" size="sm" class="q-mr-sm" />
-          <div class="text-h6">{{ t('home.bierwartMgmt') }}</div>
-          <q-space /><q-btn flat round dense icon="close" v-close-popup />
+      <q-card style="min-width: 380px; max-width: 480px">
+        <q-card-section class="row items-center justify-between">
+          <div class="row items-center q-gutter-xs">
+            <q-icon name="sports_bar" color="amber-9" size="sm" />
+            <div class="text-h6 text-amber-10">{{ t('home.bierwartMgmt') }}</div>
+          </div>
+          <q-btn flat round dense icon="close" v-close-popup />
         </q-card-section>
-        <q-card-section>
+
+        <q-card-section class="q-pt-none">
+          <!-- Total Beers Summary Banner -->
+          <div class="row items-center justify-between q-px-md q-py-sm bg-amber-1 rounded-borders q-mb-md text-amber-10">
+            <div class="row items-center q-gutter-xs">
+              <q-icon name="sports_bar" color="amber-9" size="sm" />
+              <span class="text-caption text-weight-bold">
+                {{ t('home.totalBeersBrought', { count: beerMetrics.totalBeers }) }}
+              </span>
+            </div>
+            <q-badge color="amber-8" text-color="white" :label="t('home.beerRanking')" />
+          </div>
+
+          <!-- Auto Assigner Quick Action -->
+          <q-item
+            v-if="autoCandidate"
+            clickable
+            v-ripple
+            class="bg-amber-1 q-mb-md rounded-borders text-amber-10 auto-assign-item cursor-pointer"
+            @click="confirmBierwart(autoCandidate, true)"
+          >
+            <q-item-section avatar>
+              <q-avatar color="amber-3" text-color="amber-9" icon="auto_awesome" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="text-weight-bold row items-center q-gutter-xs">
+                <span>{{ t('home.autoAssign') }}</span>
+                <q-badge color="amber-9" :label="t('home.lowestCountBadge')" />
+              </q-item-label>
+              <q-item-label caption class="text-amber-9">
+                {{ t('home.autoCandidateHint', { name: autoCandidate.name, count: autoCandidate.beerCount || 0 }) }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-btn flat round dense icon="arrow_forward" color="amber-9" />
+            </q-item-section>
+          </q-item>
+
+          <!-- Members List with Visual Progress and Badges -->
           <q-list separator>
-            <q-item v-for="member in visibleMembers" :key="member.id" clickable v-ripple :active="member.id === bierwart?.id" active-class="bg-orange-1" @click="confirmBierwart(member)">
+            <q-item
+              v-for="member in visibleMembers"
+              :key="member.id"
+              clickable
+              v-ripple
+              :active="member.id === bierwart?.id"
+              active-class="bg-amber-1 text-amber-10"
+              class="rounded-borders q-my-xs"
+              @click="confirmBierwart(member, false)"
+            >
               <q-item-section avatar>
                 <q-avatar color="grey-3">
                   <span>{{ getInitials(member.name) }}</span>
                 </q-avatar>
               </q-item-section>
-              <q-item-section><q-item-label class="text-weight-bold">{{ member.name }}</q-item-label></q-item-section>
-              <q-item-section side>
+              <q-item-section>
                 <div class="row items-center q-gutter-xs">
-                  <q-icon name="sports_bar" color="orange" size="xs" />
-                  <span class="text-caption text-orange text-weight-bold">{{ member.beerCount ?? 0 }}</span>
+                  <q-item-label class="text-weight-bold">{{ member.name }}</q-item-label>
+                  <q-badge v-if="beerMetrics.isHighest(member.id)" color="amber-8" text-color="white" size="xs">
+                    👑 {{ t('home.highestCountBadge') }}
+                  </q-badge>
+                  <q-badge v-else-if="beerMetrics.isLowest(member.id)" color="grey-6" text-color="white" size="xs">
+                    🎯 {{ t('home.lowestCountBadge') }}
+                  </q-badge>
+                </div>
+                <!-- Optical progress indicator -->
+                <div class="q-mt-xs" style="max-width: 180px">
+                  <q-linear-progress
+                    :value="beerMetrics.getRelativeProgress(member.beerCount || 0)"
+                    rounded
+                    size="6px"
+                    color="amber-8"
+                    track-color="amber-2"
+                  />
                 </div>
               </q-item-section>
-              <q-item-section v-if="member.id === bierwart?.id" side><q-icon name="check_circle" color="orange" /></q-item-section>
+              <q-item-section side>
+                <div class="row items-center q-gutter-xs">
+                  <q-icon name="sports_bar" color="amber-9" size="xs" />
+                  <span class="text-caption text-amber-9 text-weight-bold">{{ member.beerCount ?? 0 }}</span>
+                </div>
+              </q-item-section>
+              <q-item-section v-if="member.id === bierwart?.id" side>
+                <q-icon name="check_circle" color="amber-9" />
+              </q-item-section>
             </q-item>
           </q-list>
         </q-card-section>

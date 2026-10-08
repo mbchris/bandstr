@@ -58,7 +58,7 @@ async function getEffectiveBierwartId(
     .from(bandMembers)
     .innerJoin(users, eq(bandMembers.userId, users.id))
     .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.isHidden, false)))
-    .orderBy(asc(bandMembers.sortOrder), asc(users.name))
+    .orderBy(asc(bandMembers.beerCount), asc(bandMembers.sortOrder), asc(users.name))
     .limit(1)
 
   return firstVisibleMember?.userId ?? null

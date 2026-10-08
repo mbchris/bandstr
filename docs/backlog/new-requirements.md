@@ -15,6 +15,8 @@
 - **Calendar**: Show unavailabilities on start page and rehearsal detail page.
 - **Voting**: Swipe to accept song (send to setlist, green edge) or archive (red edge) (#25).
 - **Calendar/Setlist**: Calendar to Setlist link and selection: Gig entries always have a Gig Setlist, autocomplete selection in calendar and setlist views, invalid links removed (#26).
+- **Bierwart**: Bierwart management adaptation, auto-assigner based on lowest beer count, beer counter increment on handover, and optical indicators (#44).
+- **Attendance**: Show absence and attendance on main page for next upcoming rehearsal as an expandable coloured list grouped by Rejected, Accepted, and Pending (#48).
 # Acceptance criteria for new requirements
 
 ## TASK-0201: Foundation - Editable User List in Admin
@@ -281,6 +283,26 @@
   - [x] Implement "Pull Down to refresh" feature on mobile and touch devices.
   - [x] Refreshes the data of Calendar, Setlist (Master, User, and Gig Setlists), Voting, and Home dashboard.
   - [x] Visual representation (spinner/indicator) that the vertical "pull down swipe" is being activated and in progress.
+
+## TASK-0230: Bierwart Management Adaptation & Auto-Assigner (#44)
+- **Status:** done
+- **Labels:** feature, frontend, backend, calendar
+- **Acceptance Criteria:**
+  - [x] Fallback Bierwart calculation selects band member with lowest `beerCount`, tie-broken by `sortOrder` and `name`.
+  - [x] Bierwart selection modal includes "Auto" option targeting the candidate with the lowest beer count.
+  - [x] Confirming Bierwart change increments the outgoing Bierwart's `beerCount` by 1.
+  - [x] Bierwart selection modal displays total beers brought banner and relative progress indicators.
+  - [x] Visual badge indicators (👑 Hopfenkönig / Beer Champion, 🎯 Niedrigster Stand / Lowest count) highlight top and lowest contributors.
+  - [x] Home page Bierwart card displays optical contribution indicator and badge.
+
+## TASK-0231: Rehearsal Attendance & Absence Display on Main Page (#48)
+- **Status:** done
+- **Labels:** feature, frontend, calendar, ui
+- **Acceptance Criteria:**
+  - [x] Next rehearsal attendance on the main page replaces hover-only tooltip with an expandable clickable interface.
+  - [x] Click on the attendance section expands and collapses the detailed member breakdown.
+  - [x] Displays a coloured list grouped into three sections: Rejected (Absence - red), Accepted (Attendance - green), and Pending (Open - grey).
+  - [x] Each section displays the group name, member count, and chips/avatars for each band member in that category.
 
 # Sample Acceptance Criteria (use this for reference)
 

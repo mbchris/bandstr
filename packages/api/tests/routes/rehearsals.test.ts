@@ -105,4 +105,58 @@ describe('Rehearsal Attendance API (/api/rehearsals)', () => {
     expect(nextData.upcomingGigs.length).toBeGreaterThan(0)
     expect(nextData.upcomingGigs[0].gigSetlistTitle).toBe('Summer Festival Gig')
   })
+
+  it('falls back to member with lowest beerCount when no bierwartOverrideId is set', async () => {
+    const ctx = await createTestContext({ userName: 'High Beer Member' })
+
+    // Set high beerCount for the owner
+    const { db } = await import('../../src/db/index.js')
+    const { bandMembers, users } = await import('../../src/db/schema.js')
+    const { eq, and } = await import('drizzle-orm')
+    const { randomUUID } = await import('node:crypto')
+
+    await db
+      .update(bandMembers)
+      .set({ beerCount: 5, sortOrder: 1 })
+      .where(and(eq(bandMembers.bandId, ctx.bandId), eq(bandMembers.userId, ctx.userId)))
+
+    // Create a second member with lower beerCount
+    const secondUserId = randomUUID()
+    await db.insert(users).values({
+      id: secondUserId,
+      name: 'Low Beer Member',
+      email: 'lowbeer@example.com',
+    })
+    await db.insert(bandMembers).values({
+      bandId: ctx.bandId,
+      userId: secondUserId,
+      role: 'member',
+      beerCount: 1,
+      sortOrder: 2,
+    })
+
+    // Create future rehearsal
+    const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
+    const futureEndDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString()
+
+    const createRes = await app.request('/api/calendar', {
+      method: 'POST',
+      headers: ctx.headers,
+      body: JSON.stringify({
+        title: 'Weekly Rehearsal',
+        type: 'rehearsal',
+        startTime: futureDate,
+        endTime: futureEndDate,
+      }),
+    })
+    expect(createRes.status).toBe(201)
+
+    const nextRes = await app.request('/api/rehearsals/next', {
+      headers: ctx.headers,
+    })
+    expect(nextRes.status).toBe(200)
+    const nextData = await nextRes.json()
+    expect(nextData.nextRehearsal).toBeDefined()
+    expect(nextData.nextRehearsal.effectiveBierwartId).toBe(secondUserId)
+  })
 })
