@@ -144,9 +144,79 @@ cleanup_signing() {
 }
 trap cleanup_signing EXIT
 
-# If manual signing env vars were not passed, but Vaultwarden credentials exist in .creds.config,
-# load the distribution certificate and provisioning profile automatically.
-if [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISIONING_PROFILE_UUID:-}" && -f "$REPO_ROOT/.creds.config" ]]; then
+setup_ios_keychain_and_profile() {
+  local p12_file="$1"
+  local p12_pass="$2"
+  local prov_file="$3"
+  local cert_sha1="${4:-}"
+  local profile_uuid="${5:-}"
+
+  vault_work_dir="$(dirname "$p12_file")"
+  vault_keychain="$vault_work_dir/bandstr-signing.keychain-db"
+  local keychain_password
+  keychain_password="$(openssl rand -base64 24)"
+
+  while IFS= read -r kc; do
+    kc="${kc#"${kc%%[![:space:]]*}"}"
+    kc="${kc//\"/}"
+    [[ -n "$kc" ]] && vault_original_keychains+=("$kc")
+  done < <(security list-keychains -d user)
+
+  security create-keychain -p "$keychain_password" "$vault_keychain"
+  security set-keychain-settings -lut 21600 "$vault_keychain"
+  security unlock-keychain -p "$keychain_password" "$vault_keychain"
+  security import "$p12_file" -k "$vault_keychain" -f pkcs12 -P "$p12_pass" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+
+  curl -fsSL https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer -o "$vault_work_dir/AppleWWDRCAG3.cer" 2>/dev/null || true
+  if [[ -f "$vault_work_dir/AppleWWDRCAG3.cer" ]]; then
+    security import "$vault_work_dir/AppleWWDRCAG3.cer" -k "$vault_keychain" >/dev/null 2>&1 || true
+  fi
+  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$vault_keychain" >/dev/null 2>&1 || true
+  security list-keychains -d user -s "$vault_keychain" "${vault_original_keychains[@]}"
+
+  if [[ -z "$cert_sha1" ]]; then
+    cert_sha1="$(security find-identity -v -p codesigning "$vault_keychain" | grep -E -o '[0-9A-Fa-f]{40}' | head -n 1 || true)"
+  fi
+
+  if [[ -z "$profile_uuid" && -f "$prov_file" ]]; then
+    profile_uuid="$(security cms -D -i "$prov_file" 2>/dev/null | grep -A1 '<key>UUID</key>' | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | head -n 1 || true)"
+  fi
+
+  if [[ -z "$cert_sha1" || -z "$profile_uuid" ]]; then
+    echo "Error: Could not determine certificate SHA-1 or provisioning profile UUID."
+    return 1
+  fi
+
+  for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+    mkdir -p "$dir"
+    chflags nouchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
+    cp -f "$prov_file" "$dir/$profile_uuid.mobileprovision"
+    if [[ "$dir" == *"UserData"* ]]; then
+      chflags uchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
+    fi
+  done
+
+  export IOS_SIGN_IDENTITY="$cert_sha1"
+  export IOS_PROVISIONING_PROFILE_UUID="$profile_uuid"
+  export IOS_SIGN_KEYCHAIN="$vault_keychain"
+}
+
+ios_p12_base64="${IOS_DISTRIBUTION_P12_BASE64:-${IOS_P12_BASE64:-}}"
+ios_mobileprovision_base64="${IOS_MOBILEPROVISION_BASE64:-}"
+ios_p12_password="${IOS_P12_PASSWORD:-${P12_PASSWORD:-}}"
+ios_cert_sha1="${IOS_SIGN_IDENTITY:-${CERT_SHA1:-}}"
+ios_profile_uuid="${IOS_PROVISIONING_PROFILE_UUID:-${PROFILE_UUID:-}}"
+
+# 1. First priority: Check if release signing secrets are provided directly via environment (.env populated by creds.sh pull)
+if [[ "$sign_build" == "1" && -n "$ios_p12_base64" && -n "$ios_mobileprovision_base64" ]]; then
+  echo "Loading iOS release signing secrets from environment (.env)..."
+  vault_work_dir="$(mktemp -d)"
+  printf '%s' "$ios_p12_base64" | base64 --decode > "$vault_work_dir/distribution.p12"
+  printf '%s' "$ios_mobileprovision_base64" | base64 --decode > "$vault_work_dir/appstore.mobileprovision"
+  setup_ios_keychain_and_profile "$vault_work_dir/distribution.p12" "$ios_p12_password" "$vault_work_dir/appstore.mobileprovision" "$ios_cert_sha1" "$ios_profile_uuid"
+
+# 2. Fallback: If not in environment, but Vaultwarden credentials exist in .creds.config, fetch dynamically
+elif [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISIONING_PROFILE_UUID:-}" && -f "$REPO_ROOT/.creds.config" ]]; then
   if command -v bw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     # shellcheck source=lib/vaultwarden.sh
     source "$SCRIPT_DIR/lib/vaultwarden.sh"
@@ -156,15 +226,6 @@ if [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISION
       asc_item="$(vw_item_id "$VW_ASC_ITEM")"
       if [[ -n "$signing_item" ]]; then
         vault_work_dir="$(mktemp -d)"
-        vault_keychain="$vault_work_dir/bandstr-signing.keychain-db"
-        keychain_password="$(openssl rand -base64 24)"
-
-        while IFS= read -r kc; do
-          kc="${kc#"${kc%%[![:space:]]*}"}"
-          kc="${kc//\"/}"
-          [[ -n "$kc" ]] && vault_original_keychains+=("$kc")
-        done < <(security list-keychains -d user)
-
         p12_password="$(vw_field "$signing_item" P12_PASSWORD)"
         cert_sha1="$(vw_field "$signing_item" CERT_SHA1)"
         profile_uuid="$(vw_field "$signing_item" PROFILE_UUID)"
@@ -179,29 +240,7 @@ if [[ "$sign_build" == "1" && -z "${IOS_SIGN_IDENTITY:-}" && -z "${IOS_PROVISION
         fi
         vw_lock
 
-        security create-keychain -p "$keychain_password" "$vault_keychain"
-        security set-keychain-settings -lut 21600 "$vault_keychain"
-        security unlock-keychain -p "$keychain_password" "$vault_keychain"
-        security import "$vault_work_dir/distribution.p12" -k "$vault_keychain" -f pkcs12 -P "$p12_password" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
-        curl -fsSL https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer -o "$vault_work_dir/AppleWWDRCAG3.cer" 2>/dev/null || true
-        if [[ -f "$vault_work_dir/AppleWWDRCAG3.cer" ]]; then
-          security import "$vault_work_dir/AppleWWDRCAG3.cer" -k "$vault_keychain" >/dev/null 2>&1 || true
-        fi
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$vault_keychain" >/dev/null 2>&1 || true
-        security list-keychains -d user -s "$vault_keychain" "${vault_original_keychains[@]}"
-
-        for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
-          mkdir -p "$dir"
-          chflags nouchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
-          cp -f "$vault_work_dir/appstore.mobileprovision" "$dir/$profile_uuid.mobileprovision"
-          if [[ "$dir" == *"UserData"* ]]; then
-            chflags uchg "$dir/$profile_uuid.mobileprovision" 2>/dev/null || true
-          fi
-        done
-
-        export IOS_SIGN_IDENTITY="$cert_sha1"
-        export IOS_PROVISIONING_PROFILE_UUID="$profile_uuid"
-        export IOS_SIGN_KEYCHAIN="$vault_keychain"
+        setup_ios_keychain_and_profile "$vault_work_dir/distribution.p12" "$p12_password" "$vault_work_dir/appstore.mobileprovision" "$cert_sha1" "$profile_uuid"
       fi
     else
       echo "Warning: Vaultwarden login failed. Proceeding without automated signing setup."

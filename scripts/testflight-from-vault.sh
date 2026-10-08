@@ -47,33 +47,52 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# --- 1. Secrets from Vaultwarden -------------------------------------------
-vw_login
+# --- 1. Secrets from Environment or Vaultwarden --------------------------------
+ios_p12_b64="${IOS_DISTRIBUTION_P12_BASE64:-${IOS_P12_BASE64:-}}"
+ios_prov_b64="${IOS_MOBILEPROVISION_BASE64:-}"
+asc_key_b64="${APPSTORE_CONNECT_API_KEY_BASE64:-}"
+p12_password="${IOS_P12_PASSWORD:-${P12_PASSWORD:-}}"
+cert_sha1="${IOS_SIGN_IDENTITY:-${CERT_SHA1:-}}"
+profile_uuid="${IOS_PROVISIONING_PROFILE_UUID:-${PROFILE_UUID:-}}"
+profile_expires="${IOS_PROFILE_EXPIRES:-${PROFILE_EXPIRES:-unknown}}"
 
-asc_item="$(vw_item_id "$VW_ASC_ITEM")"
-signing_item="$(vw_item_id "$VW_SIGNING_ITEM")"
-if [[ -z "$asc_item" || -z "$signing_item" ]]; then
-  echo "Error: vault items '$VW_ASC_ITEM' and '$VW_SIGNING_ITEM' are required."
-  echo "  Create them with scripts/ios-secrets-to-vaultwarden.sh and scripts/ios-signing-to-vaultwarden.sh."
-  exit 1
+if [[ -n "$ios_p12_b64" && -n "$ios_prov_b64" && -n "${APPSTORE_CONNECT_API_KEY_ID:-}" && -n "${APPSTORE_CONNECT_ISSUER_ID:-}" && ( -n "$asc_key_b64" || -n "${APPSTORE_CONNECT_API_KEY_PATH:-}" ) ]]; then
+  echo "Using iOS release signing and App Store Connect secrets from environment (.env)..."
+  printf '%s' "$ios_p12_b64" | base64 --decode > "$work_dir/distribution.p12"
+  printf '%s' "$ios_prov_b64" | base64 --decode > "$work_dir/appstore.mobileprovision"
+  if [[ -n "$asc_key_b64" && -z "${APPSTORE_CONNECT_API_KEY_PATH:-}" ]]; then
+    export APPSTORE_CONNECT_API_KEY_PATH="$work_dir/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+    printf '%s' "$asc_key_b64" | base64 --decode > "$APPSTORE_CONNECT_API_KEY_PATH"
+  fi
+else
+  echo "Loading iOS release secrets from Vaultwarden..."
+  vw_login
+
+  asc_item="$(vw_item_id "$VW_ASC_ITEM")"
+  signing_item="$(vw_item_id "$VW_SIGNING_ITEM")"
+  if [[ -z "$asc_item" || -z "$signing_item" ]]; then
+    echo "Error: vault items '$VW_ASC_ITEM' and '$VW_SIGNING_ITEM' are required."
+    echo "  Create them with scripts/ios-secrets-to-vaultwarden.sh and scripts/ios-signing-to-vaultwarden.sh."
+    exit 1
+  fi
+
+  export APPSTORE_CONNECT_API_KEY_ID="$(vw_field "$asc_item" APPSTORE_CONNECT_API_KEY_ID)"
+  export APPSTORE_CONNECT_ISSUER_ID="$(vw_field "$asc_item" APPSTORE_CONNECT_ISSUER_ID)"
+  export APPLE_TEAM_ID="$(vw_field "$asc_item" APPLE_TEAM_ID)"
+  export APPLE_BUNDLE_ID="$(vw_field "$asc_item" APPLE_BUNDLE_ID)"
+  export APPSTORE_CONNECT_API_KEY_PATH="$work_dir/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
+  vw_attachment_by_suffix "$asc_item" ".p8" "$APPSTORE_CONNECT_API_KEY_PATH"
+
+  p12_password="$(vw_field "$signing_item" P12_PASSWORD)"
+  cert_sha1="$(vw_field "$signing_item" CERT_SHA1)"
+  profile_uuid="$(vw_field "$signing_item" PROFILE_UUID)"
+  profile_expires="$(vw_field "$signing_item" PROFILE_EXPIRES)"
+  vw_attachment_by_suffix "$signing_item" ".p12" "$work_dir/distribution.p12"
+  vw_attachment_by_suffix "$signing_item" ".mobileprovision" "$work_dir/appstore.mobileprovision"
+  vw_lock
 fi
 
-export APPSTORE_CONNECT_API_KEY_ID="$(vw_field "$asc_item" APPSTORE_CONNECT_API_KEY_ID)"
-export APPSTORE_CONNECT_ISSUER_ID="$(vw_field "$asc_item" APPSTORE_CONNECT_ISSUER_ID)"
-export APPLE_TEAM_ID="$(vw_field "$asc_item" APPLE_TEAM_ID)"
-export APPLE_BUNDLE_ID="$(vw_field "$asc_item" APPLE_BUNDLE_ID)"
-export APPSTORE_CONNECT_API_KEY_PATH="$work_dir/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
-vw_attachment_by_suffix "$asc_item" ".p8" "$APPSTORE_CONNECT_API_KEY_PATH"
-
-p12_password="$(vw_field "$signing_item" P12_PASSWORD)"
-cert_sha1="$(vw_field "$signing_item" CERT_SHA1)"
-profile_uuid="$(vw_field "$signing_item" PROFILE_UUID)"
-profile_expires="$(vw_field "$signing_item" PROFILE_EXPIRES)"
-vw_attachment_by_suffix "$signing_item" ".p12" "$work_dir/distribution.p12"
-vw_attachment_by_suffix "$signing_item" ".mobileprovision" "$work_dir/appstore.mobileprovision"
-vw_lock
-
-echo "Team $APPLE_TEAM_ID · bundle $APPLE_BUNDLE_ID · profile $profile_uuid (expires $profile_expires)"
+echo "Team ${APPLE_TEAM_ID:-unknown} · bundle ${APPLE_BUNDLE_ID:-unknown} · profile ${profile_uuid:-unknown} (expires ${profile_expires})"
 
 # --- 2. Temporary keychain with the distribution certificate ----------------
 security create-keychain -p "$keychain_password" "$keychain"

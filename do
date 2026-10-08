@@ -224,6 +224,9 @@ Commands:
   upload-secrets [options] [env_file] [owner/repo]
     Sync environment variables/secrets from .env to GitHub Actions.
 
+  sync-ios-secrets [--env-file <path>]
+    Export iOS distribution signing & App Store Connect keys from Vaultwarden into base64 env vars.
+
   cleanup-resources local
     Cleanup generated or unneeded resources.
 EOF
@@ -484,6 +487,11 @@ fi
 
 if [[ "$command" == "upload-secrets" ]]; then
   bash ./scripts/upload-env-to-gh-secrets.sh "${@:2}"
+  exit $?
+fi
+
+if [[ "$command" == "sync-ios-secrets" ]]; then
+  bash ./scripts/sync-ios-secrets-to-env.sh "${@:2}"
   exit $?
 fi
 

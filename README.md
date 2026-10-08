@@ -137,6 +137,10 @@ Common usage:
 
 # Push local env values into Vaultwarden
 ./creds.sh push --env-file .env.production
+
+# Export iOS signing secrets & certificates from Vaultwarden to .env.production:
+./do sync-ios-secrets --env-file .env.production
+# (Then run `./creds.sh push` to persist them to the package folder for `./creds.sh pull`)
 ```
 
 Requirements:
