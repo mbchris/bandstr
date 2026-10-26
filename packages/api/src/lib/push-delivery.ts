@@ -129,7 +129,7 @@ function parseGoogleServiceAccountFromEnv(): GoogleServiceAccount | null {
   return null
 }
 
-function resolveFcmConfig(): FcmConfigState {
+export function resolveFcmConfig(): FcmConfigState {
   const projectIdFromEnv = (process.env.FCM_PROJECT_ID ?? '').trim()
   const serviceAccountJson = (process.env.FCM_SERVICE_ACCOUNT_JSON ?? '').trim()
   const googleCredsJson = (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ?? '').trim()

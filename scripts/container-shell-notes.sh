@@ -100,6 +100,14 @@ EMAIL DELIVERY TESTING
   Show full usage: /app/bandstr-mail-test --help
 
 --------------------------------------------------------------------------------
+CREDENTIAL CHECKS
+--------------------------------------------------------------------------------
+- Test every configured secret against its service (harmless requests, values never printed)
+  node /app/packages/api/dist/cli/verify-secrets.js
+  Compare with leaked values: run scripts/leaked-secret-fingerprints.mjs locally, paste its command here
+  Show full usage: node /app/packages/api/dist/cli/verify-secrets.js --help
+
+--------------------------------------------------------------------------------
 DATA IMPORTS
 --------------------------------------------------------------------------------
 - Import songs from an external PostgreSQL database into a band
