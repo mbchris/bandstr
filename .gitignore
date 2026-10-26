@@ -68,9 +68,14 @@ apm_modules/
 *.p12
 *.mobileprovision
 
-# Leaked credentials (purged from history 2026-10-26)
-.env.old
-.env.bak*
-.env.coolify*
-.tools/*creds*.json
+# Secrets (see docs/security/2026-10-26-credential-leak.md)
+# Every env file is ignored except committed templates.
+.env*
+!.env*.template
+*.jks
+*.keystore
+*.pem
 *firebase-adminsdk*.json
+*service-account*.json
+*serviceaccount*.json
+*-creds*.json
